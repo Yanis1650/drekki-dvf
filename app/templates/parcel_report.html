@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Foncier - {{ parcel_id }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+
+        * {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .score-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e2e8f0;
+        }
+
+        .score-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 160px;
+            height: 80px;
+            overflow: hidden;
+        }
+
+        .gauge-bg {
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 16px solid #e2e8f0;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
+            transform: rotate(-45deg);
+        }
+
+        .gauge-fill {
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            border: 16px solid transparent;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
+            transform: rotate(-45deg);
+        }
+    </style>
+</head>
+
+<body class="bg-white text-gray-800 p-4">
+    <!-- ==================== PAGE 1: SYNTHÈSE ==================== -->
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-xl mb-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Rapport d'Expertise Foncière</h1>
+                <p class="text-indigo-100 mt-1 font-mono text-sm">{{ parcel_id }}</p>
+            </div>
+            <div class="text-right">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                        <span class="text-lg">🏠</span>
+                    </div>
+                    <span class="font-bold text-lg">Foncier-Express</span>
+                </div>
+                <p class="text-indigo-200 text-sm mt-2">{{ generated_date }}</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Fiche d'Identité -->
+    <section class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-indigo-500 pb-2 mb-4 flex items-center gap-2">
+            <span>📍</span> Identification Cadastrale
+        </h2>
+
+        <div class="grid grid-cols-3 gap-4">
+            <div class="bg-gray-50 p-4 rounded-xl">
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Identifiant</p>
+                <p class="text-lg font-bold font-mono text-gray-900">{{ parcel_id }}</p>
+            </div>
+            {% if parcel_info %}
+            <div class="bg-gray-50 p-4 rounded-xl">
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Commune</p>
+                <p class="text-lg font-bold text-gray-900">{{ parcel_info.code_commune or 'N/A' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-xl">
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Surface Cadastrale</p>
+                <p class="text-lg font-bold text-gray-900">
+                    {% if parcel_info.surface %}
+                    {{ "%.0f"|format(parcel_info.surface) }} m²
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </p>
+            </div>
+            {% else %}
+            <div class="bg-gray-50 p-4 rounded-xl col-span-2">
+                <p class="text-gray-500 italic">Données cadastrales non disponibles</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Analyse de Marché -->
+    <section class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-emerald-500 pb-2 mb-4 flex items-center gap-2">
+            <span>💰</span> Analyse de Marché DVF
+        </h2>
+
+        {% if transactions %}
+        <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-200">
+                <p class="text-xs text-emerald-600 uppercase tracking-wide">Prix Moyen m²</p>
+                <p class="text-2xl font-bold text-emerald-700">{{ avg_price_m2|format_currency if avg_price_m2 else
+                    'N/A' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-xl text-center">
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Minimum</p>
+                <p class="text-xl font-semibold text-gray-700">{{ min_price_m2|format_currency if min_price_m2 else
+                    'N/A' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-xl text-center">
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Maximum</p>
+                <p class="text-xl font-semibold text-gray-700">{{ max_price_m2|format_currency if max_price_m2 else
+                    'N/A' }}</p>
+            </div>
+        </div>
+
+        <!-- Dernières Transactions -->
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="text-left p-3 font-semibold text-gray-600">Date</th>
+                        <th class="text-right p-3 font-semibold text-gray-600">Valeur Foncière</th>
+                        <th class="text-right p-3 font-semibold text-gray-600">Surface</th>
+                        <th class="text-right p-3 font-semibold text-gray-600">Prix/m²</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions[:5] %}
+                    <tr class="border-t border-gray-100">
+                        <td class="p-3 text-gray-700">{{ tx.date|format_date }}</td>
+                        <td class="p-3 text-right font-semibold">{{ tx.valeur_fonciere|format_currency }}</td>
+                        <td class="p-3 text-right text-gray-600">{{ "%.0f"|format(tx.surface) if tx.surface else '-' }}
+                            m²</td>
+                        <td class="p-3 text-right font-bold text-emerald-600">{{ tx.prix_m2|format_currency if
+                            tx.prix_m2 else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-400 mt-2 text-right">Source: DVF Open Data • Méthodologie Mericskay & Demoraes 2021
+        </p>
+        {% else %}
+        <div class="bg-gray-50 p-6 rounded-xl text-center">
+            <p class="text-gray-500 italic">Aucune transaction DVF enregistrée pour cette parcelle</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- ==================== PAGE 2: DENSIFICATION & ENRICHISSEMENT ==================== -->
+    <div class="page-break"></div>
+
+    <!-- Score ZAN / Densification -->
+    <section class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-amber-500 pb-2 mb-4 flex items-center gap-2">
+            <span>🏗️</span> Potentiel de Densification (ZAN)
+        </h2>
+
+        {% if densification %}
+        <div class="grid grid-cols-2 gap-6">
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-xs text-amber-600 uppercase tracking-wide">Catégorie</p>
+                        <p class="text-xl font-bold 
+                            {% if densification.categorie == 'FORT' %}text-emerald-600
+                            {% elif densification.categorie == 'MODÉRÉ' %}text-amber-600
+                            {% else %}text-red-600{% endif %}">
+                            {{ densification.categorie }}
+                        </p>
+                    </div>
+                    <div class="text-4xl">
+                        {% if densification.categorie == 'FORT' %}🌱
+                        {% elif densification.categorie == 'MODÉRÉ' %}⚠️
+                        {% else %}🔴{% endif %}
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>CES Actuel</span>
+                            <span class="font-semibold">{{ "%.1f"|format(densification.ces_actuel * 100) }}%</span>
+                        </div>
+                        <div class="score-bar">
+                            <div class="score-fill bg-blue-500" style="width: {{ densification.ces_actuel * 100 }}%">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>CES Potentiel (PLU)</span>
+                            <span class="font-semibold">{{ "%.1f"|format(densification.ces_potentiel * 100) }}%</span>
+                        </div>
+                        <div class="score-bar">
+                            <div class="score-fill bg-emerald-500"
+                                style="width: {{ densification.ces_potentiel * 100 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-gradient-to-br from-emerald-50 to-teal-50 p-6 rounded-xl border border-emerald-200 flex flex-col justify-center">
+                <p class="text-xs text-emerald-600 uppercase tracking-wide mb-2">Surface Constructible Restante</p>
+                <p class="text-4xl font-extrabold text-emerald-700">
+                    {{ "%.0f"|format(densification.surface_constructible) }} m²
+                </p>
+                <p class="text-sm text-emerald-600 mt-2">
+                    Potentiel: +{{ "%.0f"|format(densification.potentiel * 100) }}% de densification
+                </p>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-gray-50 p-6 rounded-xl text-center">
+            <p class="text-gray-500 italic">Données de densification non disponibles pour cette parcelle</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Scores d'Enrichissement -->
+    <section class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-purple-500 pb-2 mb-4 flex items-center gap-2">
+            <span>🎯</span> Scores de Qualité de Localisation
+        </h2>
+
+        {% if enrichment %}
+        <div class="grid grid-cols-5 gap-3 mb-4">
+            <div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-200">
+                <div class="text-2xl mb-1">🎓</div>
+                <p class="text-xs text-blue-600 uppercase mb-1">Éducation</p>
+                <p class="text-xl font-bold text-blue-700">{{ "%.1f"|format(enrichment.education) }}/10</p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-xl text-center border border-green-200">
+                <div class="text-2xl mb-1">🚇</div>
+                <p class="text-xs text-green-600 uppercase mb-1">Transport</p>
+                <p class="text-xl font-bold text-green-700">{{ "%.1f"|format(enrichment.transport) }}/10</p>
+            </div>
+            <div class="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-200">
+                <div class="text-2xl mb-1">🌳</div>
+                <p class="text-xs text-emerald-600 uppercase mb-1">Espaces Verts</p>
+                <p class="text-xl font-bold text-emerald-700">{{ "%.1f"|format(enrichment.green_spaces) }}/10</p>
+            </div>
+            <div class="bg-orange-50 p-4 rounded-xl text-center border border-orange-200">
+                <div class="text-2xl mb-1">🔇</div>
+                <p class="text-xs text-orange-600 uppercase mb-1">Nuisances</p>
+                <p class="text-xl font-bold text-orange-700">{{ "%.1f"|format(enrichment.nuisances) }}/10</p>
+            </div>
+            <div
+                class="bg-gradient-to-br from-indigo-100 to-purple-100 p-4 rounded-xl text-center border-2 border-indigo-300">
+                <div class="text-2xl mb-1">🏆</div>
+                <p class="text-xs text-indigo-600 uppercase mb-1">Global</p>
+                <p class="text-2xl font-extrabold text-indigo-700">{{ "%.1f"|format(enrichment.global) }}/10</p>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-gray-50 p-6 rounded-xl text-center">
+            <p class="text-gray-500 italic">Scores de qualité non disponibles</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Filiation Parcellaire -->
+    <section class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 border-b-2 border-gray-400 pb-2 mb-4 flex items-center gap-2">
+            <span>🌳</span> Historique de Filiation
+        </h2>
+
+        {% if filiation and filiation.events %}
+        <div class="relative pl-6 border-l-2 border-indigo-200 space-y-4">
+            {% for event in filiation.events[:6] %}
+            <div class="relative">
+                <div class="absolute -left-8 w-4 h-4 bg-indigo-500 rounded-full border-2 border-white"></div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="flex justify-between items-baseline">
+                        <span class="font-semibold text-gray-900">{{ event.type_filiation }}</span>
+                        <span class="text-xs text-gray-500">{{ event.date_acte|format_date if event.date_acte else ''
+                            }}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">
+                        {% if event.parcelles_filles %}
+                        <span class="text-indigo-600 font-mono text-xs">{{ event.parcelles_filles|join(', ') }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-gray-50 p-6 rounded-xl text-center">
+            <p class="text-gray-500 italic">Aucun historique de filiation disponible</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Footer / Mention Légale -->
+    <footer class="mt-8 pt-4 border-t border-gray-200">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-xs text-gray-400">
+                    Document d'aide à la décision • N'engage pas la responsabilité de l'éditeur
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    Données: DVF Open Data, BDNB, OpenStreetMap • Méthodologie Mericskay & Demoraes 2021
+                </p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm font-semibold text-indigo-600">Foncier-Express</p>
+                <p class="text-xs text-gray-400">foncier-express.fr</p>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>

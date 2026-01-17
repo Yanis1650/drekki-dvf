@@ -1,0 +1,44 @@
+[project]
+name = "foncier-express"
+version = "0.1.0"
+description = "Analyse foncière DVF avec méthodologie Mericskay"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "polars>=0.20.0",
+    "duckdb>=0.9.2",
+    "sqlalchemy>=2.0.25",
+    "geoalchemy2>=0.14.3",
+    "shapely>=2.0.2",
+    "psycopg[binary]>=3.1.17",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "playwright>=1.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "data-pipeline"]

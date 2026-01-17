@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
+env/
+.env
+.env.*
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.eslintcache
+
+# Local Data (Project Specific)
+data/
+cache/
+data_backup/
+*.db
+*.duckdb
+*.parquet
+*.pdf
+*.log
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.bak
+
+# Checkpoints (Artifacts/Logs)
+CHECKPOINT_*.md
+report_verification.html
+dashboard.html
