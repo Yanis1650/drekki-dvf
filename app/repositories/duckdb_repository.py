@@ -3,13 +3,13 @@
 Uses DuckDB spatial extension for fast local queries.
 """
 
-from datetime import date
+import logging
+from datetime import date, datetime
 from decimal import Decimal
 from math import cos, radians
 from pathlib import Path
 
 import duckdb
-from pyproj import Transformer
 
 from app.domain.models import (
     DensificationScore,
@@ -20,44 +20,25 @@ from app.domain.models import (
     Transaction,
 )
 from app.infrastructure.duckdb_pool import DuckDBPool
+from app.repositories.duckdb_base import DuckDBConnectionBase
+from app.repositories.duckdb_geojson import build_parcelles_geojson, build_transactions_geojson
 from app.repositories.interfaces import (
     IEnrichmentRepository,
     ILandRepository,
     ITransactionRepository,
 )
 
+logger = logging.getLogger(__name__)
 
-class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentRepository):
+
+class DuckDBLandRepository(
+    DuckDBConnectionBase, ILandRepository, ITransactionRepository, IEnrichmentRepository
+):
     """DuckDB implementation of land repositories.
 
     Uses DuckDB's spatial extension for efficient local querying.
     Supports both legacy single-DB and multi-dept pool modes.
     """
-
-    def __init__(self, db_path: Path | str, pool: DuckDBPool | None = None) -> None:
-        self._db_path = Path(db_path)
-        self._pool = pool
-        self._conn: duckdb.DuckDBPyConnection | None = None
-
-    def _get_connection(self, dept: str | None = None) -> duckdb.DuckDBPyConnection:
-        """Get connection, routing to per-dept DB when pool is available."""
-        if self._pool and dept:
-            return self._pool.get_connection(dept)
-
-        if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            self._conn.execute("INSTALL spatial; LOAD spatial;")
-        return self._conn
-
-    def _dept_from_parcelle(self, id_parcelle: str) -> str | None:
-        if self._pool and id_parcelle and len(id_parcelle) >= 2:
-            return DuckDBPool.extract_dept(id_parcelle)
-        return None
-
-    def _dept_from_commune(self, code_commune: str) -> str | None:
-        if self._pool and code_commune and len(code_commune) >= 2:
-            return DuckDBPool.extract_dept(code_commune)
-        return None
 
     async def get_parcelle_by_id(self, id_parcelle: str) -> Parcelle | None:
         """Retrieve a single parcel by its ID."""
@@ -119,66 +100,9 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         max_y: float,
         limit: int = 1000,
     ) -> str:
-        """Retrieve DVF transactions as GeoJSON Point features.
-        
-        Returns transaction points with properties: id, prix_m2, date, valeur_fonciere.
-        Uses france_foncier_test table for transactions with coordinates.
-        """
+        """Retrieve DVF transactions as GeoJSON Point features."""
         conn = self._get_connection()
-
-        query = """
-            SELECT 
-                id_mutation,
-                longitude,
-                latitude,
-                prix_m2,
-                date_mutation,
-                valeur_fonciere,
-                nature_mutation
-            FROM france_foncier_test
-            WHERE longitude BETWEEN ? AND ?
-              AND latitude BETWEEN ? AND ?
-              AND longitude IS NOT NULL
-              AND latitude IS NOT NULL
-            LIMIT ?
-        """
-
-        try:
-            results = conn.execute(query, [min_x, max_x, min_y, max_y, limit]).fetchall()
-            print(f"DEBUG: get_transactions_geojson found {len(results)} transactions")
-        except Exception as e:
-            print(f"ERROR: get_transactions_geojson failed: {e}")
-            return '{"type": "FeatureCollection", "features": []}'
-
-        features = []
-
-        for r in results:
-            mutation_id = r[0]
-            lon, lat = float(r[1]), float(r[2])
-            prix_m2 = float(r[3]) if r[3] else None
-            date_mutation = str(r[4]) if r[4] else None
-            valeur_fonciere = float(r[5]) if r[5] else None
-            nature_mutation = r[6] if r[6] else None
-
-            # Build properties for transaction point
-            props = [f'"id": "{mutation_id}"']
-            if prix_m2:
-                props.append(f'"prix_m2": {prix_m2}')
-            if date_mutation:
-                props.append(f'"date": "{date_mutation}"')
-            if valeur_fonciere:
-                props.append(f'"valeur_fonciere": {valeur_fonciere}')
-            if nature_mutation:
-                props.append(f'"nature": "{nature_mutation}"')
-
-            props_str = ", ".join(props)
-
-            # Create Point geometry
-            features.append(
-                f'{{"type": "Feature", "properties": {{{props_str}}}, "geometry": {{"type": "Point", "coordinates": [{lon}, {lat}]}}}}'
-            )
-
-        return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'
+        return build_transactions_geojson(conn, min_x, min_y, max_x, max_y, limit)
 
     async def get_parcelles_geojson(
         self,
@@ -188,202 +112,9 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         max_y: float,
         limit: int = 500,
     ) -> str:
-        """Retrieve cadastral parcels as GeoJSON Polygon features with BDNB enrichment.
-        
-        Returns parcel polygons with properties: id_parcelle, dpe, annee_construction.
-        Uses parcelles table with LEFT JOIN on BDNB stats for DPE data.
-        Limited to Dept 35 for performance (real geometry available).
-        """
+        """Retrieve cadastral parcels as GeoJSON Polygon features with transaction counts."""
         conn = self._get_connection()
-
-        try:
-            # Convert WGS84 bbox to Lambert-93 using pyproj
-
-            # Create transformer: WGS84 (EPSG:4326) -> Lambert-93 (EPSG:2154)
-            transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
-
-            # Transform bbox corners
-            min_x_l93, min_y_l93 = transformer.transform(min_x, min_y)
-            max_x_l93, max_y_l93 = transformer.transform(max_x, max_y)
-
-            print(f"DEBUG: WGS84 bbox: ({min_x}, {min_y}) -> ({max_x}, {max_y})")
-            print(f"DEBUG: Lambert-93 bbox: ({min_x_l93:.2f}, {min_y_l93:.2f}) -> ({max_x_l93:.2f}, {max_y_l93:.2f})")
-
-            # Step 1: Get parcelles in bbox with FULL 14-char ID
-            # Construct ID from: code_commune (5) + prefixe (3) + section (2) + numero (4 with padding) = 14 chars
-            # Filter out large cadastral sections (> 10,000 m² = 1 hectare) - these are divisions, not individual parcels
-            parcelles_query = """
-                SELECT 
-                    CONCAT(
-                        COALESCE(p.code_commune, ''),
-                        COALESCE(p.prefixe, '000'),
-                        COALESCE(p.section, ''),
-                        LPAD(COALESCE(p.numero, ''), 4, '0')
-                    ) as full_id_parcelle,
-                    ST_AsText(p.geometry) as geom_wkt,
-                    ST_AsGeoJSON(p.geometry) as geom_json,
-                    ST_Area(p.geometry) as surface_m2
-                FROM parcelles p
-                WHERE p.code_commune LIKE '35%'
-                  AND ST_Intersects(
-                      p.geometry,
-                      ST_MakeEnvelope(?, ?, ?, ?)
-                  )
-                  AND ST_Area(p.geometry) < 10000  -- Exclude large sections (> 1 hectare)
-                  AND ST_Area(p.geometry) > 10     -- Exclude micro-parcels (< 10 m²)
-                LIMIT ?
-            """
-
-            parcelles_results = conn.execute(parcelles_query, [min_x_l93, min_y_l93, max_x_l93, max_y_l93, limit]).fetchall()
-            print(f"DEBUG: get_parcelles_geojson found {len(parcelles_results)} parcels")
-
-            # Step 2: Get transactions in same bbox (WGS84 coordinates)
-            transactions_query = """
-                SELECT 
-                    id_mutation,
-                    longitude,
-                    latitude
-                FROM france_foncier_test
-                WHERE longitude BETWEEN ? AND ?
-                  AND latitude BETWEEN ? AND ?
-                  AND longitude IS NOT NULL
-                  AND latitude IS NOT NULL
-            """
-
-            transactions_results = conn.execute(transactions_query, [min_x, max_x, min_y, max_y]).fetchall()
-            print(f"DEBUG: Found {len(transactions_results)} transactions in bbox for spatial join")
-
-        except Exception as e:
-            print(f"ERROR: get_parcelles_geojson failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return '{"type": "FeatureCollection", "features": []}'
-
-        # Step 3: SQL-based spatial join using DuckDB (FAST!)
-        # Count transactions per parcel using ST_Contains in DuckDB
-        try:
-            count_query = """
-                WITH tx_points AS (
-                    SELECT 
-                        id_mutation,
-                        ST_Transform(ST_Point(longitude, latitude), 'EPSG:4326', 'EPSG:2154') as geom_l93
-                    FROM france_foncier_test
-                    WHERE longitude BETWEEN ? AND ?
-                      AND latitude BETWEEN ? AND ?
-                      AND longitude IS NOT NULL
-                      AND latitude IS NOT NULL
-                ),
-                parcel_bounds AS (
-                    SELECT 
-                        p.id_parcelle,
-                        p.geometry
-                    FROM parcelles p
-                    WHERE p.code_commune LIKE '35%'
-                      AND ST_Intersects(
-                          p.geometry,
-                          ST_MakeEnvelope(?, ?, ?, ?)
-                      )
-                      AND ST_Area(p.geometry) < 10000  -- Exclude large sections
-                      AND ST_Area(p.geometry) > 10     -- Exclude micro-parcels
-                    LIMIT ?
-                )
-                SELECT 
-                    pb.id_parcelle,
-                    COUNT(tx.id_mutation) as transaction_count
-                FROM parcel_bounds pb
-                LEFT JOIN tx_points tx ON ST_Contains(pb.geometry, tx.geom_l93)
-                GROUP BY pb.id_parcelle
-            """
-
-            tx_counts_results = conn.execute(count_query, [
-                min_x, max_x, min_y, max_y,  # Transaction bbox (WGS84)
-                min_x_l93, min_y_l93, max_x_l93, max_y_l93,  # Parcel bbox (Lambert-93)
-                limit
-            ]).fetchall()
-
-            # Build transaction count map
-            transaction_counts = {row[0]: row[1] for row in tx_counts_results}
-            print(f"DEBUG: Transaction counts computed for {len(transaction_counts)} parcels via SQL")
-
-        except Exception as e:
-            print(f"ERROR: SQL spatial join failed: {e}")
-            import traceback
-            traceback.print_exc()
-            transaction_counts = {}
-
-
-
-        features = []
-        seen_ids = set()
-
-        # Create reverse transformer: Lambert-93 -> WGS84 for output
-        transformer_output = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
-
-        for r in parcelles_results:  # Use parcelles_results instead of undefined 'results'
-            parcel_id = r[0]
-            geom_wkt_str = r[1]
-            geom_json_l93 = r[2]  # Geometry in Lambert-93
-
-            if parcel_id in seen_ids:
-                continue
-            seen_ids.add(parcel_id)
-
-            if not geom_json_l93:
-                continue
-
-            # Parse Lambert-93 geometry and transform to WGS84
-            import json
-            geom_l93 = json.loads(geom_json_l93)
-
-            # Transform coordinates from Lambert-93 to WGS84
-            if geom_l93['type'] == 'Polygon':
-                # Polygon has array of rings (outer + holes)
-                transformed_coords = []
-                for ring in geom_l93['coordinates']:
-                    transformed_ring = [
-                        list(transformer_output.transform(x, y))
-                        for x, y in ring
-                    ]
-                    transformed_coords.append(transformed_ring)
-                geom_wgs84 = {
-                    'type': 'Polygon',
-                    'coordinates': transformed_coords
-                }
-            elif geom_l93['type'] == 'MultiPolygon':
-                # MultiPolygon has array of polygons
-                transformed_coords = []
-                for polygon in geom_l93['coordinates']:
-                    transformed_polygon = []
-                    for ring in polygon:
-                        transformed_ring = [
-                            list(transformer_output.transform(x, y))
-                            for x, y in ring
-                        ]
-                        transformed_polygon.append(transformed_ring)
-                    transformed_coords.append(transformed_polygon)
-                geom_wgs84 = {
-                    'type': 'MultiPolygon',
-                    'coordinates': transformed_coords
-                }
-            else:
-                # Fallback: keep original (shouldn't happen)
-                geom_wgs84 = geom_l93
-
-            # Build properties for parcel
-            tx_count = transaction_counts.get(parcel_id, 0)
-            props = [
-                f'"id_parcelle": "{parcel_id}"',
-                f'"transaction_count": {tx_count}'
-            ]
-            props_str = ", ".join(props)
-
-            # Create Polygon feature with WGS84 coordinates
-            geom_json_wgs84 = json.dumps(geom_wgs84)
-            features.append(
-                f'{{"type": "Feature", "properties": {{{props_str}}}, "geometry": {geom_json_wgs84}}}'
-            )
-
-        return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'
+        return build_parcelles_geojson(conn, min_x, min_y, max_x, max_y, limit)
 
     async def get_parcelles_in_bbox(
         self,
@@ -398,7 +129,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         This method is kept for backward compatibility but will be removed.
         It incorrectly mixes DVF transactions with parcel geometries.
         """
-        print("WARNING: get_parcelles_in_bbox is deprecated. Use get_parcelles_geojson() instead.")
+        logger.warning("get_parcelles_in_bbox is deprecated. Use get_parcelles_geojson() instead.")
         return await self.get_parcelles_geojson(min_x, min_y, max_x, max_y, limit)
 
 
@@ -846,10 +577,10 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
             if result:
                 return result[0]
         except Exception as e:
-            logger.warning(f"Direct lookup failed for {id_parcelle_dvf}: {e}")
+            logger.warning("Direct lookup failed for %s: %s", id_parcelle_dvf, e)
 
         # Step 2: Spatial intersection
-        logger.info(f"Parcelle {id_parcelle_dvf} not found, spatial fallback")
+        logger.info("Parcelle %s not found, spatial fallback", id_parcelle_dvf)
         buffer_degrees = buffer_meters / 111000
 
         query = """
@@ -874,10 +605,10 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
                 query, [longitude, latitude, buffer_degrees, longitude, latitude]
             ).fetchone()
             if result:
-                logger.info(f"Spatial fix: {id_parcelle_dvf} → {result[0]} ({result[1]:.2f}m)")
+                logger.info("Spatial fix: %s -> %s (%.2fm)", id_parcelle_dvf, result[0], result[1])
                 return result[0]
         except Exception as e:
-            logger.error(f"Spatial fallback failed: {e}")
+            logger.error("Spatial fallback failed: %s", e)
 
         return None
 
@@ -1114,7 +845,8 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
 
         Returns a list of flat dicts ready for JSON/CSV serialization.
         """
-        conn = self._get_connection(self._dept_from_commune(code_commune))
+        dept = self._dept_from_commune(code_commune) if code_commune else None
+        conn = self._get_connection(dept)
 
         clauses = ["1=1"]
         params: list = []
@@ -1183,9 +915,3 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
                     d[col] = val
             rows.append(d)
         return rows
-
-    def close(self) -> None:
-        """Close the database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None

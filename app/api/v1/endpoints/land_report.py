@@ -1,0 +1,45 @@
+"""Land mutation report endpoint."""
+
+import logging
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, Query
+from fastapi.responses import Response
+
+from app.api.deps import CreditCheckDep, ReportDep, get_user_repository
+from app.repositories.user_repository import UserRepository
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["land", "reports"])
+
+
+@router.get("/report/{id_mutation}")
+async def generate_mutation_report(
+    id_mutation: str,
+    report_service: ReportDep,
+    user: CreditCheckDep,
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+    format: Annotated[str, Query(description="Output format: pdf or html")] = "html",
+) -> Response:
+    """Generate report for a mutation. Consumes 1 Credit."""
+    try:
+        content = await report_service.generate_report(id_mutation, format=format)
+        await user_repo.update_balance(user.id, -1, f"Report generated: {id_mutation}")
+        await user_repo.session.commit()
+        if format == "pdf":
+            return Response(
+                content=content,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="rapport_{id_mutation}.pdf"'},
+            )
+        return Response(
+            content=content,
+            media_type="text/html",
+            headers={"Content-Type": "text/html; charset=utf-8"},
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Mutation not found")
+    except Exception:
+        logger.exception("Report generation failed for mutation %s", id_mutation)
+        raise HTTPException(status_code=500, detail="Report generation failed")
