@@ -3,7 +3,10 @@
 Provides historical market data and trend analysis.
 """
 
+import logging
 from typing import Annotated
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -121,6 +124,7 @@ async def get_market_trends(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Market trends analysis failed")
         raise HTTPException(
             status_code=500,
             detail=f"Market trends analysis failed: {str(e)}"
@@ -143,15 +147,11 @@ async def get_parcel_history(
         limit: Maximum number of transactions to return (default: 5)
     """
     try:
-        # DEBUG: Log received parcel ID
-        print(f"🔍 [PARCEL HISTORY] Received parcel_id: '{parcel_id}'")
-        print(f"🔍 [PARCEL HISTORY] parcel_id length: {len(parcel_id)}")
-        print(f"🔍 [PARCEL HISTORY] parcel_id chars: {[c for c in parcel_id]}")
+        logger.debug("Parcel history request: parcel_id=%s len=%d", parcel_id, len(parcel_id))
 
         transactions = await repository.get_parcel_history(parcel_id, limit)
 
-        # DEBUG: Log results count
-        print(f"🔍 [PARCEL HISTORY] Found {len(transactions)} transactions for '{parcel_id}'")
+        logger.debug("Parcel history: found %d transactions for %s", len(transactions), parcel_id)
 
         return ParcelHistoryResponse(
             parcel_id=parcel_id,
@@ -159,6 +159,7 @@ async def get_parcel_history(
         )
 
     except Exception as e:
+        logger.exception("Parcel history query failed for %s", parcel_id)
         raise HTTPException(
             status_code=500,
             detail=f"Parcel history query failed: {str(e)}"

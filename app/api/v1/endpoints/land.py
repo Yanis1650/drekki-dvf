@@ -3,9 +3,15 @@
 Provides spatial search and DVF analysis via REST API.
 """
 
+import logging
 from datetime import date
+
+logger = logging.getLogger(__name__)
 from decimal import Decimal
 from typing import Annotated
+
+import csv
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -16,8 +22,10 @@ from app.api.deps import (
     EnrichmentDep,
     ReportDep,
     RepositoryDep,
+    SettingsDep,
     get_user_repository,
 )
+from app.infrastructure.duckdb_pool import get_pool
 from app.repositories.user_repository import UserRepository
 from app.schemas import (
     EnrichedMutationResponse,
@@ -94,6 +102,7 @@ async def search_transactions(
         )
 
     except Exception as e:
+        logger.exception("Search failed for lat=%s lon=%s radius=%s", lat, lon, radius)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
@@ -194,6 +203,7 @@ async def search_transactions_enriched(
         )
 
     except Exception as e:
+        logger.exception("Enriched search failed for lat=%s lon=%s", lat, lon)
         raise HTTPException(status_code=500, detail=f"Enriched search failed: {str(e)}")
 
 
@@ -227,6 +237,7 @@ async def get_commune_stats(
         )
 
     except Exception as e:
+        logger.exception("Stats query failed for commune %s", code_commune)
         raise HTTPException(status_code=500, detail=f"Stats query failed: {str(e)}")
 
 
@@ -262,6 +273,7 @@ async def get_commune_mutations(
         ]
 
     except Exception as e:
+        logger.exception("Commune mutations query failed for %s", code_commune)
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 
@@ -309,6 +321,7 @@ async def generate_mutation_report(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.exception("Report generation failed for mutation %s", id_mutation)
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
 
 
@@ -348,6 +361,7 @@ async def get_transactions_geojson(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid bbox coordinates")
     except Exception as e:
+        logger.exception("Transactions GeoJSON query failed for bbox=%s", bbox)
         raise HTTPException(status_code=500, detail=f"Transactions query failed: {str(e)}")
 
 
@@ -388,7 +402,84 @@ async def get_parcelles_geojson(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid bbox coordinates")
     except Exception as e:
+        logger.exception("Parcelles GeoJSON query failed for bbox=%s", bbox)
         raise HTTPException(status_code=500, detail=f"Parcelles query failed: {str(e)}")
+
+
+@router.get("/parcelles/search")
+async def search_parcelles(
+    repository: RepositoryDep,
+    code_commune: Annotated[str | None, Query(description="Code INSEE commune (5 chars)")] = None,
+    categorie: Annotated[str | None, Query(description="FORT|MOYEN|FAIBLE|SATURE|NON_MUTABLE")] = None,
+    confidence_min: Annotated[float, Query(description="Score confiance minimum (0-1)", ge=0, le=1)] = 0.0,
+    prix_m2_max: Annotated[float | None, Query(description="Prix max au m2")] = None,
+    surface_min: Annotated[float | None, Query(description="Surface parcelle min (m2)")] = None,
+    annee_min: Annotated[int | None, Query(description="Annee mutation minimum")] = None,
+    export_csv: Annotated[bool, Query(description="Retourner un fichier CSV")] = False,
+    limit: Annotated[int, Query(ge=1, le=2000)] = 500,
+):
+    """Recherche multi-criteres de parcelles avec filtres DVF + densification + confiance.
+
+    Supporte l'export CSV pour analyse externe (tableur, SIG).
+    """
+    try:
+        rows = await repository.search_parcelles(
+            code_commune=code_commune,
+            categorie=categorie,
+            confidence_min=confidence_min,
+            prix_m2_max=prix_m2_max,
+            surface_min=surface_min,
+            annee_min=annee_min,
+            limit=limit,
+        )
+
+        if export_csv:
+            if not rows:
+                return Response(content="", media_type="text/csv")
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=rows[0].keys(), delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+            return Response(
+                content=buf.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": "attachment; filename=export_foncier.csv",
+                },
+            )
+
+        return {"count": len(rows), "results": rows}
+
+    except Exception as e:
+        logger.exception("Parcelles search failed")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@router.get("/parcelles/{id_parcelle}/fiche")
+async def get_parcel_fiche(
+    id_parcelle: str,
+    repository: RepositoryDep,
+):
+    """Fiche parcelle complete : DVF + BDNB + densification + confiance.
+
+    Endpoint unique qui agrege toutes les sources de donnees pour une parcelle.
+    Inclut le score de confiance et un warning explicite si les donnees
+    sont partielles.
+    """
+    try:
+        fiche = await repository.get_parcelle_fiche(id_parcelle)
+        if fiche is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Aucune donnee trouvee pour la parcelle {id_parcelle}",
+            )
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Fiche query failed for parcelle %s", id_parcelle)
+        raise HTTPException(status_code=500, detail=f"Fiche query failed: {str(e)}")
 
 
 @router.get("/parcelles/{id_parcelle}/densification")
@@ -422,6 +513,7 @@ async def get_parcel_densification(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Densification query failed for parcelle %s", id_parcelle)
         raise HTTPException(status_code=500, detail=f"Densification query failed: {str(e)}")
 
 
@@ -463,5 +555,18 @@ async def get_top_densification_opportunities(
         }
 
     except Exception as e:
+        logger.exception("Top densification opportunities query failed for commune %s", code_commune)
         raise HTTPException(status_code=500, detail=f"Top opportunities query failed: {str(e)}")
+
+
+@router.get("/departements")
+async def list_available_departments(settings: SettingsDep):
+    """Liste les departements disponibles (bases DuckDB presentes)."""
+    pool = get_pool(data_dir=settings.data_dir, legacy_path=settings.duckdb_path)
+    depts = pool.available_depts
+    return {
+        "count": len(depts),
+        "departements": depts,
+        "mode": "multi_dept" if settings.multi_dept else "legacy",
+    }
 
