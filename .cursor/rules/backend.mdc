@@ -1,0 +1,26 @@
+---
+description: Conventions FastAPI, Polars et ETL
+globs:
+  - app/**
+  - data-pipeline/**
+alwaysApply: false
+---
+
+# Backend & Data Pipeline Foncier-Express
+
+## Polars & ETL
+
+- **File Length :** Max 200 lignes par module — scinder si dépassé.
+- **Lazy First :** `pl.scan_csv()` / `pl.scan_parquet()`. Ne pas `.collect()` avant le dernier moment.
+- **Schema Enforcement :** Chaque pipeline Polars doit avoir un schéma de sortie défini.
+- **No Pandas :** Préférer Polars ou PyArrow (Pandas uniquement si dépendance tierce l'impose).
+
+## GIS & Spatial
+
+- **SRID :** Stockage en Lambert-93 (EPSG:2154). Conversion WGS84 (EPSG:4326) uniquement pour API/GeoJSON.
+- **Spatial Index :** Index GIST (PostGIS) ou RTREE (DuckDB) requis avant requêtes d'intersection.
+
+## API & Validation
+
+- **Pydantic v2 :** Types `Annotated` pour validation (coordonnées GPS, codes parcelles).
+- **Structure app/ :** endpoints → services → repositories. Flux unidirectionnel, pas de dépendance circulaire.

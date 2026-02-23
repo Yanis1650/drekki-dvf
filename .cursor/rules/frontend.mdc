@@ -1,0 +1,22 @@
+---
+description: Conventions Vue 3 et frontend
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend Foncier-Express
+
+## Stack
+
+- **Vue 3** : Composition API avec `<script setup>`
+- **MapLibre GL JS** : Rendu cartographique WebGL
+- **Tailwind CSS** : Design glassmorphism (style Stripe)
+- **Vite** : Build tool
+
+## Patterns
+
+- **Composables** : Extraire la logique réutilisable (ex: `useParcelSelection`, `useColorScale`)
+- **No Circular Imports :** Pas de dépendances circulaires entre composants ou stores
+- **API** : Client Axios centralisé dans `api/client.js`
+- **File Length :** Max 200 lignes par composant — extraire en sous-composants si dépassé
+- **État** : Props et emits ; pas de store global sauf si nécessaire

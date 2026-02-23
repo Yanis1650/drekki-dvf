@@ -33,9 +33,9 @@ const chartOptions = computed(() => ({
       easing: 'easeinout',
       speed: 800
     },
-    fontFamily: 'Inter, sans-serif'
+    fontFamily: 'DM Sans, sans-serif'
   },
-  colors: ['#6366f1'],
+  colors: ['#527f8c'],
   fill: {
     type: 'gradient',
     gradient: {
@@ -82,7 +82,7 @@ const chartOptions = computed(() => ({
   },
   markers: {
     size: 4,
-    colors: ['#6366f1'],
+    colors: ['#527f8c'],
     strokeWidth: 2,
     hover: { size: 6 }
   }
@@ -131,8 +131,8 @@ const chartOptions = computed(() => ({
 .count-badge {
   font-size: 11px;
   font-weight: 600;
-  color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+  color: #527f8c;
+  background: rgba(82, 127, 140, 0.1);
   padding: 4px 10px;
   border-radius: 12px;
 }

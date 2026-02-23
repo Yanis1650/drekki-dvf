@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database import get_session
+from app.infrastructure.duckdb_pool import DuckDBPool, get_pool
 from app.infrastructure.models import User
 from app.repositories import DuckDBLandRepository
 from app.repositories.user_repository import UserRepository
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     """Application settings from environment."""
 
     duckdb_path: str = "./data/foncier.duckdb"
+    data_dir: str = "./data"
+    multi_dept: bool = False
     default_srid: int = 2154  # Lambert-93
     api_title: str = "Foncier-Express API"
     api_version: str = "0.1.0"
@@ -42,11 +45,21 @@ def get_settings() -> Settings:
 
 # --- Database Dependencies ---
 
-def get_repository(
+def get_duckdb_pool(
     settings: Annotated[Settings, Depends(get_settings)]
+) -> DuckDBPool | None:
+    """Get multi-dept pool if enabled, else None (legacy single-DB)."""
+    if settings.multi_dept:
+        return get_pool(data_dir=settings.data_dir, legacy_path=settings.duckdb_path)
+    return None
+
+
+def get_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+    pool: Annotated[DuckDBPool | None, Depends(get_duckdb_pool)],
 ) -> DuckDBLandRepository:
-    """Create DuckDB repository instance."""
-    return DuckDBLandRepository(db_path=Path(settings.duckdb_path))
+    """Create DuckDB repository with optional multi-dept pool."""
+    return DuckDBLandRepository(db_path=Path(settings.duckdb_path), pool=pool)
 
 
 def get_user_repository(

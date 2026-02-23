@@ -1,0 +1,18 @@
+---
+description: Principes Clean Architecture et qualité applicables au projet entier
+alwaysApply: true
+---
+
+# Architecture Foncier-Express
+
+## Clean Architecture & SOLID
+
+- **Domain Purity :** Le dossier `app/domain` ne doit contenir aucune dépendance externe (pas de SQLAlchemy, pas de Polars). Uniquement des dataclasses ou modèles Pydantic.
+- **Dependency Injection :** Utiliser `Depends()` FastAPI pour injecter les repositories dans les services.
+- **Interface Segregation :** Chaque repository implémente une interface abstraite (ABC).
+- **No Circular Dependencies :** Aucune dépendance circulaire entre modules. Flux unidirectionnel : endpoints → services → repositories. Vérifier avec `madge --circular` ou équivalent.
+
+## Limites & Qualité
+
+- **File Length :** Limite stricte de 200 lignes. Si dépassé, scinder en sous-services.
+- **Error Handling :** Jamais `except Exception: pass`. Chaque erreur doit être loguée avec `logging` et renvoyer une `HTTPException` claire au client.

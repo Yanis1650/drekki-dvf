@@ -19,6 +19,7 @@ from app.domain.models import (
     Parcelle,
     Transaction,
 )
+from app.infrastructure.duckdb_pool import DuckDBPool
 from app.repositories.interfaces import (
     IEnrichmentRepository,
     ILandRepository,
@@ -30,26 +31,37 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
     """DuckDB implementation of land repositories.
 
     Uses DuckDB's spatial extension for efficient local querying.
-    Expects pre-processed data from the ETL pipeline.
+    Supports both legacy single-DB and multi-dept pool modes.
     """
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, pool: DuckDBPool | None = None) -> None:
         self._db_path = Path(db_path)
+        self._pool = pool
         self._conn: duckdb.DuckDBPyConnection | None = None
 
-    def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Lazy connection initialization with spatial extension."""
+    def _get_connection(self, dept: str | None = None) -> duckdb.DuckDBPyConnection:
+        """Get connection, routing to per-dept DB when pool is available."""
+        if self._pool and dept:
+            return self._pool.get_connection(dept)
+
         if self._conn is None:
-            print(f"DEBUG: Connecting to DuckDB at {self._db_path.absolute()}")
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
             self._conn.execute("INSTALL spatial; LOAD spatial;")
-            tbls = self._conn.execute("SHOW TABLES").fetchall()
-            print(f"DEBUG: Tables in DB: {tbls}")
         return self._conn
+
+    def _dept_from_parcelle(self, id_parcelle: str) -> str | None:
+        if self._pool and id_parcelle and len(id_parcelle) >= 2:
+            return DuckDBPool.extract_dept(id_parcelle)
+        return None
+
+    def _dept_from_commune(self, code_commune: str) -> str | None:
+        if self._pool and code_commune and len(code_commune) >= 2:
+            return DuckDBPool.extract_dept(code_commune)
+        return None
 
     async def get_parcelle_by_id(self, id_parcelle: str) -> Parcelle | None:
         """Retrieve a single parcel by its ID."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
         result = conn.execute(
             """
             SELECT id_parcelle, code_commune, prefixe, section, numero,
@@ -75,7 +87,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
 
     async def get_parcelles_by_commune(self, code_commune: str) -> list[Parcelle]:
         """Retrieve all parcels in a commune."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         results = conn.execute(
             """
             SELECT id_parcelle, code_commune, prefixe, section, numero,
@@ -459,7 +471,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         Returns:
             List of MutationAggregate objects for transactions on this parcel
         """
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
 
         # Query mutations where this parcel is referenced
         query = f"""
@@ -522,7 +534,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         date_to: date | None = None,
     ) -> list[MutationAggregate]:
         """Retrieve aggregated mutations (pre-computed by ETL)."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         query = """
             SELECT id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                    code_commune, parcelles, surface_habitable_totale, nombre_locaux
@@ -618,7 +630,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         date_to: date | None = None,
     ) -> dict[str, Decimal]:
         """Get price statistics for a commune."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         query = """
             SELECT
                 MIN(valeur_fonciere / surface_habitable_totale) as min_price,
@@ -758,7 +770,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
 
     async def get_enrichment_by_parcelle(self, id_parcelle: str) -> EnrichmentScore | None:
         """Retrieve enrichment score for a parcel."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
         result = conn.execute(
             """
             SELECT id_parcelle, schools_score, transport_score,
@@ -782,7 +794,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
 
     async def get_enrichments_by_commune(self, code_commune: str) -> list[EnrichmentScore]:
         """Retrieve all enrichment scores for a commune."""
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         results = conn.execute(
             """
             SELECT e.id_parcelle, e.schools_score, e.transport_score,
@@ -823,7 +835,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         Returns:
             Corrected parcel ID or None
         """
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle_dvf))
 
         # Step 1: Direct ID lookup
         try:
@@ -869,6 +881,120 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
 
         return None
 
+    async def get_parcelle_fiche(self, id_parcelle: str) -> dict | None:
+        """Fiche parcelle complète : DVF + BDNB + densification + confiance.
+
+        Single query joining all data sources for maximum API efficiency.
+        Returns a flat dict ready for JSON serialization.
+        """
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
+
+        result = conn.execute("""
+            WITH transactions AS (
+                SELECT
+                    cadastre_parcelle_id,
+                    COUNT(*) AS nb_transactions,
+                    MAX(date_mutation) AS derniere_mutation,
+                    MIN(date_mutation) AS premiere_mutation,
+                    MAX(valeur_fonciere) AS derniere_valeur,
+                    MAX(prix_m2) AS dernier_prix_m2,
+                    MAX(surface_habitable_totale) AS surface_habitable,
+                    MAX(dpe_energie) AS dpe_energie,
+                    MAX(annee_construction) AS annee_construction,
+                    MAX(hauteur_moyenne) AS hauteur_moyenne,
+                    MAX(nb_niveau) AS nb_niveau,
+                    MAX(type_usage) AS type_usage,
+                    MAX(nb_log) AS nb_log
+                FROM france_foncier_test
+                WHERE cadastre_parcelle_id = ?
+                GROUP BY cadastre_parcelle_id
+            )
+            SELECT
+                t.cadastre_parcelle_id   AS id_parcelle,
+                t.nb_transactions,
+                t.derniere_mutation,
+                t.premiere_mutation,
+                t.derniere_valeur,
+                t.dernier_prix_m2,
+                t.surface_habitable,
+
+                -- BDNB
+                t.dpe_energie,
+                t.annee_construction,
+                t.hauteur_moyenne,
+                t.nb_niveau,
+                t.type_usage,
+                t.nb_log,
+
+                -- Densification
+                d.surface_parcelle_m2,
+                d.surface_plancher_m2,
+                d.emprise_sol_m2,
+                d.ces_actuel,
+                d.ces_potentiel,
+                d.potentiel_densification,
+                d.surface_constructible_restante,
+                d.categorie          AS categorie_densification,
+                d.source_ces,
+
+                -- Confiance
+                c.confidence_global,
+                c.confidence_label,
+                c.score_bdnb,
+                c.score_dvf,
+                c.score_densification,
+                c.score_fraicheur
+
+            FROM transactions t
+            LEFT JOIN densification_scores d
+                ON t.cadastre_parcelle_id = d.id_parcelle
+            LEFT JOIN confidence_scores c
+                ON t.cadastre_parcelle_id = c.id_parcelle
+        """, [id_parcelle]).fetchone()
+
+        if result is None:
+            return None
+
+        cols = [
+            "id_parcelle", "nb_transactions", "derniere_mutation",
+            "premiere_mutation", "derniere_valeur", "dernier_prix_m2",
+            "surface_habitable",
+            "dpe_energie", "annee_construction", "hauteur_moyenne",
+            "nb_niveau", "type_usage", "nb_log",
+            "surface_parcelle_m2", "surface_plancher_m2", "emprise_sol_m2",
+            "ces_actuel", "ces_potentiel", "potentiel_densification",
+            "surface_constructible_restante", "categorie_densification",
+            "source_ces",
+            "confidence_global", "confidence_label", "score_bdnb",
+            "score_dvf", "score_densification", "score_fraicheur",
+        ]
+
+        fiche = {}
+        for col, val in zip(cols, result):
+            if isinstance(val, Decimal):
+                fiche[col] = float(val)
+            elif val is None:
+                fiche[col] = None
+            else:
+                fiche[col] = val
+
+        # Round floats for cleaner API output
+        for key in ["derniere_valeur", "dernier_prix_m2", "surface_habitable",
+                     "surface_parcelle_m2", "surface_plancher_m2", "emprise_sol_m2",
+                     "ces_actuel", "ces_potentiel", "potentiel_densification",
+                     "surface_constructible_restante",
+                     "confidence_global", "score_bdnb", "score_dvf",
+                     "score_densification", "score_fraicheur"]:
+            if fiche.get(key) is not None:
+                fiche[key] = round(float(fiche[key]), 4)
+
+        # Warning if confidence is low
+        conf = fiche.get("confidence_global")
+        if conf is not None and conf < 0.55:
+            fiche["warning"] = "Données partielles — fiabilité limitée pour cette parcelle"
+
+        return fiche
+
     async def get_densification_score(self, id_parcelle: str) -> DensificationScore | None:
         """Retrieve densification score for a single parcel.
         
@@ -878,7 +1004,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         Returns:
             DensificationScore or None if not found
         """
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
         result = conn.execute(
             """
             SELECT id_parcelle, surface_parcelle_m2, surface_plancher_m2,
@@ -911,7 +1037,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         Returns:
             List of DensificationScore objects
         """
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         results = conn.execute(
             """
             SELECT id_parcelle, surface_parcelle_m2, surface_plancher_m2,
@@ -949,7 +1075,7 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
         Returns:
             List of DensificationScore objects with highest potential
         """
-        conn = self._get_connection()
+        conn = self._get_connection(self._dept_from_commune(code_commune))
         results = conn.execute(
             """
             SELECT id_parcelle, surface_parcelle_m2, surface_plancher_m2,
@@ -973,6 +1099,90 @@ class DuckDBLandRepository(ILandRepository, ITransactionRepository, IEnrichmentR
             )
             for r in results
         ]
+
+    async def search_parcelles(
+        self,
+        code_commune: str | None = None,
+        categorie: str | None = None,
+        confidence_min: float = 0.0,
+        prix_m2_max: float | None = None,
+        surface_min: float | None = None,
+        annee_min: int | None = None,
+        limit: int = 500,
+    ) -> list[dict]:
+        """Multi-criteria parcel search joining DVF, densification and confidence.
+
+        Returns a list of flat dicts ready for JSON/CSV serialization.
+        """
+        conn = self._get_connection(self._dept_from_commune(code_commune))
+
+        clauses = ["1=1"]
+        params: list = []
+
+        if code_commune:
+            clauses.append("f.code_commune = ?")
+            params.append(code_commune)
+        if categorie:
+            clauses.append("d.categorie = ?")
+            params.append(categorie.upper())
+        if confidence_min > 0:
+            clauses.append("c.confidence_global >= ?")
+            params.append(confidence_min)
+        if prix_m2_max is not None:
+            clauses.append("f.prix_m2 <= ?")
+            params.append(prix_m2_max)
+        if surface_min is not None:
+            clauses.append("d.surface_parcelle_m2 >= ?")
+            params.append(surface_min)
+        if annee_min is not None:
+            clauses.append("YEAR(f.date_mutation) >= ?")
+            params.append(annee_min)
+
+        where = " AND ".join(clauses)
+
+        query = f"""
+            SELECT
+                f.cadastre_parcelle_id   AS id_parcelle,
+                f.code_commune,
+                f.valeur_fonciere,
+                f.prix_m2,
+                d.surface_parcelle_m2,
+                f.date_mutation,
+                d.categorie,
+                d.potentiel_densification,
+                d.surface_constructible_restante,
+                d.source_ces,
+                c.confidence_global,
+                c.confidence_label
+            FROM france_foncier_test f
+            LEFT JOIN densification_scores d
+                ON f.cadastre_parcelle_id = d.id_parcelle
+            LEFT JOIN confidence_scores c
+                ON f.cadastre_parcelle_id = c.id_parcelle
+            WHERE {where}
+            ORDER BY d.potentiel_densification DESC NULLS LAST
+            LIMIT ?
+        """
+        params.append(limit)
+
+        results = conn.execute(query, params).fetchall()
+        cols = [
+            "id_parcelle", "code_commune", "valeur_fonciere", "prix_m2",
+            "surface_parcelle_m2", "date_mutation", "categorie",
+            "potentiel_densification", "surface_constructible_restante",
+            "source_ces", "confidence_global", "confidence_label",
+        ]
+
+        rows = []
+        for row in results:
+            d = {}
+            for col, val in zip(cols, row):
+                if isinstance(val, Decimal):
+                    d[col] = float(val)
+                else:
+                    d[col] = val
+            rows.append(d)
+        return rows
 
     def close(self) -> None:
         """Close the database connection."""

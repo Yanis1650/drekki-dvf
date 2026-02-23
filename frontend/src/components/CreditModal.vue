@@ -106,7 +106,7 @@ const purchaseCredits = async () => {
                 @click="selectPack(pack)"
                 class="relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200"
                 :class="selectedPack === pack.id 
-                  ? 'border-indigo-500 bg-indigo-50 shadow-md' 
+                  ? 'border-sage-500 bg-sage-50 shadow-md' 
                   : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
               >
                 <!-- Popular Badge -->
@@ -124,7 +124,7 @@ const purchaseCredits = async () => {
                     <div 
                       class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
                       :class="selectedPack === pack.id 
-                        ? 'border-indigo-500 bg-indigo-500' 
+                        ? 'border-sage-500 bg-sage-500' 
                         : 'border-slate-300'"
                     >
                       <CheckIcon v-if="selectedPack === pack.id" class="h-3.5 w-3.5 text-white" />

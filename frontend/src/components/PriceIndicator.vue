@@ -122,7 +122,7 @@ const avgBarWidth = computed(() => {
         <div class="h-3 bg-slate-100 rounded-full overflow-hidden">
           <div 
             class="h-full rounded-full transition-all duration-700 ease-out"
-            :class="isBelow ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : isAbove ? 'bg-gradient-to-r from-rose-500 to-pink-400' : 'bg-gradient-to-r from-indigo-500 to-blue-400'"
+            :class="isBelow ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : isAbove ? 'bg-gradient-to-r from-rouge-500 to-terracotta-400' : 'bg-gradient-to-r from-sage-500 to-sage-400'"
             :style="{ width: `${valueBarWidth}%` }"
           ></div>
         </div>

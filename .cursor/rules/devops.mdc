@@ -1,0 +1,19 @@
+---
+description: Conventions Docker et déploiement
+globs:
+  - docker-compose*
+  - Dockerfile*
+alwaysApply: false
+---
+
+# DevOps Foncier-Express
+
+## Docker
+
+- **PostGIS :** Port 5433 exposé, base `foncier_express`
+- **Backend :** Python 3.11, uvicorn sur port 8000
+- **Frontend :** Build Vite multi-stage, nginx pour servir les assets statiques
+
+## Healthcheck
+
+- Endpoint `/health` sur le backend (port 8000) pour les healthchecks Docker.

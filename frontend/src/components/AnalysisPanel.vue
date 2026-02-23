@@ -76,7 +76,7 @@ const qualityScores = computed(() => [
     label: 'Éducation & Services',
     score: props.enrichment?.education || 8.1,
     icon: AcademicCapIcon,
-    gradient: 'from-indigo-500 to-purple-400'
+    gradient: 'from-sage-500 to-sage-400'
   },
   {
     id: 'commerce',
@@ -143,8 +143,8 @@ watch(() => props.transaction?.id_mutation, () => {
     <!-- Value Analysis Card -->
     <div class="card-elevated p-5">
       <div class="flex items-center gap-2 mb-4">
-        <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-          <BuildingOfficeIcon class="h-4 w-4 text-indigo-600" />
+        <div class="w-8 h-8 rounded-lg bg-sage-100 flex items-center justify-center">
+          <BuildingOfficeIcon class="h-4 w-4 text-sage-600" />
         </div>
         <h3 class="font-bold text-slate-800">Analyse de Valeur</h3>
       </div>

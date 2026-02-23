@@ -16,7 +16,7 @@ const modes = [
     label: 'Mode Prix', 
     icon: CurrencyEuroIcon,
     description: 'Prix au m²',
-    gradient: 'from-blue-500 to-indigo-600'
+    gradient: 'from-sage-500 to-sage-600'
   },
   { 
     id: 'zan', 

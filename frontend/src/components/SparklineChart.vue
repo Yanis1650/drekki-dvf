@@ -13,7 +13,7 @@ const props = defineProps({
   },
   color: {
     type: String,
-    default: '#6366f1' // Indigo
+    default: '#527f8c' // Sage
   },
   height: {
     type: Number,

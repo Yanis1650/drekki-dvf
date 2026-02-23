@@ -1,9 +1,13 @@
 """ETL France BDNB - Extract building attributes via Polars Lazy.
 
-Streams BDNB CSVs (138GB total) through Polars lazy evaluation
-to extract only: parcelle_id, dpe_energie, annee_construction, hauteur_moyenne.
+Sources (BDNB millesime 2025-07):
+  - rel_batiment_groupe_parcelle.csv    : batiment_groupe_id -> parcelle_id
+  - batiment_groupe_dpe_representatif   : DPE energy class
+  - batiment_construction.csv           : hauteur (height)
+  - batiment_groupe_ffo_bat.csv         : annee_construction, nb_niveau, usage, nb_log
 
-Memory constraint: <8GB RAM using lazy streaming.
+Output: data/bdnb_stats.parquet (parcelle_id as key)
+Memory constraint: <8GB RAM using Polars lazy streaming.
 """
 
 import time
@@ -11,14 +15,13 @@ from pathlib import Path
 
 import polars as pl
 
-# Configuration
 BDNB_PATH = Path("data/open_data_millesime_2025-07-a_france_csv/csv")
 OUTPUT_PATH = Path("data/bdnb_stats.parquet")
 
-# BDNB files to process
+REL_FILE = BDNB_PATH / "rel_batiment_groupe_parcelle.csv"
 DPE_FILE = BDNB_PATH / "batiment_groupe_dpe_representatif_logement.csv"
 CSTR_FILE = BDNB_PATH / "batiment_construction.csv"
-REL_FILE = BDNB_PATH / "rel_batiment_groupe_parcelle.csv"
+FFO_FILE = BDNB_PATH / "batiment_groupe_ffo_bat.csv"
 
 
 def main():
@@ -28,111 +31,117 @@ def main():
 
     start_time = time.time()
 
-    # Verify files exist
-    for f in [DPE_FILE, CSTR_FILE, REL_FILE]:
+    required = [REL_FILE, DPE_FILE, CSTR_FILE, FFO_FILE]
+    for f in required:
         if not f.exists():
             print(f"ERROR: {f} not found")
             return
-        print(f"✓ Found: {f.name} ({f.stat().st_size / 1e9:.1f} GB)")
+        print(f"  {f.name:55s} {f.stat().st_size / 1e9:.1f} GB")
 
-    print("\n--- Phase 1: Load relationship table ---")
-    # Link batiment_groupe_id → parcelle_id
-    rel_lazy = pl.scan_csv(
-        str(REL_FILE),
-        separator=";",
-    ).select([
+    # ── Phase 1: Relationship table (batiment_groupe -> parcelle) ─────
+    print("\n--- Phase 1: rel_batiment_groupe_parcelle ---")
+    rel_lazy = pl.scan_csv(str(REL_FILE), separator=";").select([
         "batiment_groupe_id",
         "parcelle_id",
     ])
-    print(f"Schema: {rel_lazy.collect_schema().names()}")
+    print(f"  Columns: {rel_lazy.collect_schema().names()}")
 
-    print("\n--- Phase 2: Load DPE data ---")
-    # Extract DPE class
-    dpe_lazy = pl.scan_csv(
-        str(DPE_FILE),
-        separator=";",
-    ).select([
-        "batiment_groupe_id",
-        pl.col("classe_bilan_dpe").alias("dpe_energie"),
-    ]).group_by("batiment_groupe_id").agg(
-        pl.col("dpe_energie").first()  # Take first DPE if multiple
+    # ── Phase 2: DPE representative ──────────────────────────────────
+    print("\n--- Phase 2: DPE representatif logement ---")
+    dpe_lazy = (
+        pl.scan_csv(str(DPE_FILE), separator=";")
+        .select(["batiment_groupe_id", pl.col("classe_bilan_dpe").alias("dpe_energie")])
+        .group_by("batiment_groupe_id")
+        .agg(pl.col("dpe_energie").first())
     )
-    print(f"Schema: {dpe_lazy.collect_schema().names()}")
+    print(f"  Columns: {dpe_lazy.collect_schema().names()}")
 
-    print("\n--- Phase 3: Load Construction data ---")
-    # Extract year and height
-    cstr_lazy = pl.scan_csv(
-        str(CSTR_FILE),
-        separator=";",
-        infer_schema_length=10000,
-    )
-
-    # Check available columns
-    cstr_cols = cstr_lazy.collect_schema().names()
-    print(f"Available columns: {cstr_cols[:20]}...")
-
-    # Find relevant columns (may vary by BDNB version)
-    year_col = None
-    height_col = None
-    bat_id_col = None
-
-    for col in cstr_cols:
-        if 'annee' in col.lower():
-            year_col = col
-        if 'hauteur' in col.lower() and 'fictive' not in col.lower():
-            height_col = col
-        if 'batiment_groupe_id' in col.lower():
-            bat_id_col = col
-
-    print(f"Using: year={year_col}, height={height_col}, id={bat_id_col}")
-
-    if bat_id_col:
-        select_cols = [bat_id_col]
-        if year_col:
-            select_cols.append(pl.col(year_col).alias("annee_construction"))
-        if height_col:
-            select_cols.append(pl.col(height_col).alias("hauteur_moyenne"))
-
-        cstr_lazy = cstr_lazy.select(select_cols).group_by(bat_id_col).agg([
-            pl.col("annee_construction").mean().cast(pl.Int32) if year_col else pl.lit(None).alias("annee_construction"),
-            pl.col("hauteur_moyenne").mean() if height_col else pl.lit(None).alias("hauteur_moyenne"),
+    # ── Phase 3: Construction geometry (height + footprint) ─────────
+    print("\n--- Phase 3: batiment_construction (hauteur + emprise) ---")
+    cstr_lazy = (
+        pl.scan_csv(str(CSTR_FILE), separator=";", infer_schema_length=10000)
+        .select([
+            "batiment_groupe_id",
+            pl.col("hauteur").alias("hauteur_moyenne"),
+            pl.col("s_geom_cstr").cast(pl.Float64, strict=False).alias("emprise_sol_m2"),
         ])
+        .group_by("batiment_groupe_id")
+        .agg([
+            pl.col("hauteur_moyenne").mean(),
+            pl.col("emprise_sol_m2").sum(),
+        ])
+    )
+    print(f"  Columns: {cstr_lazy.collect_schema().names()}")
 
-    print("\n--- Phase 4: Join all sources ---")
-    # Join: rel → dpe → cstr
+    # ── Phase 4: FFO BAT (annee_construction, nb_niveau, usage) ──────
+    print("\n--- Phase 4: batiment_groupe_ffo_bat (annee, usage, niveaux) ---")
+    ffo_lazy = (
+        pl.scan_csv(str(FFO_FILE), separator=";", infer_schema_length=5000)
+        .select([
+            "batiment_groupe_id",
+            pl.col("annee_construction").cast(pl.Int32, strict=False),
+            pl.col("nb_niveau").cast(pl.Int32, strict=False),
+            pl.col("usage_niveau_1_txt").alias("type_usage"),
+            pl.col("nb_log").cast(pl.Int32, strict=False),
+        ])
+        .group_by("batiment_groupe_id")
+        .agg([
+            pl.col("annee_construction").min(),
+            pl.col("nb_niveau").max(),
+            pl.col("type_usage").first(),
+            pl.col("nb_log").sum(),
+        ])
+    )
+    print(f"  Columns: {ffo_lazy.collect_schema().names()}")
+
+    # ── Phase 5: Join all sources ────────────────────────────────────
+    print("\n--- Phase 5: Join all sources ---")
     joined = (
         rel_lazy
         .join(dpe_lazy, on="batiment_groupe_id", how="left")
         .join(cstr_lazy, on="batiment_groupe_id", how="left")
+        .join(ffo_lazy, on="batiment_groupe_id", how="left")
         .select([
             "parcelle_id",
             "dpe_energie",
             "annee_construction",
             "hauteur_moyenne",
+            "emprise_sol_m2",
+            "nb_niveau",
+            "type_usage",
+            "nb_log",
         ])
-        .group_by("parcelle_id").agg([
+        .group_by("parcelle_id")
+        .agg([
             pl.col("dpe_energie").first(),
-            pl.col("annee_construction").mean().cast(pl.Int32),
+            pl.col("annee_construction").min(),
             pl.col("hauteur_moyenne").mean(),
+            pl.col("emprise_sol_m2").sum(),
+            pl.col("nb_niveau").max(),
+            pl.col("type_usage").first(),
+            pl.col("nb_log").sum(),
         ])
     )
 
-    print("\n--- Phase 5: Sink to Parquet ---")
-    print(f"Writing to {OUTPUT_PATH}...")
+    # ── Phase 6: Write to parquet ────────────────────────────────────
+    print("\n--- Phase 6: Sink to Parquet ---")
+    print(f"  Writing to {OUTPUT_PATH}...")
 
-    # Use sink_parquet for memory-efficient streaming
-    joined.sink_parquet(
-        str(OUTPUT_PATH),
-        compression="zstd",
-    )
+    joined.sink_parquet(str(OUTPUT_PATH), compression="zstd")
 
-    # Verify output
-    output_count = pl.scan_parquet(str(OUTPUT_PATH)).select(pl.count()).collect().item()
+    output_count = pl.scan_parquet(str(OUTPUT_PATH)).select(pl.len()).collect().item()
     output_size = OUTPUT_PATH.stat().st_size / 1e6
 
+    # ── Phase 7: Verification ────────────────────────────────────────
+    print("\n--- Phase 7: Verification ---")
+    lf = pl.scan_parquet(str(OUTPUT_PATH))
+    for col in ["dpe_energie", "annee_construction", "hauteur_moyenne", "emprise_sol_m2", "nb_niveau", "type_usage", "nb_log"]:
+        null_rate = lf.select(pl.col(col).is_null().mean()).collect().item()
+        print(f"  {col:25s} null={null_rate:.1%}")
+
     elapsed = time.time() - start_time
-    print(f"\n✅ BDNB extraction complete in {elapsed:.1f}s")
-    print(f"   Output: {OUTPUT_PATH} ({output_size:.1f} MB, {output_count:,} rows)")
+    print(f"\nDone in {elapsed:.1f}s")
+    print(f"  Output: {OUTPUT_PATH} ({output_size:.1f} MB, {output_count:,} rows)")
 
 
 if __name__ == "__main__":

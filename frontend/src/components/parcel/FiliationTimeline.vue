@@ -152,7 +152,7 @@ const getOperationLabel = (nature) => {
 .section-title .icon {
   width: 20px;
   height: 20px;
-  color: #6366f1;
+  color: #527f8c;
 }
 
 .loading-state,
@@ -172,7 +172,7 @@ const getOperationLabel = (nature) => {
   width: 32px;
   height: 32px;
   border: 3px solid #e2e8f0;
-  border-top-color: #6366f1;
+  border-top-color: #527f8c;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 12px;
@@ -183,11 +183,11 @@ const getOperationLabel = (nature) => {
 }
 
 .summary-card {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.08));
+  background: linear-gradient(135deg, rgba(82, 127, 140, 0.08), rgba(63, 103, 117, 0.08));
   border-radius: 12px;
   padding: 14px;
   margin-bottom: 16px;
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(82, 127, 140, 0.15);
 }
 
 .summary-text {
@@ -199,7 +199,7 @@ const getOperationLabel = (nature) => {
 
 .depth-badge {
   display: inline-block;
-  background: #6366f1;
+  background: #527f8c;
   color: white;
   padding: 4px 12px;
   border-radius: 12px;
@@ -228,8 +228,8 @@ const getOperationLabel = (nature) => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  background: #527f8c;
+  box-shadow: 0 0 0 4px rgba(82, 127, 140, 0.2);
   z-index: 1;
 }
 
@@ -239,7 +239,7 @@ const getOperationLabel = (nature) => {
   top: 16px;
   width: 2px;
   height: calc(100% - 4px);
-  background: linear-gradient(180deg, #6366f1, #e2e8f0);
+  background: linear-gradient(180deg, #527f8c, #e2e8f0);
 }
 
 .timeline-content {
@@ -251,8 +251,8 @@ const getOperationLabel = (nature) => {
 }
 
 .timeline-content:hover {
-  border-color: #6366f1;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+  border-color: #527f8c;
+  box-shadow: 0 4px 12px rgba(82, 127, 140, 0.1);
   transform: translateX(4px);
 }
 
@@ -272,8 +272,8 @@ const getOperationLabel = (nature) => {
 
 .operation-badge {
   font-size: 10px;
-  color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
+  color: #527f8c;
+  background: rgba(82, 127, 140, 0.1);
   padding: 3px 8px;
   border-radius: 6px;
   font-weight: 500;

@@ -1,0 +1,11 @@
+# Foncier-Express — Règles Globales
+
+Projet d'expertise foncière DVF (2014-2025) : rapport en < 5 secondes.
+
+**Stack :** FastAPI (app/), Vue 3 (frontend/), Polars/DuckDB (data-pipeline/).
+
+**Conventions strictes :**
+- Max 200 lignes par fichier — refactoring obligatoire si dépassé.
+- Architecture SOLID, aucune dépendance circulaire.
+- Typage strict : Pydantic côté API, TypeScript-like côté Vue.
+- Règles détaillées : voir `.cursor/rules/` (architecture, frontend, backend, devops).

@@ -16,7 +16,7 @@ const props = defineProps({
   },
   gradient: {
     type: String,
-    default: 'from-indigo-500 to-blue-400'
+    default: 'from-sage-500 to-sage-400'
   },
   animate: {
     type: Boolean,

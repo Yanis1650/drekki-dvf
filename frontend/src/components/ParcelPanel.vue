@@ -37,6 +37,19 @@
 
         <!-- Content Sections -->
         <div v-else class="content-sections">
+          <!-- Confidence Badge -->
+          <ConfidenceBadge 
+            v-if="fiche"
+            :confidence-global="fiche.confidence_global"
+            :confidence-label="fiche.confidence_label"
+            :score-bdnb="fiche.score_bdnb"
+            :score-dvf="fiche.score_dvf"
+            :score-densification="fiche.score_densification"
+            :score-fraicheur="fiche.score_fraicheur"
+            :source-ces="fiche.source_ces"
+            :warning="fiche.warning"
+          />
+
           <!-- Stats Summary -->
           <ParcelStats 
             :transaction-count="transactions.length"
@@ -57,6 +70,8 @@
             :ces-plu="densification.ces_potentiel"
             :categorie="densification.categorie"
             :surface-constructible="densification.surface_constructible_restante"
+            :source-ces="fiche?.source_ces"
+            :libelle-zone="fiche?.libelle_zone"
           />
 
           <!-- Potential Gain Card -->
@@ -116,6 +131,7 @@ import ParcelHeader from './parcel/ParcelHeader.vue';
 import ParcelStats from './parcel/ParcelStats.vue';
 import ParcelPriceChart from './parcel/ParcelPriceChart.vue';
 import DensificationGauge from './parcel/DensificationGauge.vue';
+import ConfidenceBadge from './parcel/ConfidenceBadge.vue';
 import FiliationTimeline from './parcel/FiliationTimeline.vue';
 import TransactionHistory from './parcel/TransactionHistory.vue';
 
@@ -129,6 +145,7 @@ const emit = defineEmits(['close', 'report-generated', 'highlight-related']);
 // State
 const transactions = ref([]);
 const densification = ref(null);
+const fiche = ref(null);
 const parcelCoordinates = ref(null);
 const loading = ref(false);
 const error = ref(null);
@@ -214,29 +231,33 @@ watch(() => props.parcelId, async (newId) => {
   error.value = null;
   transactions.value = [];
   densification.value = null;
+  fiche.value = null;
   parcelCoordinates.value = null;
 
   try {
-    // Fetch transaction history
-    const historyRes = await axios.get(`http://localhost:8000/api/v1/analytics/parcel/${newId}/history`);
-    transactions.value = historyRes.data.transactions || [];
-    
-    // Extract coordinates from first transaction if available
-    if (transactions.value.length > 0 && transactions.value[0].longitude && transactions.value[0].latitude) {
-      parcelCoordinates.value = [transactions.value[0].longitude, transactions.value[0].latitude];
+    const [historyRes, ficheRes] = await Promise.allSettled([
+      axios.get(`http://localhost:8000/api/v1/analytics/parcel/${newId}/history`),
+      axios.get(`http://localhost:8000/api/v1/land/parcelles/${newId}/fiche`),
+    ]);
+
+    // Transaction history
+    if (historyRes.status === 'fulfilled') {
+      transactions.value = historyRes.value.data.transactions || [];
+      if (transactions.value.length > 0 && transactions.value[0].longitude && transactions.value[0].latitude) {
+        parcelCoordinates.value = [transactions.value[0].longitude, transactions.value[0].latitude];
+      }
     }
 
-    // Fetch densification score
-    try {
-      const densificationRes = await axios.get(`http://localhost:8000/api/v1/land/parcelles/${newId}/densification`);
-      densification.value = densificationRes.data;
-      
-      // Use centroid from densification if available
-      if (densificationRes.data.centroid) {
-        parcelCoordinates.value = densificationRes.data.centroid;
-      }
-    } catch (err) {
-      console.log('Densification not available for this parcel');
+    // Fiche complete (DVF + BDNB + densification + confiance)
+    if (ficheRes.status === 'fulfilled' && ficheRes.value.data) {
+      const f = ficheRes.value.data;
+      fiche.value = f;
+      densification.value = {
+        ces_actuel: f.ces_actuel ?? 0,
+        ces_potentiel: f.ces_potentiel ?? 0,
+        categorie: f.categorie_densification ?? 'INCONNU',
+        surface_constructible_restante: f.surface_constructible_restante ?? 0,
+      };
     }
   } catch (err) {
     console.error('Error loading parcel data:', err);
@@ -396,7 +417,7 @@ watch(() => props.parcelId, async (newId) => {
   width: 48px;
   height: 48px;
   border: 4px solid #e2e8f0;
-  border-top-color: #6366f1;
+  border-top-color: #527f8c;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
@@ -420,7 +441,7 @@ watch(() => props.parcelId, async (newId) => {
   gap: 10px;
   width: 100%;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #527f8c, #3f6775);
   color: white;
   border: none;
   border-radius: 12px;
@@ -428,12 +449,12 @@ watch(() => props.parcelId, async (newId) => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 14px rgba(82, 127, 140, 0.4);
 }
 
 .export-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 6px 20px rgba(82, 127, 140, 0.5);
 }
 
 .export-btn:disabled {

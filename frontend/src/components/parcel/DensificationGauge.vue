@@ -17,7 +17,26 @@ const props = defineProps({
   surfaceConstructible: {
     type: Number,
     default: 0
+  },
+  sourceCes: {
+    type: String,
+    default: null
+  },
+  libelleZone: {
+    type: String,
+    default: null
   }
+});
+
+const sourceConfig = computed(() => {
+  const map = {
+    'bdnb_emprise': { label: 'BDNB', color: '#6366f1', bg: '#eef2ff' },
+    'bdtopo': { label: 'BD TOPO IGN', color: '#0ea5e9', bg: '#f0f9ff' },
+    'plu_gpu': { label: 'PLU (GPU)', color: '#10b981', bg: '#f0fdf4' },
+    'rnu_proximite': { label: 'RNU', color: '#f59e0b', bg: '#fffbeb' },
+    'bdnb_usage_only': { label: 'BDNB (usage)', color: '#8b5cf6', bg: '#f5f3ff' },
+  };
+  return map[props.sourceCes] || null;
 });
 
 // Calculate gauge arc (180 degree arc)
@@ -65,7 +84,7 @@ const gaugeColor = computed(() => {
     'FAIBLE': '#f97316',
     'SATURE': '#ef4444'
   };
-  return colors[props.categorie] || '#6366f1';
+  return colors[props.categorie] || '#527f8c';
 });
 
 const categoryConfig = computed(() => ({
@@ -73,7 +92,7 @@ const categoryConfig = computed(() => ({
   'MOYEN': { icon: '🟡', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)' },
   'FAIBLE': { icon: '🟠', color: '#f97316', bg: 'rgba(249, 115, 22, 0.1)' },
   'SATURE': { icon: '🔴', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' }
-}[props.categorie] || { icon: '⚪', color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' }));
+}[props.categorie] || { icon: '⚪', color: '#527f8c', bg: 'rgba(82, 127, 140, 0.1)' }));
 </script>
 
 <template>
@@ -137,6 +156,17 @@ const categoryConfig = computed(() => ({
       <span class="badge-text">{{ categorie }}</span>
     </div>
     
+    <!-- Source ZAN tag -->
+    <div v-if="sourceConfig" class="source-row">
+      <span 
+        class="source-chip"
+        :style="{ backgroundColor: sourceConfig.bg, color: sourceConfig.color, borderColor: sourceConfig.color + '40' }"
+      >
+        {{ sourceConfig.label }}
+      </span>
+      <span v-if="libelleZone" class="zone-label">{{ libelleZone }}</span>
+    </div>
+
     <!-- Surface Constructible -->
     <div class="surface-card" v-if="surfaceConstructible > 0">
       <span class="surface-label">Surface constructible restante</span>
@@ -242,12 +272,37 @@ const categoryConfig = computed(() => ({
   font-size: 16px;
 }
 
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid;
+}
+
+.zone-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .surface-card {
   background: white;
   border-radius: 12px;
   padding: 16px;
   margin-top: 16px;
-  border: 2px solid #6366f1;
+  border: 2px solid #527f8c;
   text-align: center;
 }
 
@@ -264,6 +319,6 @@ const categoryConfig = computed(() => ({
 .surface-value {
   font-size: 24px;
   font-weight: 800;
-  color: #6366f1;
+  color: #527f8c;
 }
 </style>

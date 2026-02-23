@@ -120,7 +120,7 @@ const formattedId = computed(() => {
 .header-bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #527f8c, #39616d);
 }
 
 .satellite-img {
@@ -135,8 +135,8 @@ const formattedId = computed(() => {
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(79, 70, 229, 0.3) 0%,
-    rgba(15, 23, 42, 0.7) 100%
+    rgba(57, 97, 109, 0.3) 0%,
+    rgba(26, 41, 47, 0.7) 100%
   );
 }
 

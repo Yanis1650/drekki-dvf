@@ -27,14 +27,14 @@ const gainColor = computed(() => {
   const val = numericGain.value;
   if (val > 5) return 'from-emerald-500 to-green-400';
   if (val > 0) return 'from-amber-500 to-yellow-400';
-  return 'from-red-500 to-rose-400';
+  return 'from-rouge-500 to-rouge-400';
 });
 
 const textColor = computed(() => {
   const val = numericGain.value;
   if (val > 5) return 'text-emerald-600';
   if (val > 0) return 'text-amber-600';
-  return 'text-red-600';
+  return 'text-rouge-600';
 });
 
 const icon = computed(() => {

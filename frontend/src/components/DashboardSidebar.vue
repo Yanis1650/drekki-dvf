@@ -63,7 +63,7 @@ const displayBalance = computed(() => props.balance);
     <div class="px-6 pb-5">
       <div class="credit-ticket p-4 flex justify-between items-center">
         <div class="relative z-10">
-          <p class="text-xs font-bold uppercase tracking-wider text-indigo-600/80 mb-0.5">Mon Solde</p>
+          <p class="text-xs font-bold uppercase tracking-wider text-sage-600/80 mb-0.5">Mon Solde</p>
           <div class="flex items-baseline gap-1.5">
             <span class="text-3xl font-bold text-slate-900 tabular-nums animate-counter" :key="balance">
               {{ displayBalance }}
@@ -73,11 +73,11 @@ const displayBalance = computed(() => props.balance);
         </div>
         <button 
           @click="emit('buy-credits')"
-          class="relative z-10 w-11 h-11 bg-white rounded-xl shadow-md flex items-center justify-center border border-indigo-100 
+          class="relative z-10 w-11 h-11 bg-white rounded-xl shadow-md flex items-center justify-center border border-sage-100 
                  hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200"
           title="Recharger mes crédits"
         >
-          <CurrencyEuroIcon class="h-5 w-5 text-indigo-600" />
+          <CurrencyEuroIcon class="h-5 w-5 text-sage-600" />
         </button>
       </div>
     </div>
@@ -97,7 +97,7 @@ const displayBalance = computed(() => props.balance);
       <div v-if="loading" class="flex flex-col items-center justify-center h-56 space-y-4">
         <div class="relative">
           <div class="w-14 h-14 rounded-full border-4 border-slate-100"></div>
-          <div class="absolute inset-0 w-14 h-14 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          <div class="absolute inset-0 w-14 h-14 rounded-full border-4 border-sage-500 border-t-transparent animate-spin"></div>
         </div>
         <div class="text-center">
           <p class="text-slate-600 font-medium">Analyse en cours</p>

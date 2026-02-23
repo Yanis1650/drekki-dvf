@@ -165,9 +165,9 @@ onMounted(() => {
         'circle-color': [
           'step',
           ['get', 'point_count'],
-          '#6366f1',  // Indigo-500
-          50, '#8b5cf6',  // Violet-500
-          150, '#ec4899'  // Pink-500
+          '#527f8c',  // Sage-500
+          50, '#3f6775',  // Sage-600
+          150, '#c63806'  // Terracotta-600
         ],
         'circle-radius': [
           'step',
@@ -583,16 +583,16 @@ onUnmounted(() => {
     >
       <div 
         v-if="isLoading" 
-        class="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center"
+        class="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-sage-50 flex items-center justify-center"
       >
         <div class="text-center">
           <div class="relative w-20 h-20 mx-auto mb-6">
             <!-- Outer ring -->
             <div class="absolute inset-0 rounded-full border-4 border-slate-200"></div>
             <!-- Spinning ring -->
-            <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-sage-500 border-t-transparent animate-spin"></div>
             <!-- Inner gradient circle -->
-            <div class="absolute inset-3 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 opacity-20 animate-pulse"></div>
+            <div class="absolute inset-3 rounded-full bg-gradient-to-br from-sage-500 to-sage-700 opacity-20 animate-pulse"></div>
           </div>
           <p class="text-slate-600 font-semibold text-lg">Chargement de la carte</p>
           <p class="text-slate-400 text-sm mt-1">Préparation des données foncières...</p>
@@ -634,10 +634,10 @@ onUnmounted(() => {
 .maplibregl-popup-content {
   padding: 0 !important;
   border-radius: 16px !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'DM Sans', sans-serif !important;
   background: rgba(255, 255, 255, 0.98) !important;
   backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid rgba(63, 103, 117, 0.15) !important;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
 }
 

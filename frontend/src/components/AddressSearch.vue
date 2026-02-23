@@ -54,7 +54,7 @@ const selectAddress = (feature) => {
       <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
         <MagnifyingGlassIcon 
           class="h-5 w-5 transition-colors duration-200"
-          :class="isFocused ? 'text-indigo-500' : 'text-slate-400'"
+          :class="isFocused ? 'text-sage-500' : 'text-slate-400'"
         />
       </div>
       
@@ -69,13 +69,13 @@ const selectAddress = (feature) => {
                text-slate-800 placeholder-slate-400 font-medium
                focus:outline-none"
         :class="isFocused 
-          ? 'border-indigo-400 shadow-[0_0_0_4px_rgba(99,102,241,0.1)]' 
+          ? 'border-sage-400 shadow-[0_0_0_4px_rgba(99,102,241,0.1)]' 
           : 'border-slate-200 hover:border-slate-300 shadow-sm'"
       />
       
       <!-- Spinner -->
       <div v-if="loading" class="absolute right-4 top-1/2 -translate-y-1/2">
-        <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-5 w-5 text-sage-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -101,16 +101,16 @@ const selectAddress = (feature) => {
           :key="index"
           @click="selectAddress(feature)"
           class="group flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors
-                 hover:bg-indigo-50 border-b border-slate-100 last:border-0"
+                 hover:bg-sage-50 border-b border-slate-100 last:border-0"
         >
           <!-- Pin Icon -->
-          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
-            <MapPinIcon class="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-sage-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+            <MapPinIcon class="h-4 w-4 text-slate-400 group-hover:text-sage-500 transition-colors" />
           </div>
           
           <!-- Address Info -->
           <div class="flex-1 min-w-0">
-            <p class="font-semibold text-slate-800 text-sm leading-tight truncate group-hover:text-indigo-700 transition-colors">
+            <p class="font-semibold text-slate-800 text-sm leading-tight truncate group-hover:text-sage-700 transition-colors">
               {{ feature.properties.label }}
             </p>
             <p class="text-xs text-slate-500 mt-0.5 truncate">

@@ -18,7 +18,7 @@ BDNB : Intégration du DPE, de l'année de construction et de la hauteur du bât
 Historique : Analyse des tendances sur 11 ans pour calculer la plus-value et la résilience du marché.
 
 🏗️ Architecture Logicielle & Stack
-Architecture : Clean Architecture (SOLID) avec limite stricte de 400 lignes par fichier.
+Architecture : Clean Architecture (SOLID) avec limite stricte de 200 lignes par fichier. Aucune dépendance circulaire.
 
 Base de Données Hybride :
 
@@ -31,7 +31,7 @@ Backend : FastAPI (Python 3.11), SQLAlchemy 2.0 (Async), ReportLab (PDF).
 Frontend : Vue.js 3 (Composition API), MapLibre GL JS (Rendu WebGL), Tailwind CSS (Premium Glassmorphism).
 
 📏 Conventions & Règles de Seniority
-Fichiers : Max 400 lignes. Si dépassement -> Refactoring obligatoire (ISP/SRP).
+Fichiers : Max 200 lignes. Si dépassement -> Refactoring obligatoire (ISP/SRP). Pas de dépendances circulaires.
 
 Types : Typage strict (Pydantic côté API, TypeScript-like patterns côté Vue).
 
