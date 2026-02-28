@@ -152,6 +152,7 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques c
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — design technique, principes SOLID, pipeline ETL
+- [Déploiement VPS](docs/DEPLOYMENT.md) — guide de mise en production (Docker, 35 Go / 11 GB RAM)
 - [Lexique Filiation](docs/LEXIQUE_FILIATION.md) — vocabulaire cadastral (arpentage, conservation, lotissement)
 - [Lexique Confiance](docs/LEXIQUE_CONFIANCE.md) — calcul du score de confiance multi-source
 

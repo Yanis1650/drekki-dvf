@@ -1,0 +1,75 @@
+# Foncier-Express - Déploiement production (VPS 35GB / 11GB RAM)
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  postgis:
+    image: postgis/postgis:15-3.4
+    container_name: foncier-postgis
+    environment:
+      POSTGRES_USER: ${POSTGIS_USER:-foncier}
+      POSTGRES_PASSWORD: ${POSTGIS_PASSWORD}
+      POSTGRES_DB: ${POSTGIS_DB:-foncier_express}
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foncier -d foncier_express"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Limites RAM
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: foncier-backend
+    environment:
+      POSTGIS_HOST: postgis
+      POSTGIS_PORT: 5432
+      POSTGIS_USER: ${POSTGIS_USER:-foncier}
+      POSTGIS_PASSWORD: ${POSTGIS_PASSWORD}
+      POSTGIS_DB: ${POSTGIS_DB:-foncier_express}
+      DUCKDB_PATH: /app/data/foncier.duckdb
+      DATA_DIR: /app/data
+    volumes:
+      - foncier_data:/app/data
+    depends_on:
+      postgis:
+        condition: service_healthy
+    restart: unless-stopped
+    # 2 workers + Chromium : ~2-3 GB
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: foncier-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  postgis_data:
+  foncier_data:
