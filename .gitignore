@@ -79,9 +79,17 @@ Desktop.ini
 ehthumbs.db
 
 # ============ Cursor IDE (user-specific) ============
-.cursor/plans/
+.cursor/
+.cursorrules
 .agent/
 .agent-transcripts/
+
+# ============ Personal notes & AI artifacts ============
+CLAUDE.md
+claude_*.md
+roadmap_*.docx
+*.docx
+commande_*.md
 
 # ============ Scripts de debug/diagnostic à la racine (dev-only) ============
 # Tous les .py à la racine = scripts one-off, pas partie du package

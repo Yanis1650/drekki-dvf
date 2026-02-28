@@ -147,10 +147,11 @@ foncier-express/
 
 **Flux de données** : `Endpoints → Services → Repositories → DuckDB/PostGIS`
 
-Voir [CLAUDE.md](CLAUDE.md) pour le contexte produit complet.
+Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques complets.
 
 ## Documentation
 
+- [Architecture](docs/ARCHITECTURE.md) — design technique, principes SOLID, pipeline ETL
 - [Lexique Filiation](docs/LEXIQUE_FILIATION.md) — vocabulaire cadastral (arpentage, conservation, lotissement)
 - [Lexique Confiance](docs/LEXIQUE_CONFIANCE.md) — calcul du score de confiance multi-source
 
