@@ -5,7 +5,7 @@ import io
 import logging
 from typing import Annotated
 
-from fastapi import HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from app.api.deps import RepositoryDep

@@ -1,52 +1,182 @@
-# Foncier-Express
+<p align="center">
+  <h1 align="center">Foncier-Express</h1>
+  <p align="center">
+    Analyse foncière DVF open data — de la donnée brute au rapport d'expertise en quelques secondes.
+  </p>
+</p>
 
-Analyse foncière DVF (Demande de Valeurs Foncières) avec la méthodologie Mericskay.
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+"></a>
+  <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-0.109+-009688.svg" alt="FastAPI"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue.js-3-4FC08D.svg" alt="Vue.js 3"></a>
+  <a href="https://duckdb.org"><img src="https://img.shields.io/badge/DuckDB-OLAP-FFF000.svg" alt="DuckDB"></a>
+</p>
 
-## 🚀 Overview
+---
 
-Foncier-Express est une application web permettant de visualiser et d'analyser les transactions immobilières en France. Elle s'appuie sur les données DVF et propose une interface cartographique riche pour explorer les prix, les mutations et les caractéristiques des parcelles.
+## Aperçu
 
-## 🛠 Tech Stack
+Foncier-Express transforme **11 ans de données DVF** (Demande de Valeurs Foncières, 2014-2025) en une application cartographique interactive avec :
 
-- **Backend**: FastAPI, Polars (Lazy processing), DuckDB, PostgreSQL/PostGIS.
-- **Frontend**: Vue.js 3, Vite, MapLibre GL JS, Tailwind CSS.
-- **Data Engineering**: Polars pour le nettoyage et l'agrégation massive de données.
+- **Carte des transactions** : visualisation géospatiale des ventes immobilières par parcelle
+- **Filiation cadastrale** : arbre généalogique des parcelles (arpentage, lotissement, réunion)
+- **Indice de confiance** : scoring multi-source (BDNB, DVF, densification, fraîcheur)
+- **Rapports PDF** : fiche d'expertise foncière générée en < 5 secondes
+- **Enrichissement qualitatif** : proximité transports, éducation, commerces via OSM
 
-## 📦 Installation
+Le projet s'appuie sur la méthodologie de Boris Mericskay (Université Rennes 2) pour le nettoyage et l'agrégation des données DVF.
 
-### Backend
-1. Créer un environnement virtuel :
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # ou venv\Scripts\activate sur Windows
-   ```
-2. Installer les dépendances :
-   ```bash
-   pip install -e ".[dev]"
-   ```
-3. Configurer le fichier `.env` à partir de `.env.example`.
+## Tech Stack
 
-### Frontend
-1. Aller dans le dossier frontend :
-   ```bash
-   cd frontend
-   ```
-2. Installer les dépendances :
-   ```bash
-   npm install
-   ```
-3. Lancer en mode dev :
-   ```bash
-   npm run dev
-   ```
+| Couche | Technologies |
+|--------|-------------|
+| **Backend** | FastAPI, Polars, DuckDB (OLAP), PostgreSQL/PostGIS (OLTP) |
+| **Frontend** | Vue.js 3 (Composition API), MapLibre GL JS, Tailwind CSS |
+| **Data Pipeline** | Polars, DuckDB, OSMnx (enrichissement) |
+| **PDF** | Jinja2 + Playwright (HTML → PDF) |
 
-## 🏗 Architecture
+## Prérequis
 
-Le projet suit les principes de la **Clean Architecture** et du **SOLID** :
-- `app/domain`: Modèles de données purs, sans dépendances externes.
-- `app/infrastructure`: Implémentations concrètes (Repositories SQLAlchemy/DuckDB).
-- `app/api`: Points d'entrée FastAPI.
+- **Python 3.11+**
+- **Node.js 18+**
+- **Docker** (pour PostGIS — optionnel en mode démo)
 
-## 📖 Contribution
+## Installation
 
-Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour plus de détails.
+### 1. Cloner le dépôt
+
+```bash
+git clone https://github.com/<votre-org>/foncier-express.git
+cd foncier-express
+```
+
+### 2. Backend
+
+```bash
+python -m venv .venv
+
+# Windows
+.\.venv\Scripts\Activate.ps1
+# Linux / macOS
+source .venv/bin/activate
+
+pip install -e ".[dev]"
+```
+
+### 3. Frontend
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### 4. Configuration
+
+```bash
+cp .env.example .env
+cp frontend/.env.example frontend/.env
+# Éditer les fichiers .env selon votre environnement
+```
+
+### 5. Base de données PostGIS (optionnel)
+
+Pour les fonctionnalités utilisateurs et crédits (rapports PDF) :
+
+```bash
+docker compose up -d
+```
+
+Puis exécuter les scripts d'initialisation :
+
+```bash
+# Les scripts SQL dans init-db/ sont automatiquement exécutés par Docker
+```
+
+### 6. Données DVF
+
+Le pipeline ETL traite les données DVF open data. Consultez `data-pipeline/` pour les détails.
+
+```bash
+# Exemple : construire la base pour un département
+python data-pipeline/etl_build_dept.py --dept 35
+```
+
+### 7. Démarrage
+
+```bash
+# Backend (port 8000)
+uvicorn app.main:app --reload --port 8000
+
+# Frontend (port 5173, dans un autre terminal)
+cd frontend && npm run dev
+```
+
+Ou avec le script PowerShell (Windows) :
+
+```powershell
+.\start.ps1
+```
+
+L'application sera accessible sur **http://localhost:5173** et la documentation API sur **http://localhost:8000/docs**.
+
+## Architecture
+
+```
+foncier-express/
+├── app/                        # Backend FastAPI (Clean Architecture)
+│   ├── api/v1/endpoints/       # Routes HTTP
+│   ├── domain/                 # Modèles purs (aucune dépendance externe)
+│   ├── infrastructure/         # Connexions DB (DuckDB pool, PostGIS)
+│   ├── repositories/           # Accès aux données (DuckDB, PostGIS)
+│   ├── schemas/                # Schémas Pydantic (validation API)
+│   ├── services/               # Logique métier
+│   └── templates/              # Templates HTML (rapports PDF)
+├── data-pipeline/              # ETL Polars (DVF, cadastre, BDNB, OSM)
+│   └── etl_build_steps/        # Étapes modulaires du pipeline
+├── frontend/                   # Vue.js 3 + MapLibre GL JS
+│   └── src/
+│       ├── components/         # Composants Vue (carte, panels, badges)
+│       ├── composables/        # Logique réutilisable (hooks)
+│       └── api/                # Client Axios
+├── init-db/                    # Scripts SQL d'initialisation PostGIS
+├── tests/                      # Tests pytest
+└── docs/                       # Documentation métier
+```
+
+**Flux de données** : `Endpoints → Services → Repositories → DuckDB/PostGIS`
+
+Voir [CLAUDE.md](CLAUDE.md) pour le contexte produit complet.
+
+## Documentation
+
+- [Lexique Filiation](docs/LEXIQUE_FILIATION.md) — vocabulaire cadastral (arpentage, conservation, lotissement)
+- [Lexique Confiance](docs/LEXIQUE_CONFIANCE.md) — calcul du score de confiance multi-source
+
+## Tests
+
+```bash
+pytest
+```
+
+Le projet suit une approche TDD. Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les conventions de test.
+
+## Contribution
+
+Les contributions sont les bienvenues ! Consultez :
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — guide de contribution et normes de code
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — code de conduite
+- [SECURITY.md](SECURITY.md) — politique de signalement de vulnérabilités
+
+## Licence
+
+MIT — voir [LICENSE](LICENSE).
+
+## Remerciements
+
+- **Boris Mericskay** (Université Rennes 2) — méthodologie d'analyse DVF
+- **DVF open data** (DGFiP / data.gouv.fr) — données de transactions immobilières
+- **BDNB** (CSTB / data.gouv.fr) — Base de Données Nationale des Bâtiments
+- **IGN** — fonds cartographiques et cadastre

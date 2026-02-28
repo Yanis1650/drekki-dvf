@@ -9,7 +9,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from app.api.deps import get_current_user_optional, get_user_repository
+from app.api.deps import (
+    RepositoryDep,
+    SettingsDep,
+    get_current_user_optional,
+    get_user_repository,
+)
 from app.infrastructure.models import User
 from app.repositories.user_repository import UserRepository
 from app.services.parcel_report_service import ParcelReportService
@@ -19,9 +24,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
-def get_parcel_report_service() -> ParcelReportService:
-    """Dependency for ParcelReportService."""
-    return ParcelReportService()
+def get_parcel_report_service(
+    repository: RepositoryDep,
+    settings: SettingsDep,
+) -> ParcelReportService:
+    """Dependency for ParcelReportService with app config."""
+    return ParcelReportService(
+        land_repository=repository,
+        duckdb_path=settings.duckdb_path,
+    )
 
 
 @router.get("/parcel/{parcel_id}/pdf")
@@ -69,8 +80,13 @@ async def generate_parcel_pdf_report(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"PDF generation failed for {parcel_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+        logger.exception("PDF generation failed for %s", parcel_id)
+        detail = str(e)
+        if "executable doesn't exist" in detail.lower() or "chromium" in detail.lower():
+            detail = "Playwright Chromium non installé. Exécutez : playwright install chromium"
+        elif len(detail) > 200:
+            detail = detail[:200] + "..."
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/parcel/{parcel_id}/html")

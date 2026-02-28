@@ -74,7 +74,7 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue';
-import axios from 'axios';
+import client from '../api/client';
 
 const props = defineProps({
   idParcelle: {
@@ -104,7 +104,8 @@ const getBarHeight = (price) => {
 };
 
 watch(() => props.idParcelle, async (newId) => {
-  if (!newId || newId.length !== 14) {
+  // Accepter 13 ou 14 chars (section 1 char produit 13 chars via CONCAT)
+  if (!newId || newId.length < 13 || newId.length > 14) {
     history.value = [];
     return;
   }
@@ -113,7 +114,7 @@ watch(() => props.idParcelle, async (newId) => {
   error.value = null;
 
   try {
-    const response = await axios.get(`http://localhost:8000/api/v1/analytics/parcel/${newId}/history`);
+    const response = await client.get(`/analytics/parcel/${newId}/history`);
     history.value = response.data.transactions || [];
   } catch (err) {
     console.error('Erreur chargement historique parcelle:', err);

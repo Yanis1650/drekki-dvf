@@ -5,68 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapport Foncier - {{ parcel_id }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        @page {
-            size: A4;
-            margin: 1cm;
-        }
-
-        * {
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-
-        body {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .page-break {
-            page-break-before: always;
-        }
-
-        .score-bar {
-            height: 8px;
-            border-radius: 4px;
-            background: #e2e8f0;
-        }
-
-        .score-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-
-        .gauge-container {
-            position: relative;
-            width: 160px;
-            height: 80px;
-            overflow: hidden;
-        }
-
-        .gauge-bg {
-            position: absolute;
-            width: 160px;
-            height: 160px;
-            border-radius: 50%;
-            border: 16px solid #e2e8f0;
-            border-bottom-color: transparent;
-            border-left-color: transparent;
-            transform: rotate(-45deg);
-        }
-
-        .gauge-fill {
-            position: absolute;
-            width: 160px;
-            height: 160px;
-            border-radius: 50%;
-            border: 16px solid transparent;
-            border-bottom-color: transparent;
-            border-left-color: transparent;
-            transform: rotate(-45deg);
-        }
-    </style>
+    <style>{% include 'parcel_report_styles.css' %}</style>
 </head>
 
 <body class="bg-white text-gray-800 p-4">

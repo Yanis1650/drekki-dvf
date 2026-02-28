@@ -6,16 +6,19 @@ Renders HTML templates with full CSS/JS support for charts and visualizations.
 
 import asyncio
 import logging
+import sys
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader
 
-from app.repositories.duckdb_repository import DuckDBLandRepository
 from app.services.enrichment import EnrichmentService
 from app.services.filiation_service import FiliationService
+
+if TYPE_CHECKING:
+    from app.repositories.interfaces import ILandRepository
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +36,15 @@ class ParcelReportService:
 
     def __init__(
         self,
+        land_repository: "ILandRepository",
+        duckdb_path: str | Path = "./data/foncier.duckdb",
         template_dir: Path | str = "./app/templates",
-        duckdb_path: Path | str = "./data/foncier.duckdb",
     ) -> None:
         self._template_dir = Path(template_dir)
         self._duckdb_path = Path(duckdb_path)
-        self._land_repo = DuckDBLandRepository(db_path=duckdb_path)
+        self._land_repo = land_repository
         self._filiation_service = FiliationService(duckdb_path=str(duckdb_path))
-        self._enrichment_service = EnrichmentService(duckdb_path=duckdb_path)
+        self._enrichment_service = EnrichmentService(duckdb_path=str(duckdb_path))
 
         # Setup Jinja2
         self._jinja_env = Environment(
@@ -69,20 +73,45 @@ class ParcelReportService:
         except (ValueError, TypeError):
             return str(date_str)
 
-    def _get_browser_sync(self):
-        """Get or create Playwright browser instance (sync API for Windows compat)."""
-        global _browser, _playwright
+    def _render_html_to_pdf_sync(self, html_content: str) -> bytes:
+        """Render HTML to PDF via sous-processus (contourne NotImplementedError asyncio sur Windows).
 
-        if _browser is None:
-            from playwright.sync_api import sync_playwright
-            _playwright = sync_playwright().start()
-            _browser = _playwright.chromium.launch(
-                headless=True,
-                args=["--disable-gpu", "--no-sandbox"]
+        Playwright utilise asyncio en interne ; sous Windows le subprocess échoue
+        quand il est lancé depuis un thread/loop existant. Un process séparé évite le conflit.
+        """
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            inp = Path(tmp) / "report.html"
+            out = Path(tmp) / "report.pdf"
+            inp.write_text(html_content, encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, "-m", "app.scripts.html_to_pdf", str(inp), str(out)],
+                capture_output=True,
+                timeout=60,
+                cwd=Path(__file__).resolve().parents[2],
             )
-            logger.info("Playwright browser launched")
 
-        return _browser
+            if result.returncode != 0:
+                err = (result.stderr or b"").decode("utf-8", errors="replace")
+                if "chromium" in err.lower() or "executable" in err.lower():
+                    raise RuntimeError(
+                        "Playwright Chromium non installé. Exécutez : playwright install chromium"
+                    )
+                raise RuntimeError(f"PDF conversion failed: {err or result.returncode}")
+
+            return out.read_bytes()
+
+    async def _render_html_to_pdf(self, html_content: str) -> bytes:
+        """Render HTML to PDF (process séparé pour compatibilité Windows)."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,
+            self._render_html_to_pdf_sync,
+            html_content,
+        )
 
     async def _aggregate_parcel_data(self, parcel_id: str) -> dict[str, Any]:
         """Aggregate all data needed for the parcel report.
@@ -219,43 +248,8 @@ class ParcelReportService:
         template = self._jinja_env.get_template("parcel_report.html")
         html_content = template.render(**data)
 
-        # Run Playwright in a separate thread (sync API can't run in async loop)
-        import concurrent.futures
-        loop = asyncio.get_event_loop()
-
-        def _generate_pdf_sync(html: str) -> bytes:
-            """Sync function to generate PDF with Playwright."""
-            import time
-
-            from playwright.sync_api import sync_playwright
-
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=["--disable-gpu", "--no-sandbox"]
-                )
-                page = browser.new_page()
-
-                try:
-                    # Set content
-                    page.set_content(html, wait_until="networkidle", timeout=15000)
-                    time.sleep(0.3)  # Brief wait for rendering
-
-                    # Generate PDF
-                    pdf_bytes = page.pdf(
-                        format="A4",
-                        margin={"top": "1cm", "right": "1cm", "bottom": "1cm", "left": "1cm"},
-                        print_background=True,
-                        prefer_css_page_size=False,
-                    )
-                    return pdf_bytes
-                finally:
-                    page.close()
-                    browser.close()
-
-        # Run in thread pool
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            pdf_bytes = await loop.run_in_executor(executor, _generate_pdf_sync, html_content)
+        # Use async Playwright to avoid thread/event-loop conflicts on Windows
+        pdf_bytes = await self._render_html_to_pdf(html_content)
 
         logger.info(f"PDF generated successfully: {len(pdf_bytes)} bytes")
         return pdf_bytes

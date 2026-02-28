@@ -1,5 +1,7 @@
 """Land departments listing endpoint."""
 
+from fastapi import APIRouter
+
 from app.api.deps import SettingsDep
 from app.infrastructure.duckdb_pool import get_pool
 

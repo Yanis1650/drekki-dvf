@@ -12,7 +12,6 @@ from datetime import datetime
 from pathlib import Path
 
 import duckdb
-import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -172,14 +171,10 @@ class DFIEtlPipeline:
 
         self._output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Convert to Polars DataFrame for efficient loading
-        df = pl.DataFrame(filiations)
-
-        logger.info(f"Loading {len(df)} filiations to DuckDB: {self._output_path}")
+        logger.info(f"Loading {len(filiations):,} filiations to DuckDB: {self._output_path}")
 
         conn = duckdb.connect(str(self._output_path))
         try:
-            # Create table if not exists
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS dfi_filiations (
                     code_departement VARCHAR(3),
@@ -194,12 +189,30 @@ class DFIEtlPipeline:
                 )
             """)
 
-            # Register DataFrame and insert
-            conn.register("filiations_df", df)
-            conn.execute("""
-                INSERT INTO dfi_filiations
-                SELECT * FROM filiations_df
-            """)
+            # Insert par lots pour eviter les limites memoire
+            batch_size = 50_000
+            for i in range(0, len(filiations), batch_size):
+                batch = filiations[i : i + batch_size]
+                rows = [
+                    (
+                        r["code_departement"],
+                        r["code_commune"],
+                        r["prefixe"],
+                        r["id_dfi"],
+                        r["nature_dfi"],
+                        r["date_validation"],
+                        r["numero_lot"],
+                        r["parcelle_mere"],
+                        r["parcelle_fille"],
+                    )
+                    for r in batch
+                ]
+                conn.executemany(
+                    """INSERT INTO dfi_filiations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    rows,
+                )
+                if (i + batch_size) % 100_000 == 0 or i + batch_size >= len(filiations):
+                    logger.info(f"  Inserted {min(i + batch_size, len(filiations)):,} rows")
 
             # Create composite indexes for fast lookups
             logger.info("Creating indexes...")
@@ -249,22 +262,60 @@ class DFIEtlPipeline:
         return len(filiations)
 
 
-def run_dfi_etl_all_departments(dfi_dir: Path | str) -> None:
+# Chemin par defaut des DFI (structure cadastre.gouv.fr janvier 2025)
+def _find_default_dfi_dir() -> Path:
+    """Recherche le dossier DFI dans data/ (evite problemes d'encodage du nom)."""
+    data_dir = Path(__file__).resolve().parent.parent / "data"
+    if not data_dir.exists():
+        return data_dir / "Documents de filiation informatisés (situation janvier 2025) - dept 2A0 à dept 580"
+    for d in data_dir.iterdir():
+        if d.is_dir() and "filiation" in d.name.lower() and "dept" in d.name.lower():
+            return d
+    return data_dir / "Documents de filiation informatisés (situation janvier 2025) - dept 2A0 à dept 580"
+
+
+def run_dfi_etl_all_departments(
+    dfi_dir: Path | str,
+    dept_filter: str | None = None,
+    replace: bool = False,
+    output_path: Path | str | None = None,
+) -> None:
     """Process all DFI files in a directory.
-    
+
     Args:
-        dfi_dir: Directory containing DFI subdirectories
+        dfi_dir: Directory containing DFI subdirectories (dfiano-depXXX-date.txt/)
+        dept_filter: Optional dept code to load only (e.g. "035" for 35)
+        replace: If True, truncate table before loading
+        output_path: DuckDB output path (default: data/foncier.duckdb)
     """
     dfi_dir = Path(dfi_dir)
-    pipeline = DFIEtlPipeline()
+    if not dfi_dir.exists():
+        raise FileNotFoundError(f"DFI directory not found: {dfi_dir}")
 
-    # Find all DFI files (pattern: dfiano-dep*.txt/dfiano-dep*.txt)
-    dfi_files = list(dfi_dir.glob("dfiano-dep*/dfiano-dep*.txt"))
+    pipeline = DFIEtlPipeline(output_path=output_path or "./data/foncier.duckdb")
+
+    # Pattern: dfiano-dep035-19012025.txt/dfiano-dep035-19012025.txt
+    dfi_files = sorted(dfi_dir.glob("dfiano-dep*/dfiano-dep*.txt"))
+
+    if dept_filter:
+        # Support dep035, dep35, dep350 (archives utilisent parfois dep350 pour dept 35)
+        dept_clean = dept_filter.strip().upper().replace("2A", "2A0").replace("2B", "2B0")
+        patterns = [
+            f"dep{dept_clean.zfill(3)}",   # 35 -> dep035
+            f"dep{dept_clean.lstrip('0') or '0'}",  # 35 -> dep35
+            f"dep{dept_clean}0" if len(dept_clean) == 2 else "",  # 35 -> dep350
+        ]
+        patterns = [p for p in patterns if p]
+        dfi_files = [f for f in dfi_files if any(p in f.as_posix() for p in patterns)]
+        logger.info(f"Filtering dept {dept_filter}: {len(dfi_files)} files")
 
     logger.info(f"Found {len(dfi_files)} DFI files to process")
 
+    if replace and dfi_files:
+        _truncate_dfi_table(pipeline._output_path)
+
     total_filiations = 0
-    for dfi_file in sorted(dfi_files):
+    for dfi_file in dfi_files:
         try:
             count = pipeline.run(dfi_file)
             total_filiations += count
@@ -272,24 +323,113 @@ def run_dfi_etl_all_departments(dfi_dir: Path | str) -> None:
             logger.error(f"Failed to process {dfi_file.name}: {e}")
             continue
 
-    logger.info(f"✓ Total filiations processed: {total_filiations:,}")
+    logger.info(f"Total filiations processed: {total_filiations:,}")
+
+
+def _truncate_dfi_table(db_path: Path) -> None:
+    """Truncate dfi_filiations table."""
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DROP TABLE IF EXISTS dfi_filiations")
+        logger.info("Table dfi_filiations truncated")
+    finally:
+        conn.close()
+
+
+def _run_from_zip(zip_path: Path, pipeline: DFIEtlPipeline) -> int:
+    """Extract and process a single DFI ZIP file."""
+    import zipfile
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".txt"):
+                    zf.extract(name, tmp)
+                    txt_path = Path(tmp) / name
+                    return pipeline.run(txt_path)
+    return 0
+
+
+def run_dfi_etl_from_zips(
+    backup_dir: Path | str,
+    dept_filter: str | None = None,
+    replace: bool = False,
+) -> None:
+    """Process DFI from data_backup/*.txt.zip files.
+
+    Args:
+        backup_dir: Directory containing dfiano-dep*-date.txt.zip
+        dept_filter: Optional dept (e.g. "35" or "035")
+        replace: Truncate before load
+    """
+    backup_dir = Path(backup_dir)
+    zip_files = sorted(backup_dir.glob("dfiano-dep*.txt.zip"))
+    if dept_filter:
+        dept_norm = dept_filter.zfill(3)
+        zip_files = [f for f in zip_files if f"dep{dept_norm}" in f.name]
+
+    if not zip_files:
+        logger.warning(f"No ZIP files found in {backup_dir}")
+        return
+
+    pipeline = DFIEtlPipeline()
+    if replace:
+        _truncate_dfi_table(pipeline._output_path)
+
+    total = 0
+    for z in zip_files:
+        try:
+            total += _run_from_zip(z, pipeline)
+        except Exception as e:
+            logger.error(f"Failed {z.name}: {e}")
+    logger.info(f"Total from ZIPs: {total:,}")
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
-    if len(sys.argv) < 2:
-        print("Usage: python etl_dfi.py <dfi_file_or_directory>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="ETL DFI (Documents de Filiation Informatisés) -> DuckDB"
+    )
+    default_dir = _find_default_dfi_dir()
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=str(default_dir),
+        help=f"File, directory or ZIP folder (default: auto-detect in data/)",
+    )
+    parser.add_argument(
+        "--dept",
+        metavar="XX",
+        help="Load only this department (e.g. 35 for Ille-et-Vilaine)",
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Truncate dfi_filiations before loading",
+    )
+    parser.add_argument(
+        "--from-zips",
+        action="store_true",
+        help="Use data_backup/*.zip instead of extracted folders",
+    )
 
-    path = Path(sys.argv[1])
+    args = parser.parse_args()
+    path = Path(args.path)
 
-    if path.is_dir():
-        run_dfi_etl_all_departments(path)
+    if not path.exists():
+        print(f"Error: {path} does not exist")
+        exit(1)
+
+    if args.from_zips:
+        run_dfi_etl_from_zips(path, dept_filter=args.dept, replace=args.replace)
+    elif path.is_dir():
+        run_dfi_etl_all_departments(path, dept_filter=args.dept, replace=args.replace)
     else:
         pipeline = DFIEtlPipeline()
         pipeline.run(path)

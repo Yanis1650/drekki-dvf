@@ -1,15 +1,29 @@
 ## Description
-Veuillez inclure un résumé des changements et le problème résolu.
+
+Résumé des changements et motivation.
+
+Fixes # (numéro d'issue)
 
 ## Type de changement
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
+
+- [ ] Bug fix (changement non-breaking qui corrige un bug)
+- [ ] Nouvelle fonctionnalité (changement non-breaking qui ajoute une feature)
+- [ ] Breaking change (changement qui casse la compatibilité existante)
+- [ ] Documentation
+- [ ] Refactoring (pas de changement fonctionnel)
+
+## Comment tester
+
+Étapes pour vérifier les changements :
+
+1. ...
+2. ...
 
 ## Checklist
-- [ ] Mon code suit les règles de style de ce projet.
-- [ ] J'ai effectué une auto-révision de mon code.
-- [ ] J'ai commenté mon code, en particulier dans les zones complexes.
-- [ ] Mes changements ne génèrent aucun nouvel avertissement.
-- [ ] J'ai ajouté des tests qui prouvent que ma correction est efficace ou que ma fonctionnalité fonctionne.
+
+- [ ] Mon code suit les conventions du projet
+- [ ] Les tests passent (`pytest`)
+- [ ] Le linting passe (`ruff check .`)
+- [ ] J'ai ajouté des tests pour les nouvelles fonctionnalités
+- [ ] La documentation est à jour si nécessaire
+- [ ] Aucun secret ou donnée personnelle n'est inclus

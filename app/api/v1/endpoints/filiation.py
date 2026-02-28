@@ -22,9 +22,9 @@ def get_filiation_service() -> FiliationService:
 async def get_parcel_filiation(
     id_parcelle: str = Path(
         ...,
-        min_length=14,
+        min_length=13,
         max_length=14,
-        description="Full parcel ID (14 chars, ex: 35238000AB0123)",
+        description="Full parcel ID (13-14 chars, ex: 35238000AB0123)",
     ),
     service: FiliationService = Depends(get_filiation_service),
 ):
@@ -48,19 +48,21 @@ async def get_parcel_filiation(
         HTTPException: 400 if invalid parcel ID format
         HTTPException: 500 if service error
     """
-    # Parse parcel ID (format: 35238000AB0123)
-    # Positions: [0:3]=dept, [3:6]=commune, [6:9]=prefix, [9:11]=section, [11:15]=numero
-
-    if len(id_parcelle) != 14:
+    # Parse parcel ID: 14 chars = comm(5)+pref(3)+sect(2)+num(4), 13 chars = sect(1)
+    if len(id_parcelle) not in (13, 14):
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid parcel ID length: {len(id_parcelle)} (expected 14)",
+            detail=f"Invalid parcel ID length: {len(id_parcelle)} (expected 13 or 14)",
         )
 
     try:
-        code_commune = id_parcelle[3:6]  # 3-digit commune code
-        section = id_parcelle[9:11]  # 2-char section
-        numero = id_parcelle[11:15]  # 4-digit number
+        code_commune = id_parcelle[2:5]  # 3-digit commune (ex: 238 from 35238)
+        if len(id_parcelle) == 14:
+            section = id_parcelle[8:10]  # 2-char section
+            numero = id_parcelle[10:14]   # 4-digit number
+        else:  # 13 chars (section 1 char)
+            section = id_parcelle[8:9]   # 1-char section
+            numero = id_parcelle[9:13]   # 4-digit number
 
         logger.info(
             f"Fetching filiation for parcelle {id_parcelle} "

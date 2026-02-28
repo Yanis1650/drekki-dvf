@@ -6,19 +6,20 @@ Write-Host "ETL Densification - Execution avec environnement virtuel" -Foregroun
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Vérifier que l'environnement virtuel existe
-if (-Not (Test-Path "venv\Scripts\python.exe")) {
-    Write-Host "ERREUR: Environnement virtuel introuvable!" -ForegroundColor Red
-    Write-Host "Chemin attendu: venv\Scripts\python.exe" -ForegroundColor Yellow
+# Vérifier que l'environnement virtuel existe (.venv = environnement unique du projet)
+$pythonExe = ".\.venv\Scripts\python.exe"
+if (-Not (Test-Path $pythonExe)) {
+    Write-Host "ERREUR: Environnement Python introuvable!" -ForegroundColor Red
+    Write-Host "Chemin attendu: .venv\Scripts\python.exe" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Créer l'environnement virtuel avec:" -ForegroundColor Yellow
-    Write-Host "  python -m venv venv" -ForegroundColor White
-    Write-Host "  .\venv\Scripts\Activate.ps1" -ForegroundColor White
-    Write-Host "  pip install -r requirements.txt" -ForegroundColor White
+    Write-Host "Creer l'environnement unique avec:" -ForegroundColor Yellow
+    Write-Host "  python -m venv .venv" -ForegroundColor White
+    Write-Host "  .\.venv\Scripts\Activate.ps1" -ForegroundColor White
+    Write-Host "  pip install -e `".[dev]`"" -ForegroundColor White
     exit 1
 }
 
-Write-Host "✓ Environnement virtuel trouvé" -ForegroundColor Green
+Write-Host "OK Environnement .venv trouve" -ForegroundColor Green
 Write-Host ""
 
 # Vérifier que le fichier ETL existe
@@ -35,7 +36,7 @@ Write-Host ""
 Write-Host "Lancement de l'ETL..." -ForegroundColor Cyan
 Write-Host ""
 
-& .\venv\Scripts\python.exe data-pipeline\etl_densification.py
+& .\.venv\Scripts\python.exe data-pipeline\etl_densification.py
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

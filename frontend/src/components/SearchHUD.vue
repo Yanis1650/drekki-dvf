@@ -3,16 +3,18 @@ import { ref } from 'vue';
 import AddressSearch from './AddressSearch.vue';
 import { CurrencyEuroIcon, FunnelIcon } from '@heroicons/vue/24/solid';
 
-defineProps({
+const props = defineProps({
   balance: {
     type: Number,
     default: 0
+  },
+  modelValue: {
+    type: String,
+    default: null
   }
 });
 
-const emit = defineEmits(['search-select', 'buy-credits', 'filter-change']);
-
-const activeFilter = ref(null);
+const emit = defineEmits(['search-select', 'buy-credits', 'update:modelValue']);
 
 const filters = [
   { id: 'zan', label: '🌱 Fort Potentiel ZAN', color: '#10b981' },
@@ -20,8 +22,8 @@ const filters = [
 ];
 
 const toggleFilter = (filterId) => {
-  activeFilter.value = activeFilter.value === filterId ? null : filterId;
-  emit('filter-change', activeFilter.value);
+  const next = props.modelValue === filterId ? null : filterId;
+  emit('update:modelValue', next);
 };
 </script>
 
@@ -39,8 +41,8 @@ const toggleFilter = (filterId) => {
         :key="filter.id"
         @click="toggleFilter(filter.id)"
         class="filter-pill"
-        :class="{ active: activeFilter === filter.id }"
-        :style="activeFilter === filter.id ? { borderColor: filter.color, color: filter.color } : {}"
+        :class="{ active: modelValue === filter.id }"
+        :style="modelValue === filter.id ? { borderColor: filter.color, color: filter.color } : {}"
       >
         {{ filter.label }}
       </button>

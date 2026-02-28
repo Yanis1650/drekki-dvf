@@ -13,6 +13,7 @@ const props = defineProps({
 });
 
 const expanded = ref(false);
+const showLexique = ref(false);
 const animated = ref(false);
 
 onMounted(() => {
@@ -66,7 +67,21 @@ const subScores = computed(() => [
           </svg>
         </div>
         <div class="header-text">
-          <span class="confidence-title">Indice de confiance</span>
+          <span class="confidence-title">
+            Indice de confiance
+            <button
+              type="button"
+              class="lexique-trigger"
+              @click.stop="showLexique = !showLexique"
+              title="Comment est calculé l'indice ?"
+              aria-label="Lexique du calcul"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4M12 8h.01"/>
+              </svg>
+            </button>
+          </span>
           <span class="confidence-label" :style="{ color: config.color }">{{ confidenceLabel || '—' }}</span>
         </div>
       </div>
@@ -81,6 +96,19 @@ const subScores = computed(() => [
         </svg>
       </div>
     </button>
+
+    <!-- Lexique du calcul -->
+    <div v-if="showLexique" class="lexique-note">
+      <p class="lexique-benefit"><strong>À quoi ça sert ?</strong> Un score élevé = nos estimations sont fiables. Un score faible = prévoir une vérification terrain avant de vous engager.</p>
+      <p class="lexique-intro"><strong>Calcul :</strong> Moyenne pondérée de 4 composantes :</p>
+      <ul class="lexique-list">
+        <li><strong>BDNB (30%)</strong> : données bâtiment (DPE, emprise sol)</li>
+        <li><strong>DVF (25%)</strong> : nombre de transactions</li>
+        <li><strong>Densification (25%)</strong> : qualité de la source ZAN</li>
+        <li><strong>Fraîcheur (20%)</strong> : récence de la dernière vente</li>
+      </ul>
+      <p class="lexique-levels"><strong>Niveaux :</strong> Élevée ≥75% • Moyenne 55–75% • Faible 35–55% • Insuffisante &lt;35%</p>
+    </div>
 
     <!-- Global bar -->
     <div class="global-bar-track">
@@ -193,6 +221,64 @@ const subScores = computed(() => [
   letter-spacing: 0.04em;
   line-height: 1;
   margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lexique-trigger {
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background 0.2s;
+}
+.lexique-trigger:hover {
+  color: #527f8c;
+  background: rgba(82, 127, 140, 0.1);
+}
+.lexique-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lexique-note {
+  padding: 12px 16px;
+  margin: 0 16px 12px;
+  background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(99, 102, 241, 0.04));
+  border: 1px solid rgba(82, 127, 140, 0.15);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+}
+.lexique-benefit {
+  margin: 0 0 10px 0;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 8px;
+  border-left: 3px solid #10b981;
+  font-size: 12px;
+}
+.lexique-intro {
+  margin: 0 0 8px 0;
+}
+.lexique-list {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
+}
+.lexique-list li {
+  margin-bottom: 4px;
+}
+.lexique-levels {
+  margin: 8px 0 0 0;
+  font-size: 11px;
+  color: #64748b;
 }
 
 .confidence-label {

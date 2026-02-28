@@ -20,7 +20,15 @@ Start-Sleep -Seconds 3
 
 # 2. Demarrer le Backend FastAPI
 Write-Host "`n[2/3] Demarrage du Backend FastAPI..." -ForegroundColor Yellow
-$backendJob = Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; .\venv\Scripts\Activate.ps1; uvicorn app.main:app --reload --port 8000" -PassThru
+$pythonExe = ".\.venv\Scripts\python.exe"
+if (-Not (Test-Path $pythonExe)) { $pythonExe = ".\venv\Scripts\python.exe" }
+if (-Not (Test-Path $pythonExe)) {
+    Write-Host "ERREUR: Environnement Python introuvable." -ForegroundColor Red
+    Write-Host "Creer un seul environnement: python -m venv .venv" -ForegroundColor Yellow
+    Write-Host "Puis: .\.venv\Scripts\Activate.ps1 ; pip install -e `".[dev]`"" -ForegroundColor Yellow
+    exit 1
+}
+$backendJob = Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; & '$pythonExe' -m uvicorn app.main:app --reload --port 8000" -PassThru
 Write-Host "      Backend demarre sur http://localhost:8000" -ForegroundColor Green
 Write-Host "      PID: $($backendJob.Id)" -ForegroundColor DarkGray
 

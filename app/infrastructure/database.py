@@ -16,9 +16,9 @@ class DatabaseSettings(BaseSettings):
     """Database configuration from environment."""
 
     postgis_host: str = "localhost"
-    postgis_port: int = 5432
+    postgis_port: int = 5433
     postgis_user: str = "foncier"
-    postgis_password: str = "foncier_2024"
+    postgis_password: str = ""  # Requis: définir POSTGIS_PASSWORD dans .env
     postgis_db: str = "foncier_express"
     default_srid: int = 2154  # Lambert-93
 

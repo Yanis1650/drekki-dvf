@@ -58,8 +58,11 @@ def build_parcelles_geojson(
     max_x: float,
     max_y: float,
     limit: int = 500,
+    filter: str | None = None,
 ) -> str:
-    """Build GeoJSON FeatureCollection of parcel polygons with transaction counts."""
+    """Build GeoJSON FeatureCollection of parcel polygons with transaction counts.
+    filter: 'zan' (categorie FORT) or 'recent' (vente < 2 ans).
+    """
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
     min_x_l93, min_y_l93 = transformer.transform(min_x, min_y)
     max_x_l93, max_y_l93 = transformer.transform(max_x, max_y)
@@ -67,7 +70,24 @@ def build_parcelles_geojson(
     logger.debug("Parcelles bbox WGS84 (%.2f,%.2f)-(%.2f,%.2f) -> L93 (%.2f,%.2f)-(%.2f,%.2f)",
                  min_x, min_y, max_x, max_y, min_x_l93, min_y_l93, max_x_l93, max_y_l93)
 
-    parcelles_query = """
+    filter_clause = ""
+    parcelle_id_expr = "CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'), COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0'))"
+    if filter == "zan":
+        filter_clause = f"""
+          AND EXISTS (
+            SELECT 1 FROM densification_scores d
+            WHERE d.id_parcelle = {parcelle_id_expr} AND d.categorie = 'FORT'
+          )"""
+    elif filter == "recent":
+        filter_clause = f"""
+          AND EXISTS (
+            SELECT 1 FROM france_foncier_test f
+            WHERE f.cadastre_parcelle_id = {parcelle_id_expr}
+              AND TRY_CAST(f.date_mutation AS DATE) >= CURRENT_DATE - INTERVAL 2 YEARS
+              AND f.longitude BETWEEN ? AND ? AND f.latitude BETWEEN ? AND ?
+          )"""
+
+    parcelles_query = f"""
         SELECT CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'),
                COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0')) as full_id_parcelle,
                ST_AsText(p.geometry), ST_AsGeoJSON(p.geometry), ST_Area(p.geometry)
@@ -75,12 +95,15 @@ def build_parcelles_geojson(
         WHERE p.code_commune LIKE '35%'
           AND ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
           AND ST_Area(p.geometry) < 10000 AND ST_Area(p.geometry) > 10
+        {filter_clause}
         LIMIT ?
     """
     try:
-        parcelles_results = conn.execute(
-            parcelles_query, [min_x_l93, min_y_l93, max_x_l93, max_y_l93, limit]
-        ).fetchall()
+        parcelles_params: list = [min_x_l93, min_y_l93, max_x_l93, max_y_l93]
+        if filter == "recent":
+            parcelles_params.extend([min_x, max_x, min_y, max_y])
+        parcelles_params.append(limit)
+        parcelles_results = conn.execute(parcelles_query, parcelles_params).fetchall()
     except Exception as e:
         logger.exception("get_parcelles_geojson failed: %s", e)
         return '{"type": "FeatureCollection", "features": []}'

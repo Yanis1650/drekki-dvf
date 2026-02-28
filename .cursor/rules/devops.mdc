@@ -1,12 +1,19 @@
 ---
-description: Conventions Docker et déploiement
+description: Conventions Docker, déploiement et environnement
 globs:
   - docker-compose*
   - Dockerfile*
+  - *.ps1
 alwaysApply: false
 ---
 
 # DevOps Foncier-Express
+
+## Environnement Python (unique)
+
+- **Un seul venv :** `.venv` à la racine. Aucun `venv`, `env` ou autre.
+- **Création :** `python -m venv .venv` puis `pip install -e ".[dev]"`
+- **Source de vérité :** `pyproject.toml` (pas de requirements.txt).
 
 ## Docker
 

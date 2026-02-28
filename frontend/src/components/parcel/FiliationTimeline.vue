@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
-import axios from 'axios';
+import client from '../../api/client';
 
 const props = defineProps({
   idParcelle: {
@@ -14,6 +14,7 @@ const emit = defineEmits(['highlight-parcels']);
 const filiation = ref(null);
 const loading = ref(false);
 const error = ref(null);
+const showLexique = ref(false);
 
 // Get all ancestor parcel IDs for highlighting
 const allAncestorIds = computed(() => {
@@ -31,7 +32,8 @@ const onTimelineHover = (entering) => {
 };
 
 watch(() => props.idParcelle, async (newId) => {
-  if (!newId || newId.length !== 14) {
+  // Accepter 13 ou 14 chars (section 1 char produit 13 chars via CONCAT)
+  if (!newId || newId.length < 13 || newId.length > 14) {
     filiation.value = null;
     return;
   }
@@ -40,7 +42,7 @@ watch(() => props.idParcelle, async (newId) => {
   error.value = null;
 
   try {
-    const response = await axios.get(`http://localhost:8000/api/v1/filiation/${newId}`);
+    const response = await client.get(`/filiation/${newId}`);
     filiation.value = response.data;
   } catch (err) {
     console.error('Erreur chargement filiation:', err);
@@ -74,6 +76,20 @@ const getOperationLabel = (nature) => {
   };
   return labels[nature] || 'Modification';
 };
+
+const getOperationTooltip = (nature) => {
+  const tips = {
+    '1': 'Document d\'arpentage : mesure et délimitation officielle par un géomètre.',
+    '2': 'Croquis de conservation : mise à jour du plan (vente partielle, division à l\'amiable, changements de limites).',
+    '4': 'Remaniement : rénovation ou refonte du plan cadastral.',
+    '5': 'Arpentage en mode numérique.',
+    '6': 'Lotissement créé en mode numérique.',
+    '7': 'Lotissement : division en plusieurs lots pour vente ou construction.',
+    '8': 'Rénovation du plan cadastral.'
+  };
+  return tips[nature] || 'Modification du plan cadastral.';
+};
+
 </script>
 
 <template>
@@ -84,7 +100,26 @@ const getOperationLabel = (nature) => {
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
       Historique Parcellaire
+      <button 
+        type="button" 
+        class="lexique-trigger"
+        @click="showLexique = !showLexique"
+        title="Qu'est-ce que la filiation parcellaire ?"
+        aria-label="Afficher le lexique"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4M12 8h.01"/>
+        </svg>
+      </button>
     </h3>
+
+    <div v-if="showLexique" class="lexique-note">
+      <p class="lexique-intro"><strong>Qu'est-ce que la filiation ?</strong> Elle retrace l'origine de la parcelle : quelles parcelles l'ont précédée et par quelle opération cadastrale elle a été créée.</p>
+      <p><strong>« Issue de la parcelle DI0003 »</strong> = cette parcelle provient de la division ou modification de la parcelle DI0003.</p>
+      <p><strong>Conservation</strong> = croquis de conservation (vente partielle, division à l'amiable, etc.).</p>
+      <a href="https://data.economie.gouv.fr/explore/dataset/documents-de-filiation-informatises-dfi-des-parcelles/" target="_blank" rel="noopener" class="lexique-link">Source : DFI DGFiP (data.gouv.fr)</a>
+    </div>
 
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
@@ -118,7 +153,10 @@ const getOperationLabel = (nature) => {
           <div class="timeline-content">
             <div class="timeline-header">
               <span class="parcel-id">{{ ancestor.id_parcelle }}</span>
-              <span class="operation-badge">{{ getOperationLabel(ancestor.nature_operation) }}</span>
+              <span 
+                class="operation-badge" 
+                :title="getOperationTooltip(ancestor.nature_operation)"
+              >{{ getOperationLabel(ancestor.nature_operation) }}</span>
             </div>
             <span class="timeline-date">{{ formatDate(ancestor.date_division) }}</span>
           </div>
@@ -282,5 +320,57 @@ const getOperationLabel = (nature) => {
 .timeline-date {
   font-size: 12px;
   color: #64748b;
+}
+
+.lexique-trigger {
+  margin-left: 6px;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background 0.2s;
+}
+.lexique-trigger:hover {
+  color: #527f8c;
+  background: rgba(82, 127, 140, 0.1);
+}
+.lexique-trigger svg {
+  width: 18px;
+  height: 18px;
+}
+
+.lexique-note {
+  background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(63, 103, 117, 0.06));
+  border: 1px solid rgba(82, 127, 140, 0.2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #475569;
+}
+.lexique-note p {
+  margin: 0 0 8px 0;
+}
+.lexique-note p:last-of-type {
+  margin-bottom: 10px;
+}
+.lexique-intro {
+  margin-bottom: 10px !important;
+}
+.lexique-link {
+  display: inline-block;
+  font-size: 12px;
+  color: #527f8c;
+  font-weight: 500;
+  text-decoration: none;
+}
+.lexique-link:hover {
+  text-decoration: underline;
 }
 </style>

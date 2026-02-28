@@ -9,7 +9,7 @@ const props = defineProps({
   coordinates: {
     type: Array,
     default: null // [lon, lat]
-  }
+  },
 });
 
 const emit = defineEmits(['close']);
@@ -59,6 +59,9 @@ const formattedId = computed(() => {
   if (id.length === 14) {
     return `${id.slice(0, 2)}-${id.slice(2, 5)}-${id.slice(5, 8)}-${id.slice(8, 10)}-${id.slice(10)}`;
   }
+  if (id.length === 13) {
+    return `${id.slice(0, 2)}-${id.slice(2, 5)}-${id.slice(5, 8)}-${id.slice(8, 9)}-${id.slice(9)}`;
+  }
   return id;
 });
 </script>
@@ -93,7 +96,7 @@ const formattedId = computed(() => {
         <p class="parcel-raw" v-if="parcelId">ID: {{ parcelId }}</p>
       </div>
       
-      <button @click="emit('close')" class="close-btn">
+      <button @click="emit('close')" class="close-btn" title="Fermer le panneau">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>

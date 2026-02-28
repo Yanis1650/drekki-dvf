@@ -31,7 +31,10 @@
           <div class="node-card">
             <div class="node-header">
               <span class="node-id">{{ ancestor.id_parcelle }}</span>
-              <span class="node-operation">{{ getOperationLabel(ancestor.nature_operation) }}</span>
+              <span 
+                class="node-operation" 
+                :title="getOperationTooltip(ancestor.nature_operation)"
+              >{{ getOperationLabel(ancestor.nature_operation) }}</span>
             </div>
             <span class="node-date">{{ formatDate(ancestor.date_division) }}</span>
           </div>
@@ -43,7 +46,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
-import axios from 'axios';
+import client from '../api/client';
 
 const props = defineProps({
   idParcelle: {
@@ -57,7 +60,8 @@ const loading = ref(false);
 const error = ref(null);
 
 watch(() => props.idParcelle, async (newId) => {
-  if (!newId || newId.length !== 14) {
+  // Accepter 13 ou 14 chars (section 1 char produit 13 chars via CONCAT)
+  if (!newId || newId.length < 13 || newId.length > 14) {
     filiation.value = null;
     return;
   }
@@ -66,7 +70,7 @@ watch(() => props.idParcelle, async (newId) => {
   error.value = null;
 
   try {
-    const response = await axios.get(`/api/v1/filiation/${newId}`);
+    const response = await client.get(`/filiation/${newId}`);
     filiation.value = response.data;
   } catch (err) {
     console.error('Erreur chargement filiation:', err);
@@ -99,6 +103,19 @@ const getOperationLabel = (nature) => {
     '8': 'Rénovation'
   };
   return labels[nature] || 'Modification';
+};
+
+const getOperationTooltip = (nature) => {
+  const tips = {
+    '1': 'Document d\'arpentage : mesure et délimitation officielle par un géomètre.',
+    '2': 'Croquis de conservation : mise à jour du plan (vente partielle, division à l\'amiable).',
+    '4': 'Remaniement : rénovation du plan cadastral.',
+    '5': 'Arpentage en mode numérique.',
+    '6': 'Lotissement créé en mode numérique.',
+    '7': 'Lotissement : division en lots pour vente ou construction.',
+    '8': 'Rénovation du plan cadastral.'
+  };
+  return tips[nature] || 'Modification du plan cadastral.';
 };
 </script>
 

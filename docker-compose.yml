@@ -3,9 +3,9 @@ services:
     image: postgis/postgis:15-3.4
     container_name: foncier-postgis
     environment:
-      POSTGRES_USER: foncier
-      POSTGRES_PASSWORD: foncier_2024
-      POSTGRES_DB: foncier_express
+      POSTGRES_USER: ${POSTGIS_USER:-foncier}
+      POSTGRES_PASSWORD: ${POSTGIS_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGIS_DB:-foncier_express}
     ports:
       - "5433:5432"
     volumes:

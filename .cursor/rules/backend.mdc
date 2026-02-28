@@ -24,3 +24,8 @@ alwaysApply: false
 
 - **Pydantic v2 :** Types `Annotated` pour validation (coordonnées GPS, codes parcelles).
 - **Structure app/ :** endpoints → services → repositories. Flux unidirectionnel, pas de dépendance circulaire.
+
+## Tests (voir tests.mdc)
+
+- **pytest + pytest-asyncio :** Configuration dans `pyproject.toml` (`asyncio_mode = "auto"`).
+- **Fixtures DuckDB :** `conftest.py` fournit `duckdb_conn_inmemory`, `duckdb_conn_with_fixtures`.

@@ -3,7 +3,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.api.deps import CreditCheckDep, ReportDep, get_user_repository

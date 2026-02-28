@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Annotated
 
-from fastapi import HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import RepositoryDep
 
@@ -43,6 +43,10 @@ async def get_transactions_geojson(
 async def get_parcelles_geojson(
     repository: RepositoryDep,
     bbox: Annotated[str, Query(description="min_lon,min_lat,max_lon,max_lat")],
+    filter: Annotated[
+        str | None,
+        Query(description="Filter: 'zan' (Fort potentiel ZAN) or 'recent' (Ventes < 2 ans)"),
+    ] = None,
 ) -> dict:
     """Get cadastral parcels as GeoJSON Polygon features."""
     try:
@@ -50,10 +54,12 @@ async def get_parcelles_geojson(
         if len(coords) != 4:
             raise ValueError("Invalid bbox format")
         min_lon, min_lat, max_lon, max_lat = coords
-        if (max_lon - min_lon) > 0.2 or (max_lat - min_lat) > 0.2:
-            raise HTTPException(status_code=400, detail="Area too large. Zoom >= 13.")
+        if (max_lon - min_lon) > 0.5 or (max_lat - min_lat) > 0.5:
+            raise HTTPException(status_code=400, detail="Area too large. Zoom in.")
+        if filter and filter not in ("zan", "recent"):
+            raise HTTPException(status_code=400, detail="Filter must be 'zan' or 'recent'")
         geojson_str = await repository.get_parcelles_geojson(
-            min_x=min_lon, min_y=min_lat, max_x=max_lon, max_y=max_lat, limit=1000
+            min_x=min_lon, min_y=min_lat, max_x=max_lon, max_y=max_lat, limit=1000, filter=filter
         )
         return json.loads(geojson_str)
     except ValueError:

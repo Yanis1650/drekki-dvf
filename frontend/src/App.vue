@@ -14,7 +14,7 @@ const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParc
 // State
 const userBalance = ref(0);
 const selectedTransaction = ref(null);
-const showParcelPanel = ref(true);  // Panel visible by default
+const showParcelPanel = ref(true);
 const relatedParcels = ref([]);  // For hover filiation highlight
 const showCreditModal = ref(false);
 const mapCenter = ref([-1.6778, 48.1173]); // Rennes default
@@ -23,20 +23,26 @@ const loading = ref(false);
 const mapMode = ref('prix'); // 'prix' or 'zan'
 const activeFilter = ref(null);
 const mapRef = ref(null);
+const backendOffline = ref(false);
 
-// Auto-open panel when parcel selected via URL
+// Ouvrir le panneau quand une parcelle est sélectionnée via l'URL
 watch(hasSelection, (selected) => {
-  if (selected && !showParcelPanel.value) {
-    showParcelPanel.value = true;
-  }
+  if (selected) showParcelPanel.value = true;
 });
+
+const isNetworkError = (err) =>
+  err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error');
 
 // API Calls
 const fetchUser = async () => {
   try {
     const res = await client.get('/users/me');
     userBalance.value = res.data.credit_balance;
+    backendOffline.value = false;
   } catch (err) {
+    if (isNetworkError(err)) {
+      backendOffline.value = true;
+    }
     console.error("Auth error:", err);
     userBalance.value = 5; // Demo balance
   }
@@ -65,6 +71,7 @@ const fetchTransactionsInRadius = async (lon, lat) => {
     
     transactions.value = { type: 'FeatureCollection', features };
   } catch (err) {
+    if (isNetworkError(err)) backendOffline.value = true;
     console.error("Search error:", err);
   } finally {
     loading.value = false;
@@ -118,7 +125,6 @@ const onParcelClick = (feature) => {
 
 const onPanelClose = () => {
   showParcelPanel.value = false;
-  // Don't clear selection - keep parcel highlighted even with panel closed
 };
 
 const onHighlightRelated = (parcelIds) => {
@@ -127,10 +133,6 @@ const onHighlightRelated = (parcelIds) => {
 
 const onMapModeChange = (mode) => {
   mapMode.value = mode;
-};
-
-const onFilterChange = (filter) => {
-  activeFilter.value = filter;
 };
 
 // Lifecycle
@@ -143,12 +145,31 @@ onMounted(() => {
 <template>
   <div class="relative w-screen h-screen overflow-hidden bg-slate-900">
     
-    <!-- Full-Screen Map Background -->
+    <!-- Backend Offline Banner -->
+    <Transition
+      enter-active-class="transition-all duration-300"
+      leave-active-class="transition-all duration-300"
+      enter-from-class="opacity-0 -translate-y-4"
+      leave-to-class="opacity-0 -translate-y-4"
+    >
+      <div
+        v-if="backendOffline"
+        class="absolute top-0 left-0 right-0 z-50 bg-amber-500/95 text-slate-900 px-4 py-3 text-center text-sm font-medium shadow-lg"
+      >
+        <span class="inline-block mr-2">⚠️</span>
+        L'API backend n'est pas accessible.
+        Lancez d'abord : <code class="bg-slate-900/20 px-1.5 py-0.5 rounded text-xs">uvicorn app.main:app --reload --port 8000</code>
+        (ou <code class="bg-slate-900/20 px-1.5 py-0.5 rounded text-xs">.\start.ps1</code>)
+      </div>
+    </Transition>
+
+    <!-- Carte plein écran (focus principal) -->
     <MapContainer 
       ref="mapRef"
       :center="mapCenter"
       :transactions="transactions"
       :mode="mapMode"
+      :active-filter="activeFilter"
       :selected-parcel="selectedParcelId"
       :related-parcels="relatedParcels"
       class="absolute inset-0"
@@ -156,13 +177,23 @@ onMounted(() => {
       @parcel-click="onParcelClick"
     />
 
+    <!-- Panneau gauche : rétréci par défaut, agrandi quand parcelle sélectionnée -->
+    <ParcelPanel 
+      :is-open="showParcelPanel"
+      :parcel-id="selectedParcelId"
+      :expanded="!!selectedParcelId"
+      @close="onPanelClose"
+      @highlight-related="onHighlightRelated"
+    />
+
     <!-- Floating Search HUD (Top Center) -->
     <SearchHUD 
       :balance="userBalance"
+      :model-value="activeFilter"
       class="absolute top-6 left-1/2 -translate-x-1/2 z-30"
       @search-select="onAddressSelect"
       @buy-credits="showCreditModal = true"
-      @filter-change="onFilterChange"
+      @update:model-value="activeFilter = $event"
     />
 
     <!-- Layer Switcher (Bottom Left) -->
@@ -188,14 +219,6 @@ onMounted(() => {
         <span class="text-sm font-medium text-slate-700">Chargement des données...</span>
       </div>
     </Transition>
-
-    <!-- Expert Panel (Right Sidebar) - Slide In -->
-    <ParcelPanel 
-      :is-open="showParcelPanel"
-      :parcel-id="selectedParcelId"
-      @close="onPanelClose"
-      @highlight-related="onHighlightRelated"
-    />
 
     <!-- Credit Modal -->
     <CreditModal 
@@ -227,4 +250,5 @@ onMounted(() => {
   width: 100%;
   height: 100%;
 }
+
 </style>

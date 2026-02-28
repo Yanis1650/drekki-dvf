@@ -10,7 +10,7 @@ import {
   SpeakerXMarkIcon,
   ChartBarIcon
 } from '@heroicons/vue/24/solid';
-import axios from 'axios';
+import client from '../api/client';
 import ScoreBar from './ScoreBar.vue';
 import PriceIndicator from './PriceIndicator.vue';
 import AttributesGrid from './AttributesGrid.vue';
@@ -109,7 +109,7 @@ const fetchMarketTrends = async () => {
 
   loadingTrends.value = true;
   try {
-    const response = await axios.get('http://localhost:8000/api/v1/analytics/trends', {
+    const response = await client.get('/analytics/trends', {
       params: {
         lat: props.transaction.latitude,
         lon: props.transaction.longitude,

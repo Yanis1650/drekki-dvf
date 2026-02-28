@@ -1,0 +1,45 @@
+---
+description: TDD (Test Driven Development) et conventions de tests
+globs:
+  - app/**
+  - data-pipeline/**
+  - tests/**
+alwaysApply: true
+---
+
+# TDD & Tests Foncier-Express
+
+## Principe TDD (Test Driven Development)
+
+- **Red → Green → Refactor :** Écrire le test (qui échoue), implémenter le minimum pour le faire passer, puis refactoriser.
+- **Tests d'abord :** Avant toute nouvelle fonctionnalité ou modification, définir les cas de test attendus.
+- **Couverture cible :** Services, repositories et logique métier : tests obligatoires. Endpoints : au moins un test d'intégration par route critique.
+
+## Quand écrire des tests
+
+1. **Nouveau service/repository :** Tests unitaires avec mocks avant ou en parallèle du code.
+2. **Nouvel endpoint :** Test client FastAPI (`TestClient`) pour le flux nominal et au moins une erreur (404, 422).
+3. **Modification de logique existante :** Vérifier que les tests existants passent ; ajouter un test pour le nouveau cas.
+4. **Utils/fonctions pures :** Tests obligatoires (faciles à isoler).
+
+## Structure des tests
+
+- **Emplacement :** `tests/` à la racine. Nommage `test_<module>.py` ou `tests/test_<feature>.py`.
+- **Fixtures :** `conftest.py` pour fixtures partagées (DuckDB in-memory, connexions mockées).
+- **Classes :** Grouper par module ou classe testée : `class TestDuckDBConnectionBase`, `class TestBuildTransactionsGeojson`.
+- **Noms explicites :** `test_returns_valid_geojson`, `test_empty_when_no_data` — pas `test_1`, `test_foo`.
+
+## Bonnes pratiques
+
+- **Isolation :** Chaque test est indépendant. Pas de dépendance entre tests.
+- **Mocks :** Utiliser `unittest.mock` ou `pytest-mock` pour isoler les dépendances externes (DB, API OSM).
+- **DuckDB :** Connexion `:memory:` avec `LOAD spatial` pour les tests spatiaux.
+- **Async :** `pytest-asyncio` avec `asyncio_mode = "auto"` pour les tests async.
+- **Assertions claires :** `assert result == expected` avec messages si utile : `assert len(features) == 2, "Expected 2 transactions"`.
+
+## Anti-patterns à éviter
+
+- **Pas de tests après coup :** Éviter "j'écris le code puis j'ajoute des tests" — privilégier TDD.
+- **Pas de tests sans assertion :** Un test qui ne vérifie rien ne vaut rien.
+- **Pas de sleep/attente arbitraire :** Préférer les mocks aux `time.sleep()` dans les tests.
+- **Pas de dépendance à des données réelles :** Fixtures ou données synthétiques uniquement.

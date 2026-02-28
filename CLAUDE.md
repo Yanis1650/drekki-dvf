@@ -17,6 +17,9 @@ BDNB : Intégration du DPE, de l'année de construction et de la hauteur du bât
 
 Historique : Analyse des tendances sur 11 ans pour calculer la plus-value et la résilience du marché.
 
+DFI (Filiation) : `docs/LEXIQUE_FILIATION.md` — vocabulaire et nature des opérations cadastrales (arpentage, conservation, lotissement…).
+Indice de confiance : `docs/LEXIQUE_CONFIANCE.md` — calcul du score (BDNB 30%, DVF 25%, Densification 25%, Fraîcheur 20%) et niveaux (Élevée, Moyenne, Faible).
+
 🏗️ Architecture Logicielle & Stack
 Architecture : Clean Architecture (SOLID) avec limite stricte de 200 lignes par fichier. Aucune dépendance circulaire.
 
@@ -32,6 +35,8 @@ Frontend : Vue.js 3 (Composition API), MapLibre GL JS (Rendu WebGL), Tailwind CS
 
 📏 Conventions & Règles de Seniority
 Fichiers : Max 200 lignes. Si dépassement -> Refactoring obligatoire (ISP/SRP). Pas de dépendances circulaires.
+
+TDD : Red → Green → Refactor. Tests obligatoires pour services, repositories et utils (voir `.cursor/rules/tests.mdc`).
 
 Types : Typage strict (Pydantic côté API, TypeScript-like patterns côté Vue).
 
