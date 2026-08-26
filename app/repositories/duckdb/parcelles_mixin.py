@@ -89,7 +89,10 @@ class DuckDBParcellesMixin:
         filter: 'zan' (Fort potentiel ZAN) or 'recent' (Ventes < 2 ans).
         """
         conn = self._get_connection()
-        return build_parcelles_geojson(conn, min_x, min_y, max_x, max_y, limit, filter)
+        return build_parcelles_geojson(
+            conn, min_x, min_y, max_x, max_y, limit, filter,
+            dept_prefix=getattr(self, "_dept_prefix", None),
+        )
 
     async def get_parcelles_in_bbox(
         self,

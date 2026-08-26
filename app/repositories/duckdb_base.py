@@ -8,14 +8,23 @@ from pathlib import Path
 import duckdb
 
 from app.infrastructure.duckdb_pool import DuckDBPool
+from app.infrastructure.duckdb_spatial import ensure_spatial
 
 
 class DuckDBConnectionBase:
     """Base class providing DuckDB connection and department routing."""
 
-    def __init__(self, db_path: Path | str, pool: DuckDBPool | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | str,
+        pool: DuckDBPool | None = None,
+        dept_prefix: str | None = None,
+    ) -> None:
         self._db_path = Path(db_path)
         self._pool = pool
+        # Garde-fou optionnel quand une base unique couvre plusieurs departements
+        # (ex. foncier.duckdb France entiere). None = pas de filtre.
+        self._dept_prefix = dept_prefix
         self._conn: duckdb.DuckDBPyConnection | None = None
 
     def _get_connection(self, dept: str | None = None) -> duckdb.DuckDBPyConnection:
@@ -25,7 +34,7 @@ class DuckDBConnectionBase:
 
         if self._conn is None:
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            self._conn.execute("INSTALL spatial; LOAD spatial;")
+            ensure_spatial(self._conn)
         return self._conn
 
     def _dept_from_parcelle(self, id_parcelle: str) -> str | None:

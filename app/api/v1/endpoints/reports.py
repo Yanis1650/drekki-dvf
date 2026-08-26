@@ -9,14 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from app.api.deps import (
-    RepositoryDep,
-    SettingsDep,
-    get_current_user_optional,
-    get_user_repository,
-)
-from app.infrastructure.models import User
-from app.repositories.user_repository import UserRepository
+from app.api.deps import RepositoryDep, SettingsDep
 from app.services.parcel_report_service import ParcelReportService
 
 logger = logging.getLogger(__name__)
@@ -39,13 +32,9 @@ def get_parcel_report_service(
 async def generate_parcel_pdf_report(
     parcel_id: str,
     report_service: Annotated[ParcelReportService, Depends(get_parcel_report_service)],
-    user: Annotated[User | None, Depends(get_current_user_optional)] = None,
-    user_repo: Annotated[UserRepository | None, Depends(get_user_repository)] = None,
 ) -> Response:
-    """Generate PDF report for a cadastral parcel.
-    
-    Consumes 1 Credit if authenticated.
-    
+    """Genere le rapport PDF d'une parcelle cadastrale (libre et gratuit).
+
     Returns a professional PDF report including:
     - Cadastral identification
     - DVF price analysis (Mericskay methodology)
@@ -54,16 +43,9 @@ async def generate_parcel_pdf_report(
     - Filiation timeline
     """
     try:
-        user_id = user.id if user else "anonymous"
-        logger.info(f"Generating PDF report for parcel {parcel_id} by user {user_id}")
+        logger.info("Generating PDF report for parcel %s", parcel_id)
 
-        # Generate PDF
         pdf_bytes = await report_service.generate_parcel_pdf(parcel_id)
-
-        # Debit 1 credit if authenticated
-        if user and user_repo and user.credit_balance >= 1:
-            await user_repo.update_balance(user.id, -1, f"PDF Report: {parcel_id}")
-            await user_repo.session.commit()
 
         # Clean filename (remove special chars)
         safe_id = parcel_id.replace("/", "_").replace("\\", "_")
@@ -94,10 +76,7 @@ async def generate_parcel_html_preview(
     parcel_id: str,
     report_service: Annotated[ParcelReportService, Depends(get_parcel_report_service)],
 ) -> Response:
-    """Generate HTML preview of the parcel report (for debugging).
-    
-    Does NOT consume credits. Returns rendered HTML without PDF conversion.
-    """
+    """Apercu HTML du rapport parcelle (debug) — sans conversion PDF."""
     try:
         html_content = await report_service.generate_html_preview(parcel_id)
 

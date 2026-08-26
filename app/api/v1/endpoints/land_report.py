@@ -3,11 +3,10 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from app.api.deps import CreditCheckDep, ReportDep, get_user_repository
-from app.repositories.user_repository import UserRepository
+from app.api.deps import ReportDep
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +17,11 @@ router = APIRouter(tags=["land", "reports"])
 async def generate_mutation_report(
     id_mutation: str,
     report_service: ReportDep,
-    user: CreditCheckDep,
-    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
     format: Annotated[str, Query(description="Output format: pdf or html")] = "html",
 ) -> Response:
-    """Generate report for a mutation. Consumes 1 Credit."""
+    """Genere le rapport d'une mutation (libre et gratuit)."""
     try:
         content = await report_service.generate_report(id_mutation, format=format)
-        await user_repo.update_balance(user.id, -1, f"Report generated: {id_mutation}")
-        await user_repo.session.commit()
         if format == "pdf":
             return Response(
                 content=content,

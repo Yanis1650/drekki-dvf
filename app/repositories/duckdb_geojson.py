@@ -6,6 +6,8 @@ from typing import Any
 
 from pyproj import Transformer
 
+from app.infrastructure.duckdb_spatial import require_spatial
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,16 +63,25 @@ def build_parcelles_geojson(
     max_y: float,
     limit: int = 500,
     filter: str | None = None,
+    dept_prefix: str | None = None,
 ) -> str:
     """Build GeoJSON FeatureCollection of parcel polygons with transaction counts.
-    filter: 'zan' (categorie FORT) or 'recent' (vente < 2 ans).
+
+    Args:
+        filter: 'zan' (categorie FORT) or 'recent' (vente < 2 ans).
+        dept_prefix: garde-fou optionnel sur code_commune (ex. '35'). Utile
+            uniquement quand une seule base contient plusieurs departements ;
+            en mode multi-dept le pool route deja vers le bon fichier.
     """
+    require_spatial(conn)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
     min_x_l93, min_y_l93 = transformer.transform(min_x, min_y)
     max_x_l93, max_y_l93 = transformer.transform(max_x, max_y)
 
     logger.debug("Parcelles bbox WGS84 (%.2f,%.2f)-(%.2f,%.2f) -> L93 (%.2f,%.2f)-(%.2f,%.2f)",
                  min_x, min_y, max_x, max_y, min_x_l93, min_y_l93, max_x_l93, max_y_l93)
+
+    dept_clause = "AND p.code_commune LIKE ?" if dept_prefix else ""
 
     filter_clause = ""
     parcelle_id_expr = "CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'), COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0'))"
@@ -94,14 +105,16 @@ def build_parcelles_geojson(
                COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0')) as full_id_parcelle,
                ST_AsText(p.geometry), ST_AsGeoJSON(p.geometry), ST_Area(p.geometry)
         FROM parcelles p
-        WHERE p.code_commune LIKE '35%'
-          AND ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
+        WHERE ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
+          {dept_clause}
           AND ST_Area(p.geometry) < 10000 AND ST_Area(p.geometry) > 10
         {filter_clause}
         LIMIT ?
     """
     try:
         parcelles_params: list = [min_x_l93, min_y_l93, max_x_l93, max_y_l93]
+        if dept_prefix:
+            parcelles_params.append(f"{dept_prefix}%")
         if filter == "recent":
             parcelles_params.extend([min_x, max_x, min_y, max_y])
         parcelles_params.append(limit)
@@ -110,7 +123,7 @@ def build_parcelles_geojson(
         logger.exception("get_parcelles_geojson failed: %s", e)
         return '{"type": "FeatureCollection", "features": []}'
 
-    count_query = """
+    count_query = f"""
         WITH tx_points AS (
             SELECT id_mutation,
                    ST_Transform(ST_Point(longitude, latitude), 'EPSG:4326', 'EPSG:2154') as geom_l93
@@ -123,8 +136,8 @@ def build_parcelles_geojson(
                    COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0')) as id_parcelle,
                    p.geometry
             FROM parcelles p
-            WHERE p.code_commune LIKE '35%'
-              AND ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
+            WHERE ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
+              {dept_clause}
               AND ST_Area(p.geometry) < 10000 AND ST_Area(p.geometry) > 10
             LIMIT ?
         )
@@ -134,11 +147,12 @@ def build_parcelles_geojson(
         GROUP BY pb.id_parcelle
     """
     try:
-        tx_counts = dict(conn.execute(count_query, [
-            min_x, max_x, min_y, max_y,
-            min_x_l93, min_y_l93, max_x_l93, max_y_l93,
-            limit
-        ]).fetchall())
+        count_params: list = [min_x, max_x, min_y, max_y,
+                              min_x_l93, min_y_l93, max_x_l93, max_y_l93]
+        if dept_prefix:
+            count_params.append(f"{dept_prefix}%")
+        count_params.append(limit)
+        tx_counts = dict(conn.execute(count_query, count_params).fetchall())
     except Exception as e:
         logger.warning("SQL spatial join failed: %s", e)
         tx_counts = {}

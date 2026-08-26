@@ -89,8 +89,20 @@ async def search_transactions_enriched(
             lat=lat, lon=lon, radius_meters=radius,
             date_from=date_from, date_to=date_to, limit=limit,
         )
-        location_enrichment = await enrichment_service.calculate_enrichment_detailed(
-            latitude=lat, longitude=lon,
+
+        # Les POI OSM ne sont pas charges dans toutes les bases. Quand ils
+        # manquent, on renvoie les transactions sans scores plutot que des
+        # scores neutres (5/10) indiscernables d'une vraie mesure.
+        enrichment_available = enrichment_service.is_available
+        if not enrichment_available:
+            logger.info(
+                "POI non charges pour cette base — recherche renvoyee sans enrichissement."
+            )
+
+        location_enrichment = (
+            await enrichment_service.calculate_enrichment_detailed(latitude=lat, longitude=lon)
+            if enrichment_available
+            else None
         )
         enriched_mutations = []
         total_price = Decimal("0")
@@ -112,7 +124,7 @@ async def search_transactions_enriched(
                 is_outlier=m.is_outlier,
             )
             enrichment = None
-            if m.latitude and m.longitude:
+            if enrichment_available and m.latitude and m.longitude:
                 ed = await enrichment_service.calculate_enrichment(
                     latitude=m.latitude, longitude=m.longitude,
                     parcelle_id=m.parcelles[0] if m.parcelles else None,
@@ -136,10 +148,15 @@ async def search_transactions_enriched(
             center_lat=lat, center_lon=lon, radius_meters=radius,
             mutations_count=len(enriched_mutations),
             avg_price_m2=total_price / price_count if price_count > 0 else None,
-            location_enrichment=EnrichmentDetailResponse(
-                global_score=location_enrichment["global_score"],
-                education=location_enrichment.get("education", {}),
-                transport=location_enrichment.get("transport", {}),
+            enrichment_available=enrichment_available,
+            location_enrichment=(
+                EnrichmentDetailResponse(
+                    global_score=location_enrichment["global_score"],
+                    education=location_enrichment.get("education", {}),
+                    transport=location_enrichment.get("transport", {}),
+                )
+                if location_enrichment is not None
+                else None
             ),
             mutations=enriched_mutations,
         )

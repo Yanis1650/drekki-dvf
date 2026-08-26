@@ -21,7 +21,7 @@ class EnrichmentService:
 
     def __init__(
         self,
-        duckdb_path: Path | str = "./data/foncier.duckdb",
+        duckdb_path: Path | str = "./data/dept35.duckdb",
         decay_type: str = "exponential",
     ) -> None:
         """Initialize with optional decay type.
@@ -33,6 +33,16 @@ class EnrichmentService:
         self._poi_repo = PoiRepository(db_path=duckdb_path)
         self._proximity_scorer = ProximityScorer(duckdb_path=duckdb_path)
         self._quality_scorer = QualityScorer(decay_type=decay_type)
+
+    @property
+    def is_available(self) -> bool:
+        """Indique si l'enrichissement OSM peut produire des scores réels.
+
+        Faux quand l'ETL POI n'a jamais tourné pour ce département. Les
+        appelants doivent alors omettre les scores plutôt que d'en afficher
+        d'inventés — voir `land_search.search_transactions_enriched`.
+        """
+        return self._proximity_scorer.data_available
 
     async def calculate_enrichment(
         self,

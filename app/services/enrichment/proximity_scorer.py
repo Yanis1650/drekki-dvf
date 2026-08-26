@@ -10,7 +10,11 @@ from pathlib import Path
 
 import duckdb
 
+from app.infrastructure.data_availability import table_exists
+
 logger = logging.getLogger(__name__)
+
+POI_TABLE = "points_interet"
 
 
 @dataclass
@@ -27,12 +31,40 @@ class ProximityResult:
 class ProximityScorer:
     """Calculates proximity to POI using DuckDB spatial queries."""
 
-    def __init__(self, duckdb_path: Path | str = "./data/foncier.duckdb") -> None:
+    def __init__(self, duckdb_path: Path | str = "./data/dept35.duckdb") -> None:
         self._duckdb_path = Path(duckdb_path)
+        self._conn: duckdb.DuckDBPyConnection | None = None
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Get read-only DuckDB connection."""
-        return duckdb.connect(str(self._duckdb_path), read_only=True)
+        """Connexion read-only réutilisée.
+
+        Elle était rouverte à chaque appel : `calculate_all_proximities` fait
+        six catégories, et la recherche enrichie l'appelle une fois par mutation
+        (jusqu'à 200) — soit plus d'un millier d'ouvertures de fichier par
+        requête. Une seule connexion suffit, DuckDB étant thread-safe en lecture.
+        """
+        if self._conn is None:
+            self._conn = duckdb.connect(str(self._duckdb_path), read_only=True)
+        return self._conn
+
+    @property
+    def data_available(self) -> bool:
+        """Indique si la table des POI a été chargée dans cette base.
+
+        Sans elle, tous les scores valaient 5/10 ou 0 — une valeur inventée
+        présentée comme une mesure. On préfère ne rien afficher.
+        """
+        try:
+            return table_exists(self._get_connection(), POI_TABLE)
+        except Exception as exc:
+            logger.warning("Base POI inaccessible : %s", exc)
+            return False
+
+    def close(self) -> None:
+        """Ferme la connexion réutilisée."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def calculate_proximity(
         self,
@@ -112,7 +144,12 @@ class ProximityScorer:
             )
 
         except Exception as e:
-            logger.debug(f"Proximity calculation failed: {e}")
+            # En warning, pas en debug : l'ancien niveau rendait l'echec muet
+            # et les zeros ci-dessous passaient pour une mesure reelle.
+            logger.warning(
+                "Calcul de proximite impossible pour %s (%.5f, %.5f) : %s",
+                category, latitude, longitude, e,
+            )
             return ProximityResult(
                 category=category,
                 nearest_distance_m=None,
@@ -121,9 +158,6 @@ class ProximityScorer:
                 count_2km=0,
                 poi_types=[],
             )
-
-        finally:
-            conn.close()
 
     def calculate_all_proximities(
         self,

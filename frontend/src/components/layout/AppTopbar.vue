@@ -1,9 +1,7 @@
 <script setup>
 import AddressSearch from '../AddressSearch.vue';
-import { CurrencyEuroIcon } from '@heroicons/vue/24/solid';
 
 const props = defineProps({
-  balance: { type: Number, default: 0 },
   activeFilter: { type: String, default: null },
   mapMode: { type: String, default: 'prix' },
   loading: { type: Boolean, default: false },
@@ -11,7 +9,6 @@ const props = defineProps({
 
 const emit = defineEmits([
   'search-select',
-  'buy-credits',
   'update:activeFilter',
   'update:mapMode',
 ]);
@@ -117,23 +114,6 @@ const toggleFilter = (id) => {
       </div>
     </Transition>
 
-    <!-- Credits button -->
-    <button
-      @click="emit('buy-credits')"
-      class="flex items-center gap-2 px-3 py-1.5 flex-shrink-0
-             bg-gradient-to-r from-indigo-50 to-purple-50
-             border border-indigo-200/80 rounded-xl
-             hover:shadow-md hover:scale-[1.03] active:scale-100
-             transition-all duration-150"
-    >
-      <div class="w-5 h-5 bg-white rounded-md flex items-center justify-center shadow-sm">
-        <CurrencyEuroIcon class="w-3 h-3 text-indigo-600" />
-      </div>
-      <div class="flex flex-col items-start leading-none">
-        <span class="text-sm font-bold text-slate-800 tabular-nums">{{ balance }}</span>
-        <span class="text-[9px] text-slate-500 font-medium">crédits</span>
-      </div>
-    </button>
   </header>
 </template>
 

@@ -15,6 +15,8 @@ from pathlib import Path
 
 import duckdb
 
+from app.infrastructure.duckdb_spatial import ensure_spatial
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +78,7 @@ class DuckDBPool:
 
             path = self._resolve_path(dept)
             conn = duckdb.connect(str(path), read_only=True)
-            conn.execute("INSTALL spatial; LOAD spatial;")
+            ensure_spatial(conn)
             self._connections[dept] = conn
             return conn
 

@@ -1,51 +1,28 @@
-# Foncier-Express - Déploiement production (VPS 35GB / 11GB RAM)
+# Foncier-Express - Déploiement production
 # Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# L'application est entièrement libre et sans compte : plus de base
+# transactionnelle (PostgreSQL/PostGIS), plus de crédits, plus de paiement.
+# Il ne reste qu'un backend en lecture seule sur un fichier DuckDB, et un
+# frontend statique servi par nginx.
 
 services:
-  postgis:
-    image: postgis/postgis:15-3.4
-    container_name: foncier-postgis
-    environment:
-      POSTGRES_USER: ${POSTGIS_USER:-foncier}
-      POSTGRES_PASSWORD: ${POSTGIS_PASSWORD}
-      POSTGRES_DB: ${POSTGIS_DB:-foncier_express}
-    volumes:
-      - postgis_data:/var/lib/postgresql/data
-      - ./init-db:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U foncier -d foncier_express"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    # Limites RAM
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
-
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     container_name: foncier-backend
     environment:
-      POSTGIS_HOST: postgis
-      POSTGIS_PORT: 5432
-      POSTGIS_USER: ${POSTGIS_USER:-foncier}
-      POSTGIS_PASSWORD: ${POSTGIS_PASSWORD}
-      POSTGIS_DB: ${POSTGIS_DB:-foncier_express}
-      DUCKDB_PATH: /app/data/foncier.duckdb
+      # Base analytique montée en lecture seule depuis ./data
+      DUCKDB_PATH: /app/data/dept35.duckdb
       DATA_DIR: /app/data
+      MULTI_DEPT: "false"
+      # Restreindre aux origines réelles en production, ex. https://mondomaine.fr
+      CORS_ALLOW_ORIGINS: "*"
     volumes:
-      - ./data:/app/data  # Contient dept35.duckdb (transféré ou généré par ETL)
-    depends_on:
-      postgis:
-        condition: service_healthy
+      - ./data:/app/data:ro
     restart: unless-stopped
-    # 2 workers + Chromium : ~2-3 GB
+    # 2 workers + Chromium (génération PDF)
     deploy:
       resources:
         limits:
@@ -69,6 +46,3 @@ services:
       resources:
         limits:
           memory: 128M
-
-volumes:
-  postgis_data:

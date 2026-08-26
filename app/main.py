@@ -3,48 +3,22 @@
 Main entry point for the API.
 """
 
-import asyncio
-import sys
-from contextlib import asynccontextmanager
+import logging
+import os
 
-# Fix for Windows: psycopg requires SelectorEventLoop, not ProactorEventLoop
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.deps import get_settings
 from app.api.v1.router import router as v1_router
-from app.infrastructure.database import create_engine
-from app.infrastructure.models import Base
+from app.infrastructure.data_availability import DataUnavailableError
+from app.infrastructure.duckdb_spatial import SpatialUnavailableError
 from app.schemas import HealthResponse
 
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """App lifecycle handler.
-
-    La connexion PostgreSQL (users/credits) est optionnelle : si Postgres
-    n'est pas disponible (dev sans BDD), l'API DuckDB démarre quand même.
-    """
-    engine = None
-    try:
-        engine = create_engine()
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning(
-            "PostgreSQL indisponible au démarrage — fonctionnalités users/credits désactivées. (%s)", exc
-        )
-
-    yield
-
-    if engine is not None:
-        await engine.dispose()
 
 
 app = FastAPI(
@@ -53,17 +27,45 @@ app = FastAPI(
     description="API d'analyse foncière DVF - Méthodologie Mericskay",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS : l'API est publique et sans authentification (pas de cookie ni de
+# jeton), donc `allow_credentials` reste a False. C'est ce qui autorise le
+# joker "*" — la combinaison "*" + credentials est rejetee par les navigateurs.
+_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure for production
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[o.strip() for o in _origins.split(",") if o.strip()],
+    allow_credentials=False,
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(DataUnavailableError)
+async def _data_unavailable_handler(request: Request, exc: DataUnavailableError) -> JSONResponse:
+    """Jeu de donnees non charge : 503 explicite plutot qu'un 500 opaque."""
+    logger.warning("Donnees indisponibles sur %s : %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": str(exc),
+            "error": "data_unavailable",
+            "dataset": exc.dataset,
+        },
+    )
+
+
+@app.exception_handler(SpatialUnavailableError)
+async def _spatial_unavailable_handler(
+    request: Request, exc: SpatialUnavailableError
+) -> JSONResponse:
+    """Extension spatiale absente : 503 explicite."""
+    logger.warning("Extension spatiale indisponible sur %s", request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": str(exc), "error": "spatial_unavailable"},
+    )
 
 # Include API routers
 app.include_router(v1_router, prefix="/api")

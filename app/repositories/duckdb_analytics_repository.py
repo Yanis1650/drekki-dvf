@@ -13,6 +13,7 @@ import duckdb
 
 from app.domain.analytics_models import YearlyTrend
 from app.infrastructure.duckdb_pool import DuckDBPool
+from app.infrastructure.duckdb_spatial import ensure_spatial
 
 
 class DuckDBAnalyticsRepository:
@@ -32,7 +33,7 @@ class DuckDBAnalyticsRepository:
         """Lazy connection to main/legacy DB (for trends spanning many depts)."""
         if self._conn is None:
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            self._conn.execute("INSTALL spatial; LOAD spatial;")
+            ensure_spatial(self._conn)
         return self._conn
 
     def _get_dept_connection(self, parcel_id: str) -> duckdb.DuckDBPyConnection:

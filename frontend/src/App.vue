@@ -3,15 +3,12 @@ import { ref, computed, onMounted } from 'vue';
 import AppTopbar          from './components/layout/AppTopbar.vue';
 import AppSidebar         from './components/layout/AppSidebar.vue';
 import ParcelPanelTabbed  from './components/parcel/ParcelPanelTabbed.vue';
-import CreditModal        from './components/CreditModal.vue';
 import client             from './api/client';
 import { useParcelSelection } from './composables/useParcelSelection';
 
 const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParcelSelection();
 
 // ─── Global state ─────────────────────────────────────────────────────────────
-const userBalance    = ref(0);
-const showCreditModal = ref(false);
 const mapCenter      = ref([-1.6778, 48.1173]); // Rennes default
 const transactions   = ref({ type: 'FeatureCollection', features: [] });
 const loading        = ref(false);
@@ -31,14 +28,14 @@ const isNetworkError = (err) =>
   err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error');
 
 // ─── API ──────────────────────────────────────────────────────────────────────
-const fetchUser = async () => {
+// L'API est libre et sans compte : le seul appel au démarrage sert à savoir
+// si le backend répond, pour afficher le bandeau hors-ligne.
+const pingBackend = async () => {
   try {
-    const res = await client.get('/users/me');
-    userBalance.value    = res.data.credit_balance;
+    await client.get('/health');
     backendOffline.value = false;
   } catch (err) {
     if (isNetworkError(err)) backendOffline.value = true;
-    userBalance.value = 5; // demo balance
   }
 };
 
@@ -88,7 +85,7 @@ const onHighlightRelated = (parcelIds) => {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 onMounted(() => {
-  fetchUser();
+  pingBackend();
   fetchTransactionsInRadius(mapCenter.value[0], mapCenter.value[1]);
 });
 </script>
@@ -117,12 +114,10 @@ onMounted(() => {
 
     <!-- Topbar -->
     <AppTopbar
-      :balance="userBalance"
       :active-filter="activeFilter"
       :map-mode="mapMode"
       :loading="loading"
       @search-select="onAddressSelect"
-      @buy-credits="showCreditModal = true"
       @update:active-filter="activeFilter = $event"
       @update:map-mode="mapMode = $event"
     />
@@ -163,13 +158,6 @@ onMounted(() => {
         @highlight-related="onHighlightRelated"
       />
     </Transition>
-
-    <!-- Credit modal -->
-    <CreditModal
-      :is-open="showCreditModal"
-      @close="showCreditModal = false"
-      @success="fetchUser"
-    />
   </div>
 </template>
 

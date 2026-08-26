@@ -19,6 +19,7 @@ from pathlib import Path
 import duckdb
 
 from app.domain.filiation_models import FiliationNode, ParcelFiliation
+from app.infrastructure.data_availability import require_table
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,20 @@ class DuckDBFiliationRepository(IFiliationRepository):
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
         return self._conn
 
+    def _require_dfi(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Refuse de répondre si la filiation DFI n'a jamais été chargée.
+
+        Sans cette garde, l'absence de `dfi_filiations` était rattrapée plus bas
+        par un `except` et l'API concluait « parcelle originelle » pour toutes
+        les parcelles du département.
+        """
+        require_table(
+            conn,
+            table="dfi_filiations",
+            dataset="filiation cadastrale (DFI)",
+            hint="Lancer : python data-pipeline/etl_dfi.py --dept <XX>",
+        )
+
     # ------------------------------------------------------------------
     # Raw data access
     # ------------------------------------------------------------------
@@ -137,6 +152,7 @@ class DuckDBFiliationRepository(IFiliationRepository):
         Query uses idx_dfi_fille index for fast lookup.
         """
         conn = self._get_connection()
+        self._require_dfi(conn)
         parcelle_id = section + numero.zfill(4)
 
         query = """
@@ -184,6 +200,7 @@ class DuckDBFiliationRepository(IFiliationRepository):
         Query uses idx_dfi_mere index for fast lookup.
         """
         conn = self._get_connection()
+        self._require_dfi(conn)
         parcelle_id = section + numero.zfill(4)
 
         query = """

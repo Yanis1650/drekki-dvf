@@ -11,6 +11,7 @@ from pathlib import Path
 import duckdb
 
 from app.domain.models import MutationAggregate, NatureMutation, Transaction, TypeLocal
+from app.infrastructure.duckdb_spatial import ensure_spatial
 from app.repositories.interfaces import ITransactionRepository
 
 
@@ -28,7 +29,7 @@ class DvfRepository(ITransactionRepository):
         """Lazy connection initialization."""
         if self._conn is None:
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            self._conn.execute("INSTALL spatial; LOAD spatial;")
+            ensure_spatial(self._conn)
         return self._conn
 
     async def get_transactions_by_commune(

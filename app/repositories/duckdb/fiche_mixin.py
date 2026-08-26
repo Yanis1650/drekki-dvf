@@ -112,7 +112,9 @@ class DuckDBFicheMixin:
                 c.confidence_label,
                 c.score_bdnb,
                 c.score_dvf,
-                c.score_densification,
+                -- La colonne physique s'appelle encore score_zan (heritage ETL) ;
+                -- l'API expose score_densification, nom retenu cote contrat.
+                c.score_zan AS score_densification,
                 c.score_fraicheur
             FROM transactions t
             LEFT JOIN densification_scores d

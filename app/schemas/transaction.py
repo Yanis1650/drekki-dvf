@@ -97,6 +97,14 @@ class EnrichedSearchResultResponse(BaseModel):
     radius_meters: int
     mutations_count: int
     avg_price_m2: Decimal | None = None
+    enrichment_available: bool = Field(
+        default=True,
+        description=(
+            "False quand les POI OpenStreetMap ne sont pas chargés dans cette "
+            "base : les champs `enrichment` et `location_enrichment` sont alors "
+            "nuls. À distinguer d'un score réellement bas."
+        ),
+    )
     location_enrichment: EnrichmentDetailResponse | None = None
     mutations: list[EnrichedMutationResponse]
 
