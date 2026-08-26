@@ -14,19 +14,22 @@ Guide pour déployer sur un VPS avec **35 Go disque** et **11 Go RAM**.
           ┌────────────────────────┼────────────────────────┐
           │                        │                        │
           ▼                        ▼                        ▼
-   ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-   │  Frontend    │        │  Backend     │        │  PostGIS     │
-   │  (Nginx)     │        │  (uvicorn)   │───────▶│  (PostgreSQL)│
-   │  ~128 MB     │        │  ~4 GB max   │        │  ~1 GB max   │
-   └──────────────┘        └──────┬───────┘        └──────────────┘
-                                  │
-                                  │ DuckDB (fichier)
-                                  ▼
-                          ┌──────────────┐
-                          │  /app/data/  │
-                          │  dept35.duckdb (par département)
-                          └──────────────┘
+   ┌──────────────┐                        ┌──────────────┐
+   │  Frontend    │                        │  Backend     │
+   │  (Nginx)     │                        │  (uvicorn)   │
+   │  ~128 MB     │                        │  ~4 GB max   │
+   └──────────────┘                        └──────┬───────┘
+                                                  │
+                                                  │ DuckDB (fichier, lecture seule)
+                                                  ▼
+                                          ┌──────────────┐
+                                          │  /app/data/  │
+                                          │  dept35.duckdb (par département)
+                                          └──────────────┘
 ```
+
+Deux conteneurs, aucune base de données à administrer : l'application est libre
+et sans compte, il n'y a donc aucune donnée transactionnelle à stocker.
 
 ## Prérequis sur le VPS
 
@@ -59,10 +62,14 @@ cp .env.example .env
 nano .env
 ```
 
-**Variables obligatoires en production :**
+**Aucun secret n'est requis** : l'application ne gère ni comptes ni paiements.
+
+La seule variable qu'il est recommandé de renseigner en production restreint les
+origines autorisées :
 
 ```env
-POSTGIS_PASSWORD=<mot_de_passe_fort>
+# Domaines autorisés à appeler l'API (défaut : "*")
+CORS_ALLOW_ORIGINS=https://foncier.votredomaine.fr
 ```
 
 **Données DuckDB** : Le dossier `./data/` est monté dans le backend. Soit :
@@ -84,12 +91,11 @@ docker compose -f docker-compose.prod.yml logs -f
 
 ### 5. Données DuckDB — Deux options
 
-#### Option A : Build local + transfert (recommandé si vous avez déjà `foncier.duckdb`)
+#### Option A : Build local + transfert (recommandé)
 
-1. **En local** (avec `foncier.duckdb` déjà présent dans `data/`) :
+1. **En local**, depuis la racine du dépôt :
 
 ```powershell
-cd C:\Users\yanis\Desktop\emancipation\foncier-express
 .\.venv\Scripts\Activate.ps1
 python data-pipeline/etl_build_dept.py 35
 ```
@@ -159,11 +165,10 @@ foncier.votredomaine.fr {
 
 | Service | RAM max | Disque estimé |
 |---------|---------|---------------|
-| PostGIS | 1 GB | ~500 MB (schema) |
 | Backend | 4 GB | - |
 | Frontend | 128 MB | ~50 MB (image) |
 | DuckDB (données) | - | 1-3 GB / département |
-| **Total** | ~5-6 GB | 5-35 GB selon données |
+| **Total** | ~4-5 GB | 5-35 GB selon données |
 
 ## Commandes utiles
 
@@ -184,8 +189,23 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 ## Dépannage
 
-**Le backend ne démarre pas :** Vérifier que PostGIS est healthy et que `POSTGIS_PASSWORD` est défini.
+**Le backend ne démarre pas :** vérifier que `DUCKDB_PATH` pointe vers un fichier
+présent dans le volume monté (`./data`). Attention : `foncier.duckdb` (France
+entière, ~69 Go) ne tient pas sur un VPS de 35 Go — déployer une base par
+département (`dept35.duckdb`, ~1,5 Go).
 
-**Pas de données sur la carte :** La base DuckDB est vide. Lancer l'ETL pour au moins un département.
+**Pas de données sur la carte :** la base DuckDB est vide. Lancer l'ETL pour au
+moins un département.
+
+**Une section reste vide (filiation, environnement) :** c'est voulu. Le jeu de
+données correspondant n'a pas été construit, et l'API répond `503
+data_unavailable` plutôt que d'inventer une valeur. Lancer l'étape ETL manquante
+(`etl_dfi.py` pour la filiation, `etl_poi.py` pour l'environnement).
+
+**Extension spatiale indisponible :** l'API répond `503 spatial_unavailable` sur
+les routes géographiques et reste opérationnelle sur le reste. DuckDB télécharge
+`spatial` au premier lancement : vérifier l'accès réseau sortant du conteneur.
+Sous Windows, une stratégie de contrôle d'application (Smart App Control / WDAC)
+peut bloquer le chargement du binaire — travailler alors dans Docker ou WSL2.
 
 **Out of memory :** Réduire à 1 worker dans `Dockerfile.backend` (`--workers 1`).

@@ -419,7 +419,7 @@ watch(
           ></div>
           <span>{{ generatingReport ? 'Génération…' : 'Rapport Expert PDF' }}</span>
           <span class="ml-auto px-2 py-0.5 bg-white/20 rounded-lg text-xs font-bold">
-            1 crédit
+            Gratuit
           </span>
         </button>
       </div>

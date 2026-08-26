@@ -27,11 +27,21 @@ Foncier-Express transforme **11 ans de données DVF** (Demande de Valeurs Fonci�
 
 Le projet s'appuie sur la méthodologie de Boris Mericskay (Université Rennes 2) pour le nettoyage et l'agrégation des données DVF.
 
+**Libre et sans compte.** Pas d'inscription, pas de crédits, pas de paiement :
+toutes les fonctionnalités, rapports PDF compris, sont accessibles sans
+authentification. L'API est en lecture seule.
+
+**Ne jamais inventer une donnée.** Le pipeline ETL est modulaire, et toutes les
+sources ne sont pas forcément chargées pour un département donné. Quand une
+donnée manque, l'API le dit (`503 data_unavailable`) au lieu de renvoyer une
+valeur par défaut : une filiation absente ne devient pas « parcelle originelle »,
+et un score d'environnement non mesuré ne devient pas 5/10.
+
 ## Tech Stack
 
 | Couche | Technologies |
 |--------|-------------|
-| **Backend** | FastAPI, Polars, DuckDB (OLAP), PostgreSQL/PostGIS (OLTP) |
+| **Backend** | FastAPI, Polars, DuckDB (OLAP) |
 | **Frontend** | Vue.js 3 (Composition API), MapLibre GL JS, Tailwind CSS |
 | **Data Pipeline** | Polars, DuckDB, OSMnx (enrichissement) |
 | **PDF** | Jinja2 + Playwright (HTML → PDF) |
@@ -40,7 +50,8 @@ Le projet s'appuie sur la méthodologie de Boris Mericskay (Université Rennes 2
 
 - **Python 3.11+**
 - **Node.js 18+**
-- **Docker** (pour PostGIS — optionnel en mode démo)
+
+Aucune base de données à installer : l'API lit un fichier DuckDB.
 
 ## Installation
 
@@ -80,21 +91,7 @@ cp frontend/.env.example frontend/.env
 # Éditer les fichiers .env selon votre environnement
 ```
 
-### 5. Base de données PostGIS (optionnel)
-
-Pour les fonctionnalités utilisateurs et crédits (rapports PDF) :
-
-```bash
-docker compose up -d
-```
-
-Puis exécuter les scripts d'initialisation :
-
-```bash
-# Les scripts SQL dans init-db/ sont automatiquement exécutés par Docker
-```
-
-### 6. Données DVF
+### 5. Données DVF
 
 Le pipeline ETL traite les données DVF open data. Consultez `data-pipeline/` pour les détails.
 
@@ -103,7 +100,7 @@ Le pipeline ETL traite les données DVF open data. Consultez `data-pipeline/` po
 python data-pipeline/etl_build_dept.py --dept 35
 ```
 
-### 7. Démarrage
+### 6. Démarrage
 
 ```bash
 # Backend (port 8000)
@@ -128,8 +125,8 @@ foncier-express/
 ├── app/                        # Backend FastAPI (Clean Architecture)
 │   ├── api/v1/endpoints/       # Routes HTTP
 │   ├── domain/                 # Modèles purs (aucune dépendance externe)
-│   ├── infrastructure/         # Connexions DB (DuckDB pool, PostGIS)
-│   ├── repositories/           # Accès aux données (DuckDB, PostGIS)
+│   ├── infrastructure/         # Pool DuckDB, disponibilité des données
+│   ├── repositories/           # Accès aux données (DuckDB)
 │   ├── schemas/                # Schémas Pydantic (validation API)
 │   ├── services/               # Logique métier
 │   └── templates/              # Templates HTML (rapports PDF)
@@ -140,12 +137,11 @@ foncier-express/
 │       ├── components/         # Composants Vue (carte, panels, badges)
 │       ├── composables/        # Logique réutilisable (hooks)
 │       └── api/                # Client Axios
-├── init-db/                    # Scripts SQL d'initialisation PostGIS
 ├── tests/                      # Tests pytest
 └── docs/                       # Documentation métier
 ```
 
-**Flux de données** : `Endpoints → Services → Repositories → DuckDB/PostGIS`
+**Flux de données** : `Endpoints → Services → Repositories → DuckDB`
 
 Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques complets.
 

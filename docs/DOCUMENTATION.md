@@ -54,8 +54,6 @@ les professionnels du secteur.
 |-----------|-------------|------|
 | **API** | FastAPI (Python 3.11) | Endpoints REST, validation Pydantic |
 | **OLAP** | DuckDB + extension Spatial | Requêtes analytiques massives (DVF, cadastre, BDNB) |
-| **OLTP** | PostgreSQL / PostGIS | Gestion utilisateurs, crédits, authentification |
-| **ORM** | SQLAlchemy 2.0 (Async) | Accès PostgreSQL asynchrone |
 | **ETL** | Polars | Nettoyage et agrégation des données DVF |
 | **Frontend** | Vue.js 3 (Composition API) | Interface cartographique |
 | **Cartographie** | MapLibre GL JS | Rendu WebGL des parcelles et transactions |
@@ -70,7 +68,7 @@ app/
 ├── domain/              # Modèles purs — aucune dépendance externe
 ├── schemas/             # Schémas Pydantic (validation entrée/sortie API)
 ├── services/            # Logique métier (orchestration)
-├── repositories/        # Accès aux données (DuckDB, PostGIS)
+├── repositories/        # Accès aux données (DuckDB)
 ├── infrastructure/      # Connexions DB, pool DuckDB, config
 ├── templates/           # Templates HTML pour rapports PDF
 └── scripts/             # Utilitaires CLI
@@ -82,7 +80,7 @@ HTTP Request
     → Endpoint (validation, routing)
     → Service (logique métier)
     → Repository (accès données)
-    → DuckDB / PostgreSQL
+    → DuckDB
     → Pydantic Schema (sérialisation)
     → HTTP Response
 ```
@@ -116,14 +114,18 @@ Base analytique embarquée optimisée pour les requêtes massives sur 9,7M+ muta
 | `bdnb_stats` | Données bâtiment agrégées par parcelle (DPE, hauteur, emprise) |
 | `bdtopo_bati` | Emprises bâties BD TOPO (utilisées en fallback) |
 
-#### PostgreSQL / PostGIS (OLTP)
+#### Tables optionnelles
 
-Gestion transactionnelle des utilisateurs et des accès :
+Le pipeline étant modulaire, ces tables peuvent être absentes selon les étapes
+ETL réellement exécutées pour un département :
 
-| Table | Contenu |
-|-------|---------|
-| `users` | Comptes utilisateurs (UUID, email, balance crédits) |
-| `audit_log` | Journal des actions (rapport généré, parcelle consultée) |
+| Table | Étape ETL | Sans elle |
+|-------|-----------|-----------|
+| `dfi_filiations` | `etl_dfi.py` | `/filiation` répond `503 data_unavailable` |
+| `points_interet` | `etl_poi.py` | scores d'environnement omis (`enrichment_available: false`) |
+
+L'API ne substitue jamais de valeur par défaut à une donnée absente : voir
+`app/infrastructure/data_availability.py`.
 
 ---
 
@@ -800,9 +802,9 @@ score = 1 / (1 + exp(k × (distance - seuil)))
 
 ### Rapports (`/land/report`)
 
-| Méthode | Endpoint | Description | Auth |
-|---------|----------|-------------|------|
-| GET | `/report/{id_mutation}` | Génère un rapport expert PDF/HTML | Requiert 1 crédit |
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/report/{id_mutation}` | Génère un rapport expert PDF/HTML |
 
 ### GeoJSON cartographique (`/land/geojson`)
 
@@ -811,13 +813,22 @@ score = 1 / (1 + exp(k × (distance - seuil)))
 | GET | `/geojson` | Transactions en points GeoJSON | `bbox` (min_lon,min_lat,max_lon,max_lat) |
 | GET | `/parcelles` | Polygones parcelles GeoJSON | `bbox`, `filter` (zan / recent) |
 
-### Santé et utilisateurs
+### Santé
 
-| Méthode | Endpoint | Description | Auth |
-|---------|----------|-------------|------|
-| GET | `/health` | Healthcheck API | Non |
-| GET | `/users/me` | Profil utilisateur courant | Oui (X-User-Id) |
-| GET | `/users/balance` | Solde de crédits | Oui |
+| Méthode | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/health` | Healthcheck API |
+| GET | `/api/v1/health` | Healthcheck v1 (même contrat) |
+
+L'API est **libre, sans authentification et en lecture seule** : toutes les
+routes sont des `GET` et aucune ne demande d'identification.
+
+### Codes d'erreur spécifiques
+
+| Code | `error` | Signification |
+|------|---------|---------------|
+| `503` | `data_unavailable` | Jeu de données non chargé dans cette base (voir §2) |
+| `503` | `spatial_unavailable` | Extension DuckDB `spatial` non chargeable sur ce serveur |
 
 ---
 
@@ -869,27 +880,27 @@ frontend/src/
 ```
 1. Appel GET /report/{id_mutation}
         ↓
-2. Vérification crédit utilisateur (PostgreSQL)
-        ↓
-3. Collecte données (DuckDB)
+2. Collecte données (DuckDB)
    ├── Données parcelle (fiche complète)
    ├── Historique transactions
    ├── Score densification
    ├── Score confiance
-   └── Score enrichissement
+   └── Score enrichissement (si les POI sont chargés)
         ↓
-4. Génération graphiques (Matplotlib)
+3. Génération graphiques (Matplotlib)
    ├── Courbe prix/m² historique
-   └── Radar chart enrichissement
+   └── Radar chart enrichissement (omis si aucun score réel)
         ↓
-5. Rendu HTML (Jinja2 template)
+4. Rendu HTML (Jinja2 template)
         ↓
-6. Conversion PDF (ReportLab ou Playwright)
+5. Conversion PDF (ReportLab ou Playwright)
         ↓
-7. Débit 1 crédit (PostgreSQL)
-        ↓
-8. Retour PDF au client
+6. Retour PDF au client
 ```
+
+> La section « scores de localisation » est omise du rapport lorsque les POI ne
+> sont pas chargés : un radar rempli de valeurs par défaut serait indiscernable
+> d'une mesure réelle.
 
 ### Contenu du rapport
 
@@ -913,18 +924,15 @@ frontend/src/
 
 ```yaml
 services:
-  api:         # FastAPI (Python 3.11)
+  backend:     # FastAPI (Python 3.11) — lecture seule sur DuckDB
   frontend:    # Nginx (build Vue.js)
-  postgres:    # PostgreSQL 16 + PostGIS
 ```
 
-### Système de crédits (pay-per-view)
+Aucune base transactionnelle : l'application est libre et sans compte, il n'y a
+donc pas de données utilisateur à stocker.
 
-- Chaque utilisateur dispose d'un solde de crédits
-- Consultation de la fiche parcelle : gratuit
-- Génération d'un rapport PDF : **1 crédit**
-- Authentification MVP via en-tête HTTP `X-User-Id`
-- Création automatique du compte si inconnu
+> `foncier.duckdb` (France entière) pèse ~69 Go et ne tient pas sur le VPS cible
+> de 35 Go. Déployer une base par département (`dept35.duckdb`, ~1,5 Go).
 
 ---
 
@@ -943,7 +951,6 @@ services:
 | **DFI** | Documents de Filiation Informatisés — données de généalogie cadastrale produites par la DGFiP |
 | **RNU** | Règlement National d'Urbanisme — règles s'appliquant en l'absence de PLU |
 | **OLAP** | Online Analytical Processing — moteur optimisé pour les requêtes analytiques (ici : DuckDB) |
-| **OLTP** | Online Transaction Processing — moteur optimisé pour les transactions courtes (ici : PostgreSQL) |
 | **Lambert-93** | EPSG:2154 — système de projection officiel français |
 | **WGS84** | EPSG:4326 — système de coordonnées géographiques mondial (GPS, web) |
 | **Filiation** | Généalogie d'une parcelle : traçabilité des divisions, réunions et lotissements depuis les années 1980–1990 |

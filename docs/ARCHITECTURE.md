@@ -2,7 +2,9 @@
 
 ## Vue d'ensemble
 
-Foncier-Express suit une **Clean Architecture** avec séparation stricte des responsabilités. Le système repose sur une architecture hybride OLAP/OLTP pour optimiser les performances d'analyse et la gestion transactionnelle.
+Foncier-Express suit une **Clean Architecture** avec séparation stricte des responsabilités.
+L'application est libre, sans compte ni authentification : l'API est en **lecture seule**
+au-dessus d'un unique fichier DuckDB. Il n'y a pas de base transactionnelle.
 
 ## Stack technique
 
@@ -10,8 +12,6 @@ Foncier-Express suit une **Clean Architecture** avec séparation stricte des res
 |-----------|------------|------|
 | API | FastAPI (Python 3.11) | Endpoints REST, validation Pydantic |
 | OLAP | DuckDB + Spatial | Querying massif (DVF, cadastre, BDNB) |
-| OLTP | PostgreSQL / PostGIS | Utilisateurs, crédits, authentification |
-| ORM | SQLAlchemy 2.0 (Async) | Accès PostgreSQL |
 | ETL | Polars | Nettoyage et agrégation des données DVF |
 | Frontend | Vue.js 3 (Composition API) | Interface cartographique |
 | Cartographie | MapLibre GL JS | Rendu WebGL des parcelles et transactions |
@@ -26,7 +26,7 @@ app/
 ├── domain/              # Modèles purs — AUCUNE dépendance externe
 ├── schemas/             # Schémas Pydantic (validation entrée/sortie API)
 ├── services/            # Logique métier (orchestration)
-├── repositories/        # Accès aux données (DuckDB, PostGIS)
+├── repositories/        # Accès aux données (DuckDB)
 ├── infrastructure/      # Connexions DB, pool DuckDB, config
 ├── templates/           # Templates HTML pour rapports PDF
 └── scripts/             # Utilitaires CLI
@@ -35,7 +35,7 @@ app/
 ### Flux de données
 
 ```
-HTTP Request → Endpoint → Service → Repository → DuckDB / PostGIS
+HTTP Request → Endpoint → Service → Repository → DuckDB
                                                         ↓
 HTTP Response ← Endpoint ← Service ← Pydantic Schema ←─┘
 ```
@@ -57,10 +57,23 @@ Base embarquée optimisée pour les requêtes analytiques sur 9.7M+ mutations DV
 - Tables : `dvf_enriched`, `parcelles_enriched`, `filiation`, `densification`
 - Pool de connexions avec thread safety
 
-### PostgreSQL / PostGIS (OLTP) — Gestion utilisateurs
+### Disponibilité des données
 
-- Gestion des comptes, crédits (pay-per-view) et sessions
-- Extension PostGIS pour les opérations géospatiales transactionnelles
+Le pipeline ETL est modulaire : selon les étapes réellement exécutées pour un
+département, certaines tables peuvent être absentes (`dfi_filiations` sans ETL
+DFI, `points_interet` sans ETL POI).
+
+L'API distingue explicitement **« donnée non chargée »** de **« pas de résultat »** :
+
+| Situation | Réponse |
+|-----------|---------|
+| Table absente | `503` avec `error: "data_unavailable"` et le nom du jeu de données |
+| Extension spatiale indisponible | `503` avec `error: "spatial_unavailable"` |
+| Requête valide, aucun résultat | `200` avec une liste vide |
+
+C'est délibéré : un `except` qui renvoie une liste vide transforme « je n'ai pas
+la donnée » en « il n'y a pas de donnée », et l'API se met à affirmer du faux.
+Voir `app/infrastructure/data_availability.py`.
 
 ## Pipeline ETL
 
