@@ -38,7 +38,10 @@ def step_densification(conn, dept):
                         THEN {'b.emprise_sol_m2' if has_bdnb else '0'} * {'b.nb_niveau' if has_bdnb else '1'}
                     WHEN {'b.emprise_sol_m2' if has_bdnb else 'NULL'} IS NOT NULL
                      AND {'b.hauteur_moyenne' if has_bdnb else 'NULL'} IS NOT NULL
-                        THEN {'b.emprise_sol_m2' if has_bdnb else '0'} * GREATEST(1, ROUND({'b.hauteur_moyenne' if has_bdnb else '3'} / 3.0))
+                        THEN {'b.emprise_sol_m2' if has_bdnb else '0'}
+                             * GREATEST(1, ROUND(
+                                 {'b.hauteur_moyenne' if has_bdnb else '3'} / 3.0
+                               ))
                     WHEN {'b.emprise_sol_m2' if has_bdnb else 'NULL'} IS NOT NULL
                         THEN {'b.emprise_sol_m2' if has_bdnb else '0'}
                     ELSE NULL

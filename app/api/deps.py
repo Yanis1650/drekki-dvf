@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.infrastructure.duckdb_pool import DuckDBPool, get_pool
 from app.repositories import DuckDBLandRepository
@@ -30,9 +30,7 @@ class Settings(BaseSettings):
     api_title: str = "Foncier-Express API"
     api_version: str = "0.1.0"
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 @lru_cache

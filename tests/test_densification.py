@@ -145,14 +145,13 @@ class TestDensificationRepository:
 
     async def test_get_densification_score_existant(self, duckdb_repo):
         """Test récupération score existant."""
-        # Nécessite une parcelle avec score dans la DB de test
         score = await duckdb_repo.get_densification_score("35238000AB0297")
 
-        if score is not None:
-            assert isinstance(score, DensificationScore)
-            assert score.id_parcelle == "35238000AB0297"
-            assert score.ces_actuel >= Decimal("0.0")
-            assert score.ces_potentiel == Decimal("0.40")
+        assert score is not None
+        assert isinstance(score, DensificationScore)
+        assert score.id_parcelle == "35238000AB0297"
+        assert score.ces_actuel >= Decimal("0.0")
+        assert score.ces_potentiel == Decimal("0.40")
 
     async def test_get_densification_score_inexistant(self, duckdb_repo):
         """Test récupération score inexistant."""
@@ -181,17 +180,43 @@ class TestDensificationRepository:
                         opportunities[i+1].surface_constructible_restante)
 
 
-# Fixture pour repository (à adapter selon votre setup de test)
 @pytest.fixture
-def duckdb_repo():
-    """Fixture pour DuckDBLandRepository avec DB de test."""
-    from pathlib import Path
+def duckdb_repo(tmp_path):
+    """DuckDBLandRepository sur une base temporaire au contenu maitrise.
+
+    La fixture pointait auparavant sur `data/foncier.duckdb` — un fichier de
+    69 Go, absent de toute CI, dont le contenu variait. D'ou des tests soit
+    silencieusement passants (`if score is not None:`), soit en echec sur des
+    donnees reelles malformees (identifiants de parcelle a 12 caracteres au
+    lieu de 14). On construit desormais exactement ce que l'on affirme.
+    """
+    import duckdb
 
     from app.repositories.duckdb_repository import DuckDBLandRepository
 
-    db_path = Path("data/foncier.duckdb")
+    db_path = tmp_path / "dept35.duckdb"
+    conn = duckdb.connect(str(db_path))
+    conn.execute("""
+        CREATE TABLE densification_scores (
+            id_parcelle VARCHAR,
+            code_commune VARCHAR,
+            surface_parcelle_m2 DOUBLE,
+            surface_plancher_m2 DOUBLE,
+            ces_actuel DOUBLE,
+            ces_potentiel DOUBLE,
+            surface_constructible_restante DOUBLE,
+            categorie VARCHAR
+        )
+    """)
+    conn.execute("""
+        INSERT INTO densification_scores VALUES
+        ('35238000AB0297', '35238', 1000.0, 200.0, 0.20, 0.40, 200.0, 'FORT'),
+        ('35238000AB0298', '35238',  800.0, 100.0, 0.125, 0.40, 220.0, 'FORT'),
+        ('35238000AB0299', '35238',  500.0,  50.0, 0.10, 0.40, 150.0, 'FORT'),
+        ('35238000AB0300', '35238',  600.0, 240.0, 0.40, 0.40,   0.0, 'SATURE')
+    """)
+    conn.close()
+
     repo = DuckDBLandRepository(db_path)
-
     yield repo
-
     repo.close()

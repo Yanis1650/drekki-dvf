@@ -37,7 +37,7 @@ def create_parcelles_enriched():
     # NO DVF data included
     conn.execute("""
         CREATE TABLE parcelles_enriched AS
-        SELECT 
+        SELECT
             p.id_parcelle,
             p.code_commune,
             p.code_departement,
@@ -55,13 +55,13 @@ def create_parcelles_enriched():
     # Create spatial index for performance
     print("📍 Creating spatial index...")
     conn.execute("""
-        CREATE INDEX idx_parcelles_enriched_spatial 
+        CREATE INDEX idx_parcelles_enriched_spatial
         ON parcelles_enriched USING RTREE(geometry);
     """)
 
     # Create regular indexes
     conn.execute("""
-        CREATE INDEX idx_parcelles_enriched_commune 
+        CREATE INDEX idx_parcelles_enriched_commune
         ON parcelles_enriched(code_commune);
     """)
 
@@ -72,13 +72,13 @@ def create_parcelles_enriched():
     # Sample data
     print("\n📊 Sample data:")
     sample = conn.execute("""
-        SELECT 
-            id_parcelle, 
-            code_commune, 
-            dpe_classe, 
+        SELECT
+            id_parcelle,
+            code_commune,
+            dpe_classe,
             annee_construction,
             ST_GeometryType(geometry) as geom_type
-        FROM parcelles_enriched 
+        FROM parcelles_enriched
         LIMIT 5
     """).fetchall()
 

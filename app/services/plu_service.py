@@ -30,12 +30,12 @@ class PLUService:
 
     async def get_zone_plu(self, code_commune: str, longitude: float, latitude: float) -> str | None:
         """Récupère la zone PLU pour une coordonnée donnée.
-        
+
         Args:
             code_commune: Code INSEE de la commune (5 caractères)
             longitude: Longitude WGS84
             latitude: Latitude WGS84
-            
+
         Returns:
             Code zone PLU (U/AU/A/N) ou None si non trouvé
         """
@@ -72,12 +72,12 @@ class PLUService:
 
     async def get_ces_potentiel(self, code_commune: str, longitude: float, latitude: float) -> Decimal:
         """Récupère le CES potentiel pour une parcelle selon sa zone PLU.
-        
+
         Args:
             code_commune: Code INSEE de la commune
             longitude: Longitude WGS84
             latitude: Latitude WGS84
-            
+
         Returns:
             CES potentiel (Decimal entre 0.0 et 1.0)
         """
@@ -97,10 +97,10 @@ class PLUService:
 # Fonction helper pour mise à jour batch
 async def update_ces_potentiel_from_plu(parcelles: list[dict]) -> dict[str, Decimal]:
     """Met à jour le CES potentiel pour une liste de parcelles via PLU.
-    
+
     Args:
         parcelles: Liste de dicts avec keys: id_parcelle, code_commune, longitude, latitude
-        
+
     Returns:
         Dict mapping id_parcelle → ces_potentiel
     """

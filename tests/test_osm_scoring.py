@@ -7,11 +7,9 @@
 """
 
 import sys
-import types
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
 
 # Mocker les librairies lourdes non installées dans l'env de test.
 # On utilise MagicMock() qui gère dynamiquement tout attribut (pl.LazyFrame, etc.)
@@ -38,10 +36,9 @@ for _sub in (
         sys.modules[_sub] = MagicMock()
 
 # Imports applicatifs — après le mock
+from app.domain.models import EnrichmentScore  # noqa: E402
 from app.services.enrichment.proximity_scorer import ProximityResult  # noqa: E402
 from app.services.enrichment.quality_scorer import DecayFunction, QualityScorer  # noqa: E402
-from app.domain.models import EnrichmentScore  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -75,14 +75,22 @@ class ReportGenerator:
         plt.close(fig)
         return buffer
 
-    def generate_radar_chart(self, enrichment: dict) -> io.BytesIO:
-        """Generate radar chart for enrichment scores."""
+    def generate_radar_chart(self, enrichment: dict) -> io.BytesIO | None:
+        """Radar des scores d'enrichissement, ou None si aucun score reel.
+
+        Les defauts a 5/10 dessinaient un profil parfaitement moyen meme sans
+        aucune donnee : impossible pour le lecteur de distinguer « secteur
+        moyen » de « rien mesure ».
+        """
+        if not enrichment:
+            return None
+
         categories = ['Éducation', 'Transport', 'Commerce', 'Environnement']
         scores = [
-            float(enrichment.get('education_score', 5)),
-            float(enrichment.get('transport_score', 5)),
-            float(enrichment.get('commerce_score', 5)),
-            float(enrichment.get('green_spaces_score', 5)),
+            float(enrichment.get('education_score', 0)),
+            float(enrichment.get('transport_score', 0)),
+            float(enrichment.get('commerce_score', 0)),
+            float(enrichment.get('green_spaces_score', 0)),
         ]
 
         # Close the polygon
@@ -150,7 +158,7 @@ class ReportGenerator:
         stats: dict,
         enrichment: dict,
         price_chart_buf: io.BytesIO,
-        radar_chart_buf: io.BytesIO,
+        radar_chart_buf: io.BytesIO | None,
         map_buf: io.BytesIO | None,
     ) -> bytes:
         """Create PDF using ReportLab."""
@@ -263,40 +271,49 @@ class ReportGenerator:
         elements.append(Spacer(1, 1*cm))
 
         # -- Section 3: Enrichissement --
+        # Omise quand les POI ne sont pas charges : un radar rempli de valeurs
+        # par defaut serait indiscernable d'une mesure reelle.
         elements.append(PageBreak())
         elements.append(Paragraph("🎯 Score d'Enrichissement Qualitatif", heading_style))
-
-        # Global Score
-        global_score = float(enrichment.get('global_score', 0))
         elements.append(Spacer(1, 0.5*cm))
-        elements.append(Paragraph(f"Global Score: <b>{global_score}/10</b>",
-            ParagraphStyle('BigScore', parent=normal_style, fontSize=18, textColor=colors.HexColor('#4f46e5'), alignment=1)
-        ))
-        elements.append(Spacer(1, 1*cm))
 
-        # Radar Chart
-        img_radar = Image(radar_chart_buf, width=12*cm, height=12*cm)
-        elements.append(img_radar)
+        if not enrichment:
+            elements.append(Paragraph(
+                "Données d'environnement (transports, écoles, commerces) non "
+                "disponibles pour ce secteur : cette section est volontairement "
+                "laissée vide plutôt que d'afficher des valeurs par défaut.",
+                normal_style,
+            ))
+        else:
+            big_score_style = ParagraphStyle(
+                'BigScore', parent=normal_style, fontSize=18,
+                textColor=colors.HexColor('#4f46e5'), alignment=1,
+            )
+            global_score = float(enrichment.get('global_score', 0))
+            elements.append(Paragraph(f"Global Score: <b>{global_score}/10</b>", big_score_style))
+            elements.append(Spacer(1, 1*cm))
 
-        # Details Table
-        details_data = [
-            ["Catégorie", "Score"],
-            ["Éducation", f"{float(enrichment.get('education_score', 0))}/10"],
-            ["Transport", f"{float(enrichment.get('transport_score', 0))}/10"],
-            ["Commerce", f"{float(enrichment.get('commerce_score', 0))}/10"],
-            ["Environnement", f"{float(enrichment.get('green_spaces_score', 0))}/10"],
-        ]
-        t_details = Table(details_data, colWidths=[10*cm, 4*cm])
-        t_details.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f3ff')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#4c1d95')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ('PADDING', (0, 0), (-1, -1), 8),
-        ]))
-        elements.append(Spacer(1, 1*cm))
-        elements.append(t_details)
+            if radar_chart_buf is not None:
+                elements.append(Image(radar_chart_buf, width=12*cm, height=12*cm))
+
+            details_data = [
+                ["Catégorie", "Score"],
+                ["Éducation", f"{float(enrichment.get('education_score', 0))}/10"],
+                ["Transport", f"{float(enrichment.get('transport_score', 0))}/10"],
+                ["Commerce", f"{float(enrichment.get('commerce_score', 0))}/10"],
+                ["Environnement", f"{float(enrichment.get('green_spaces_score', 0))}/10"],
+            ]
+            t_details = Table(details_data, colWidths=[10*cm, 4*cm])
+            t_details.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f3ff')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#4c1d95')),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                ('PADDING', (0, 0), (-1, -1), 8),
+            ]))
+            elements.append(Spacer(1, 1*cm))
+            elements.append(t_details)
 
         # -- Footer --
         elements.append(Spacer(1, 2*cm))

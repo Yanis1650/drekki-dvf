@@ -29,7 +29,7 @@ _playwright = None
 
 class ParcelReportService:
     """Service for generating PDF reports for cadastral parcels.
-    
+
     Uses Playwright to render HTML templates with full CSS support,
     enabling ApexCharts, Tailwind glassmorphism, and satellite imagery.
     """
@@ -115,7 +115,7 @@ class ParcelReportService:
 
     async def _aggregate_parcel_data(self, parcel_id: str) -> dict[str, Any]:
         """Aggregate all data needed for the parcel report.
-        
+
         Fetches from DVF, BDNB, Filiation, and calculates enrichment scores.
         """
         data: dict[str, Any] = {
@@ -186,7 +186,13 @@ class ParcelReportService:
                 node = self._filiation_service.get_ancestors(code_commune[:3], section, numero)
                 if node and node.parent:
                     data["filiation"] = {
-                        "events": [{"type_filiation": "Division", "date_acte": str(node.date_division) if node.date_division else None, "parcelles_filles": [node.parent.id_parcelle]}]
+                        "events": [{
+                            "type_filiation": "Division",
+                            "date_acte": (
+                                str(node.date_division) if node.date_division else None
+                            ),
+                            "parcelles_filles": [node.parent.id_parcelle],
+                        }]
                     }
         except Exception as e:
             logger.warning(f"Could not fetch filiation: {e}")
@@ -224,13 +230,13 @@ class ParcelReportService:
 
     async def generate_parcel_pdf(self, parcel_id: str) -> bytes:
         """Generate a professional PDF report for a parcel.
-        
+
         Args:
             parcel_id: The 14-character cadastral parcel ID
-            
+
         Returns:
             PDF file as bytes
-            
+
         Raises:
             ValueError: If parcel not found
             TimeoutError: If PDF generation times out
@@ -256,7 +262,7 @@ class ParcelReportService:
 
     async def generate_html_preview(self, parcel_id: str) -> str:
         """Generate HTML preview (for debugging).
-        
+
         Returns the rendered HTML without PDF conversion.
         """
         data = await self._aggregate_parcel_data(parcel_id)

@@ -1,17 +1,18 @@
 """Tests Confidence Score — 3 corrections : double pénalité, DVF binaire, poids zone_non_mutable."""
 
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
 
-for _m in ("geopandas", "fiona", "shapely", "shapely.geometry", "shapely.validation"):
-    sys.modules.setdefault(_m, MagicMock())
+from conftest import stub_missing_modules  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "data-pipeline"))
+stub_missing_modules(
+    "geopandas", "fiona", "pyogrio", "shapely", "shapely.geometry",
+    "shapely.validation", "shapely.ops", "shapely.strtree", "owslib", "owslib.wfs",
+    "owslib.util", "pyproj", "pyproj.transformer", "requests", "osmnx", "networkx",
+    "polars", "polars.exceptions", "polars.selectors", "aiohttp", "rtree",
+)
+
+import duckdb  # noqa: E402
+import pytest  # noqa: E402
 from etl_build_steps.confidence import step_confidence  # noqa: E402
-
-import duckdb   # noqa: E402
-import pytest   # noqa: E402
 
 
 def _setup(conn: duckdb.DuckDBPyConnection) -> None:

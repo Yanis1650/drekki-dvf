@@ -11,7 +11,7 @@ from decimal import Decimal
 @dataclass
 class YearlyTrend:
     """Yearly market trend data point.
-    
+
     Represents aggregated market statistics for a single year.
     """
     year: int
@@ -23,7 +23,7 @@ class YearlyTrend:
 @dataclass
 class MarketTrends:
     """Complete market trends analysis.
-    
+
     Contains historical trends and calculated metrics.
     """
     location: str  # Commune name or coordinates

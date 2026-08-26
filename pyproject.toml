@@ -49,10 +49,25 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+# 120 plutôt que 100 : l'essentiel des dépassements sont des requêtes SQL
+# multi-lignes et des messages de log, que couper nuirait à la lisibilité.
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    # `class X(str, Enum)` -> `StrEnum` change la valeur de str(X.A) et donc
+    # la sérialisation. Migration à faire délibérément, pas au fil du lint.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Le répertoire s'appelle data-pipeline (tiret) : il est importé via sys.path,
+# jamais comme package. Le renommer casserait tous les scripts ETL.
+"data-pipeline/**" = ["N999"]
+# Les tests doivent bouchonner les dépendances ETL absentes avant d'importer
+# les modules testés : les imports ne peuvent pas être en tête de fichier.
+"tests/**" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"

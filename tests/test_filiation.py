@@ -12,11 +12,8 @@ pour les cas 1 et 2, et testent _classify_overlap directement pour les cas 3-5.
 
 import logging
 import sys
-import types
 from datetime import date
 from unittest.mock import MagicMock
-
-import pytest
 
 # ------------------------------------------------------------------
 # Mocks pour dépendances non installées dans l'env de test
@@ -49,11 +46,8 @@ for _sub in (
 
 from app.domain.filiation_models import DFINature, FiliationNode, ParcelFiliation  # noqa: E402
 from app.repositories.filiation_repository import (  # noqa: E402
-    DEFAULT_DEPTH_LIMIT,
     DuckDBFiliationRepository,
-    IFiliationRepository,
 )
-
 
 # ------------------------------------------------------------------
 # Infrastructure de test
@@ -281,8 +275,6 @@ class TestCoherenceGeo:
 
         # Override calculate_coherence_geo to simulate DOUTEUSE with warning
         import unittest.mock as mock_module
-
-        original_classify = DuckDBFiliationRepository._classify_overlap
 
         # On teste le chemin warning via le vrai _classify_overlap
         with caplog.at_level(logging.WARNING, logger="app.repositories.filiation_repository"):

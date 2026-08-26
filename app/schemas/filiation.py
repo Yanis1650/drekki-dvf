@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AncestorInfo(BaseModel):
@@ -77,8 +77,8 @@ class FiliationResponse(BaseModel):
         description="Full recursive tree (same data as ancestors but structured)",
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id_parcelle": "AC0214",
                 "filiation_summary": "Issue de la parcelle AC0026 (divisée en 1990)",
@@ -94,4 +94,5 @@ class FiliationResponse(BaseModel):
                 ],
                 "tree": None,
             }
-        }
+        },
+    )

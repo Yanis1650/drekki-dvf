@@ -32,7 +32,7 @@ def main():
     try:
         # Create index
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_date_mutation 
+            CREATE INDEX IF NOT EXISTS idx_date_mutation
             ON france_foncier_test(date_mutation)
         """)
         print("✅ Index created successfully")
@@ -49,7 +49,7 @@ def main():
         start = time.time()
 
         result = conn.execute("""
-            SELECT 
+            SELECT
                 YEAR(date_mutation) as year,
                 AVG(prix_m2) as avg_price,
                 COUNT(*) as volume

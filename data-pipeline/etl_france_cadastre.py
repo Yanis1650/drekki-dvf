@@ -59,10 +59,6 @@ def main():
     # We need to adapt based on actual schema
     print("\nCreating parcelles table from parquet (streaming)...")
 
-    # First, let's see actual column names
-    sample = conn.execute(f"""
-        SELECT * FROM read_parquet('{CADASTRE_PATH}') LIMIT 1
-    """).fetchone()
     col_names = [col[0] for col in schema]
     print(f"Columns: {col_names}")
 
@@ -78,7 +74,7 @@ def main():
     # The geometry in parquet appears to be in EPSG:2154 already (Lambert-93)
     conn.execute("""
         CREATE TABLE parcelles AS
-        SELECT 
+        SELECT
             id AS id_parcelle,
             commune AS code_commune,
             section,

@@ -5,8 +5,8 @@ from .confidence import step_confidence
 from .config import (
     BDNB_PARQUET,
     DATA_DIR,
-    GRID_SIZE,
     GPU_WFS_URL,
+    GRID_SIZE,
     MAIN_DB,
     W_BDNB,
     W_DENSIF,

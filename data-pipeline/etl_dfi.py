@@ -24,13 +24,13 @@ class DFIEtlPipeline:
 
     def parse_dfi_line(self, line: str) -> dict | None:
         """Parse a single DFI line according to fixed format.
-        
+
         Format: dept;commune;prefixe;id_dfi;nature;date;geometre;placeholder;lot;type;parcelles...
         Note: geometre field may contain spaces/newlines, placeholder is "XNUMX"
-        
+
         Args:
             line: Raw line from DFI file
-            
+
         Returns:
             Parsed dict or None if invalid
         """
@@ -85,16 +85,16 @@ class DFIEtlPipeline:
 
     def process_dfi_file(self, file_path: Path) -> list[dict]:
         """Process a complete DFI file into mother-daughter relationships.
-        
+
         DFI files have paired lines:
         - Line type 1: mother parcels
         - Line type 2: daughter parcels
-        
+
         We create a cartesian product: each mother × each daughter.
-        
+
         Args:
             file_path: Path to DFI TXT file
-            
+
         Returns:
             List of filiation records
         """
@@ -159,9 +159,9 @@ class DFIEtlPipeline:
 
     def load_to_duckdb(self, filiations: list[dict]) -> None:
         """Load filiation data into DuckDB.
-        
+
         Creates table with composite index for fast lookups.
-        
+
         Args:
             filiations: List of filiation records
         """
@@ -238,10 +238,10 @@ class DFIEtlPipeline:
 
     def run(self, dfi_path: Path | str) -> int:
         """Execute full ETL pipeline for a DFI file.
-        
+
         Args:
             dfi_path: Path to DFI TXT file
-            
+
         Returns:
             Number of filiation relationships processed
         """
@@ -338,8 +338,8 @@ def _truncate_dfi_table(db_path: Path) -> None:
 
 def _run_from_zip(zip_path: Path, pipeline: DFIEtlPipeline) -> int:
     """Extract and process a single DFI ZIP file."""
-    import zipfile
     import tempfile
+    import zipfile
 
     with tempfile.TemporaryDirectory() as tmp:
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         "path",
         nargs="?",
         default=str(default_dir),
-        help=f"File, directory or ZIP folder (default: auto-detect in data/)",
+        help="File, directory or ZIP folder (default: auto-detect in data/)",
     )
     parser.add_argument(
         "--dept",

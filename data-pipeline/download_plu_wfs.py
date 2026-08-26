@@ -107,7 +107,6 @@ def fetch_zone_urba(dept: str) -> gpd.GeoDataFrame:
 
     # Plages INSEE : <dept>001-<dept>100, <dept>101-<dept>200, ...
     # Adapté pour codes communes 3-digits (ex: 35001 → 35 + 001)
-    dept_prefix_len = len(dept)
     all_features: list[dict] = []
     seen_gids: set = set()
 
@@ -162,15 +161,15 @@ def fetch_doc_urba_for_partitions(partitions: list[str]) -> gpd.GeoDataFrame:
     if not partitions:
         return gpd.GeoDataFrame()
 
-    BATCH = 50   # IN() avec ~50 valeurs fonctionne sans startIndex
+    batch_size = 50   # IN() avec ~50 valeurs fonctionne sans startIndex
     all_gdfs: list[gpd.GeoDataFrame] = []
 
-    for i in range(0, len(partitions), BATCH):
-        batch = partitions[i: i + BATCH]
+    for i in range(0, len(partitions), batch_size):
+        batch = partitions[i: i + batch_size]
         quoted = ", ".join(f"'{p}'" for p in batch)
         cql = f"partition IN ({quoted})"
-        batch_num = i // BATCH + 1
-        total_batches = (len(partitions) + BATCH - 1) // BATCH
+        batch_num = i // batch_size + 1
+        total_batches = (len(partitions) + batch_size - 1) // batch_size
         print(f"  doc_urba batch {batch_num}/{total_batches} ({len(batch)} partitions)...")
         try:
             feats = _wfs_get("wfs_du:doc_urba", cql, count=len(batch) + 10)
@@ -335,7 +334,7 @@ def main() -> None:
         shutil.copy2(out, plui_out)
         print(f"  Copie plui   : {plui_out.name}")
 
-    print(f"\nTermine! Lancer ensuite :")
+    print("\nTermine! Lancer ensuite :")
     print(f"  python data-pipeline/import_plu.py {dept} --db data/dept{dept}.duckdb --gpkg {out}")
 
 

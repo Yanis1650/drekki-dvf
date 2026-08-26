@@ -139,7 +139,7 @@ class EnrichmentScore(BaseModel):
 
 class DensificationScore(BaseModel):
     """Score de potentiel de densification pour une parcelle (ZAN).
-    
+
     Calcule le CES (Coefficient d'Emprise au Sol) actuel et le compare
     au CES potentiel (PLU ou défaut 40%) pour identifier les "dents creuses".
     """
@@ -154,7 +154,7 @@ class DensificationScore(BaseModel):
     @property
     def potentiel_densification(self) -> Decimal:
         """Potentiel de densification en ratio (0.0 à 1.0).
-        
+
         Exemple: CES actuel 10%, potentiel 40% → 0.30 (30% de marge)
         """
         return max(Decimal("0"), self.ces_potentiel - self.ces_actuel)
@@ -163,7 +163,7 @@ class DensificationScore(BaseModel):
     @property
     def surface_constructible_restante(self) -> Decimal:
         """Surface constructible restante en m².
-        
+
         Calcul: potentiel_densification × surface_parcelle
         """
         return self.potentiel_densification * self.surface_parcelle_m2
@@ -172,7 +172,7 @@ class DensificationScore(BaseModel):
     @property
     def categorie(self) -> str:
         """Catégorie de potentiel : FORT / MOYEN / FAIBLE / SATURE.
-        
+
         - FORT: potentiel ≥ 20%
         - MOYEN: potentiel ≥ 10%
         - FAIBLE: potentiel > 0%

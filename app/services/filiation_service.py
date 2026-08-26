@@ -72,15 +72,15 @@ class FiliationService:
 
     def format_filiation_summary(self, node: FiliationNode) -> str:
         """Format filiation for UI display.
-        
+
         Examples:
         - "Issue de la parcelle AC0026 (divisée en 1990)"
         - "Issue de la parcelle BD1234 (lotie en 2015)"
         - "Parcelle originelle (pas de division connue)"
-        
+
         Args:
             node: Filiation node to format
-            
+
         Returns:
             Human-readable summary string
         """
@@ -107,10 +107,10 @@ class FiliationService:
 
     def get_filiation_chain(self, node: FiliationNode) -> list[dict]:
         """Extract linear ancestor chain from tree.
-        
+
         Args:
             node: Root filiation node
-            
+
         Returns:
             List of ancestors from oldest to newest
         """

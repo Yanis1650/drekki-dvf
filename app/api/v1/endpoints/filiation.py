@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 
 from app.api.deps import Settings, get_settings
 from app.domain.filiation_models import FiliationNode
+from app.infrastructure.data_availability import DataUnavailableError
 from app.schemas.filiation import (
     AncestorInfo,
     FiliationNodeResponse,
@@ -60,10 +61,10 @@ async def get_parcel_filiation(
     service: FiliationService = Depends(get_filiation_service),
 ):
     """Retrieve parcel filiation tree (administrative history).
-    
+
     Returns the ancestor chain for a given parcel, tracing back through
     divisions, lotissements, and other cadastral operations.
-    
+
     Args:
         id_parcelle: Full parcel ID (format: DDDCCCPPPSSNNNN)
             - DDD: department code (3 digits)
@@ -71,10 +72,10 @@ async def get_parcel_filiation(
             - PPP: prefix (3 digits, usually 000)
             - SS: section (2 chars)
             - NNNN: number (4 digits)
-        
+
     Returns:
         FiliationResponse with summary and ancestor chain
-        
+
     Raises:
         HTTPException: 400 if invalid parcel ID format
         HTTPException: 500 if service error
@@ -127,6 +128,11 @@ async def get_parcel_filiation(
             tree=_node_to_response(node),
         )
 
+    except DataUnavailableError:
+        # Laisse remonter : le gestionnaire global repond 503 « donnee non
+        # chargee ». L'avaler ici en 500 masquerait la difference entre une
+        # panne et un jeu de donnees jamais construit.
+        raise
     except ValueError as e:
         logger.error(f"Invalid parcel ID format: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid parcel ID format: {e}")

@@ -14,7 +14,6 @@ Output: Met a jour densification_scores (source_ces, potentiel, categorie).
         Cree la table gpu_parcelles pour tracabilite.
 """
 
-import sys
 import time
 from pathlib import Path
 
@@ -185,11 +184,11 @@ def main():
     if not GPU_GEOJSON.exists():
         ok = download_gpu_wfs(TEST_DEPT, GPU_GEOJSON)
         if not ok:
-            print(f"\n  Telechargement automatique echoue.")
-            print(f"  -> Telecharger manuellement les zones PLU :")
-            print(f"    1. https://www.geoportail-urbanisme.gouv.fr/")
+            print("\n  Telechargement automatique echoue.")
+            print("  -> Telecharger manuellement les zones PLU :")
+            print("    1. https://www.geoportail-urbanisme.gouv.fr/")
             print(f"    2. Chercher PLU departement {TEST_DEPT}")
-            print(f"    3. Exporter en GeoJSON (EPSG:2154)")
+            print("    3. Exporter en GeoJSON (EPSG:2154)")
             print(f"    4. Sauvegarder : {GPU_GEOJSON}")
             conn.close()
             return

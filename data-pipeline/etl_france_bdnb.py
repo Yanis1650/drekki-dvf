@@ -135,7 +135,10 @@ def main():
     # ── Phase 7: Verification ────────────────────────────────────────
     print("\n--- Phase 7: Verification ---")
     lf = pl.scan_parquet(str(OUTPUT_PATH))
-    for col in ["dpe_energie", "annee_construction", "hauteur_moyenne", "emprise_sol_m2", "nb_niveau", "type_usage", "nb_log"]:
+    for col in [
+        "dpe_energie", "annee_construction", "hauteur_moyenne",
+        "emprise_sol_m2", "nb_niveau", "type_usage", "nb_log",
+    ]:
         null_rate = lf.select(pl.col(col).is_null().mean()).collect().item()
         print(f"  {col:25s} null={null_rate:.1%}")
 

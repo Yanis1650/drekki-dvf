@@ -14,13 +14,13 @@ class AnalyticsService:
 
     def calculate_trend_slope(self, trends: list[YearlyTrend]) -> Decimal:
         """Calculate annualized growth rate from trend data.
-        
+
         Uses linear regression to find the best-fit line through price data.
         Returns the slope as an annualized percentage.
-        
+
         Args:
             trends: List of yearly trend data points
-        
+
         Returns:
             Annualized growth rate as percentage (e.g., 5.2 for 5.2% per year)
         """
@@ -47,15 +47,15 @@ class AnalyticsService:
 
     def assess_market_confidence(self, trends: list[YearlyTrend]) -> Decimal:
         """Calculate confidence score for trend analysis.
-        
+
         Based on:
         - Data volume (more transactions = higher confidence)
         - Data consistency (fewer gaps = higher confidence)
         - Time span (longer history = higher confidence)
-        
+
         Args:
             trends: List of yearly trend data points
-        
+
         Returns:
             Confidence score from 0 to 10
         """
@@ -97,10 +97,10 @@ class AnalyticsService:
 
     def determine_trend_direction(self, slope: Decimal) -> str:
         """Determine market trend direction from slope.
-        
+
         Args:
             slope: Annualized growth rate percentage
-        
+
         Returns:
             "bullish" | "bearish" | "stable"
         """
@@ -117,11 +117,11 @@ class AnalyticsService:
         trends: list[YearlyTrend],
     ) -> MarketTrends:
         """Build complete market trends analysis.
-        
+
         Args:
             location: Location identifier (commune name or coordinates)
             trends: List of yearly trend data
-        
+
         Returns:
             Complete MarketTrends object with calculated metrics
         """

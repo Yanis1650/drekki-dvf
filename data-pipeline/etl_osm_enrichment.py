@@ -88,7 +88,7 @@ class OsmEnrichmentEtl:
             (north, south, east, west) or None
         """
         result = conn.execute("""
-            SELECT 
+            SELECT
                 MAX(latitude) as north,
                 MIN(latitude) as south,
                 MAX(longitude) as east,
@@ -217,11 +217,11 @@ class OsmEnrichmentEtl:
 
             # Create indexes
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_poi_type 
+                CREATE INDEX IF NOT EXISTS idx_poi_type
                 ON points_interet(type_poi)
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_poi_commune 
+                CREATE INDEX IF NOT EXISTS idx_poi_commune
                 ON points_interet(code_commune)
             """)
 

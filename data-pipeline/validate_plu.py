@@ -104,7 +104,7 @@ def _print_result(result: dict) -> None:
     print(f"  Total parcelles        : {result['total_parcelles']:,}")
     print(f"  Parcelles baties (>0)  : {result['built_total']:,}  "
           f"rnu_proximite: {rate:.1f}%  (seuil {thresh:.0f}%)")
-    print(f"\n  Distribution source_ces:")
+    print("\n  Distribution source_ces:")
     for source, n in sorted(result["distribution"].items(), key=lambda x: -x[1]):
         pct = n * 100 / max(result["total_parcelles"], 1)
         is_problem = (source == "rnu_proximite"

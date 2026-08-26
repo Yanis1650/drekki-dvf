@@ -129,6 +129,16 @@
             🎯 Score d'Enrichissement Qualitatif
         </h2>
 
+        {% if not enrichment %}
+        <!-- Sans POI charges, on n'affiche rien : des barres a 5/10 par defaut
+             seraient indiscernables d'une mesure reelle. -->
+        <p class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-sm">
+            Données d'environnement (transports, écoles, commerces) non disponibles
+            pour ce secteur. Cette section est laissée vide plutôt que d'afficher
+            des valeurs par défaut.
+        </p>
+        {% else %}
+
         <!-- Score Global -->
         <div class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-6 rounded-lg mb-6">
             <div class="flex items-center justify-between">
@@ -210,6 +220,7 @@
             <img src="data:image/png;base64,{{ radar_chart_base64 }}" alt="Radar Chart Enrichissement"
                 class="mx-auto rounded-lg shadow" style="max-width: 400px;" />
         </div>
+        {% endif %}
         {% endif %}
     </section>
 

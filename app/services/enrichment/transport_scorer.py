@@ -66,7 +66,7 @@ class TransportScorer(IScorer):
             # Query nearest stations with distance
             result = conn.execute("""
                 WITH stations AS (
-                    SELECT 
+                    SELECT
                         id,
                         nom,
                         sous_type,
@@ -84,7 +84,7 @@ class TransportScorer(IScorer):
                       AND longitude BETWEEN ? AND ?
                       AND latitude BETWEEN ? AND ?
                 )
-                SELECT 
+                SELECT
                     id, nom, sous_type, lon, lat, distance_meters
                 FROM stations
                 WHERE distance_meters <= 2000

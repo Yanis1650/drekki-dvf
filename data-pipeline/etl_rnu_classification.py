@@ -163,7 +163,7 @@ def main():
         FROM _rnu_classification
         GROUP BY rnu_categorie ORDER BY 2 DESC
     """).fetchall()
-    print(f"\n  Classification RNU:")
+    print("\n  Classification RNU:")
     for cat, n, pct in classified:
         print(f"    {cat:15s} {n:>10,} ({pct:5.1f}%)")
 

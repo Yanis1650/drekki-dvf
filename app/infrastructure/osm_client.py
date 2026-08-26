@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import geopandas as gpd
 import osmnx as ox
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 

@@ -103,7 +103,6 @@ class EducationScorer(IScorer):
 
             total_500m = sum(schools_500m.values())
             total_1km = sum(schools_1km.values())
-            total_all = total_500m + total_1km
 
             # Calculate score
             # Base score from counts (max 7 points)

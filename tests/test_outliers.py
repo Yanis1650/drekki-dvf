@@ -1,47 +1,23 @@
 """Tests détection outliers prix/m² — 4 cas : outlier flagué, normale incluse,
 fallback département, is_outlier visible dans MutationAggregate (non filtré sur /fiche)."""
 
-import sys
-import types
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
-from unittest.mock import MagicMock
 
+from conftest import stub_missing_modules  # noqa: E402
 
-# Mocker les dépendances lourdes avant tout import du package ETL/app.
-# MagicMock() avec __path__ : reconnu comme package ET gère tous les attributs
-# dynamiquement (gpd.GeoDataFrame, pl.LazyFrame, etc.).
-def _mock_pkg(name: str) -> MagicMock:
-    m = MagicMock()
-    m.__path__ = []
-    m.__package__ = name
-    m.__name__ = name
-    return m
+stub_missing_modules(
+    "geopandas", "fiona", "pyogrio", "shapely", "shapely.geometry",
+    "shapely.validation", "shapely.ops", "shapely.strtree", "owslib", "owslib.wfs",
+    "owslib.util", "pyproj", "pyproj.transformer", "requests", "osmnx", "networkx",
+    "polars", "polars.exceptions", "polars.selectors", "aiohttp", "rtree",
+)
 
-
-for _pkg in ("geopandas", "fiona", "pyogrio", "shapely", "owslib",
-             "pyproj", "requests", "osmnx", "polars", "aiohttp"):
-    if _pkg not in sys.modules:
-        sys.modules[_pkg] = _mock_pkg(_pkg)
-
-for _sub in (
-    "polars.exceptions", "polars.selectors",
-    "shapely.geometry", "shapely.validation", "shapely.ops",
-    "owslib.wfs", "owslib.util",
-    "pyproj.transformer",
-):
-    if _sub not in sys.modules:
-        sys.modules[_sub] = MagicMock()
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "data-pipeline"))
+import duckdb  # noqa: E402
+import pytest  # noqa: E402
 from etl_build_steps.golden_join import _tag_outliers  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.domain.models import MutationAggregate, NatureMutation  # noqa: E402
-
-import duckdb   # noqa: E402
-import pytest   # noqa: E402
 
 
 def _create_fft(conn: duckdb.DuckDBPyConnection) -> None:

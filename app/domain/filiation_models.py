@@ -8,7 +8,7 @@ from datetime import date
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DFINature(str, Enum):
@@ -25,7 +25,7 @@ class DFINature(str, Enum):
 
 class ParcelFiliation(BaseModel):
     """Relation mère-fille entre parcelles cadastrales.
-    
+
     Représente une opération administrative (division, fusion, lotissement)
     qui transforme une ou plusieurs parcelles mères en parcelles filles.
     """
@@ -44,8 +44,8 @@ class ParcelFiliation(BaseModel):
         None, max_length=6, description="Section(2) + Numéro(4) de la parcelle fille"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id_dfi": "0000450",
                 "code_departement": "023",
@@ -57,7 +57,8 @@ class ParcelFiliation(BaseModel):
                 "parcelle_mere": "AC0026",
                 "parcelle_fille": "AC0214",
             }
-        }
+        },
+    )
 
 
 class FiliationNode(BaseModel):
@@ -104,9 +105,8 @@ class FiliationNode(BaseModel):
         ),
     )
 
-    class Config:
-        # Allow self-referential models
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id_parcelle": "AC0214",
                 "parent": {
@@ -126,7 +126,8 @@ class FiliationNode(BaseModel):
                 "truncated": False,
                 "coherence_geo": "OK",
             }
-        }
+        },
+    )
 
 
 # Enable forward references for self-referential models

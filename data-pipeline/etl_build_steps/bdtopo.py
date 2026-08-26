@@ -77,7 +77,7 @@ def step_bdtopo(conn, dept, gpkg_path):
 
     if not gpkg_path.exists():
         print(f"  BD TOPO non trouvee: {gpkg_path}")
-        print(f"  -> Telecharger depuis https://geoservices.ign.fr/bdtopo")
+        print("  -> Telecharger depuis https://geoservices.ign.fr/bdtopo")
         print(f"  -> Theme BATI, Dept {dept}, format GeoPackage")
         return
 
@@ -151,10 +151,18 @@ def step_bdtopo(conn, dept, gpkg_path):
             GREATEST(0.0, 0.40 - LEAST(bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0)) AS potentiel,
             GREATEST(0.0, 0.40 - LEAST(bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0))
                 * d.surface_parcelle_m2 AS surface_constr,
+            -- Potentiel restant = CES cible (0.40) moins le CES deja bati,
+            -- borne a [0, 0.40]. Facteur commun aux trois seuils ci-dessous.
             CASE
-                WHEN GREATEST(0.0, 0.40 - LEAST(bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0)) >= 0.25 THEN 'FORT'
-                WHEN GREATEST(0.0, 0.40 - LEAST(bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0)) >= 0.10 THEN 'MOYEN'
-                WHEN GREATEST(0.0, 0.40 - LEAST(bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0)) > 0.02  THEN 'FAIBLE'
+                WHEN GREATEST(0.0, 0.40 - LEAST(
+                        bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0
+                     )) >= 0.25 THEN 'FORT'
+                WHEN GREATEST(0.0, 0.40 - LEAST(
+                        bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0
+                     )) >= 0.10 THEN 'MOYEN'
+                WHEN GREATEST(0.0, 0.40 - LEAST(
+                        bp.emprise_bdtopo_m2 / NULLIF(d.surface_parcelle_m2, 0), 1.0
+                     )) > 0.02 THEN 'FAIBLE'
                 ELSE 'SATURE'
             END AS new_categorie
         FROM _bdtopo_parcelle bp

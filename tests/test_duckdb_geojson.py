@@ -2,14 +2,13 @@
 
 import json
 
-import pytest
+from pyproj import Transformer
 
 from app.repositories.duckdb_geojson import (
+    _transform_geom_to_wgs84,
     build_parcelles_geojson,
     build_transactions_geojson,
-    _transform_geom_to_wgs84,
 )
-from pyproj import Transformer
 
 
 class TestBuildTransactionsGeojson:
@@ -63,8 +62,8 @@ class TestBuildTransactionsGeojson:
 class TestBuildParcellesGeojson:
     """Tests de build_parcelles_geojson.
 
-    Note: duckdb_geojson hardcode code_commune LIKE '35%'.
-    Le fixture utilise des parcelles 35238 (Rennes).
+    Le filtre departemental n'est plus code en dur : il se passe via
+    `dept_prefix`. Les fixtures utilisent des parcelles 35238 (Rennes).
     """
 
     def test_returns_valid_geojson(self, duckdb_conn_with_fixtures):
@@ -73,6 +72,7 @@ class TestBuildParcellesGeojson:
             min_x=-2.0, max_x=-1.0,
             min_y=48.0, max_y=49.0,
             limit=100,
+            dept_prefix="35",
         )
         data = json.loads(geojson)
         assert data["type"] == "FeatureCollection"
@@ -84,6 +84,7 @@ class TestBuildParcellesGeojson:
             min_x=-2.0, max_x=-1.0,
             min_y=48.0, max_y=49.0,
             limit=1,
+            dept_prefix="35",
         )
         data = json.loads(geojson)
         assert len(data["features"]) <= 1
@@ -96,7 +97,10 @@ class TestTransformGeomToWgs84:
         transformer = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
         geom = {
             "type": "Polygon",
-            "coordinates": [[[515000, 6800000], [516000, 6800000], [516000, 6801000], [515000, 6801000], [515000, 6800000]]],
+            "coordinates": [[
+                [352100, 6789900], [352200, 6789900], [352200, 6790000],
+                [352100, 6790000], [352100, 6789900],
+            ]],
         }
         out = _transform_geom_to_wgs84(geom, transformer)
         assert out["type"] == "Polygon"
@@ -112,7 +116,7 @@ class TestTransformGeomToWgs84:
         geom = {
             "type": "MultiPolygon",
             "coordinates": [
-                [[[515000, 6800000], [516000, 6800000], [516000, 6801000], [515000, 6800000]]],
+                [[[352100, 6789900], [352200, 6789900], [352200, 6790000], [352100, 6789900]]],
             ],
         }
         out = _transform_geom_to_wgs84(geom, transformer)

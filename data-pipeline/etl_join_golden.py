@@ -77,21 +77,21 @@ def main():
         conn.execute("""
             CREATE TABLE france_foncier_indexed AS
             WITH mutation_with_geom AS (
-                SELECT 
+                SELECT
                     m.*,
                     ST_Transform(ST_Point(m.latitude, m.longitude), 'EPSG:4326', 'EPSG:2154') AS point_geom
                 FROM mutations_aggregated m
                 WHERE m.longitude IS NOT NULL AND m.latitude IS NOT NULL
             ),
             mutation_parcelle AS (
-                SELECT 
+                SELECT
                     mwg.*,
                     p.id_parcelle,
                     p.geometry AS parcelle_geometry
                 FROM mutation_with_geom mwg
                 LEFT JOIN parcelles p ON ST_Contains(p.geometry, mwg.point_geom)
             )
-            SELECT 
+            SELECT
                 mp.id_mutation,
                 mp.date_mutation,
                 mp.nature_mutation,
@@ -115,13 +115,13 @@ def main():
         conn.execute("""
             CREATE TABLE france_foncier_indexed AS
             WITH mutation_with_geom AS (
-                SELECT 
+                SELECT
                     m.*,
                     ST_Transform(ST_Point(m.latitude, m.longitude), 'EPSG:4326', 'EPSG:2154') AS point_geom
                 FROM mutations_aggregated m
                 WHERE m.longitude IS NOT NULL AND m.latitude IS NOT NULL
             )
-            SELECT 
+            SELECT
                 mwg.*,
                 p.id_parcelle AS cadastre_parcelle_id,
                 p.geometry

@@ -317,7 +317,7 @@ class DvfRepository(ITransactionRepository):
         limit: int = 1000,
     ) -> str:
         """Retrieve parcelles as GeoJSON FeatureCollection with DPE data.
-        
+
         Uses france_foncier_test table which contains enriched data (DPE, annee_construction).
         Falls back to creating synthetic polygons from mutation points if no geometry available.
         """
@@ -326,7 +326,7 @@ class DvfRepository(ITransactionRepository):
         # Try france_foncier_test first (enriched data with DPE)
         # Use simple lat/lon bounding box filter since data has coordinates
         query = """
-            SELECT 
+            SELECT
                 id_mutation as id,
                 longitude,
                 latitude,
@@ -335,7 +335,7 @@ class DvfRepository(ITransactionRepository):
                 valeur_fonciere,
                 surface_reelle
             FROM france_foncier_test
-            WHERE longitude IS NOT NULL 
+            WHERE longitude IS NOT NULL
               AND latitude IS NOT NULL
               AND longitude BETWEEN ? AND ?
               AND latitude BETWEEN ? AND ?
@@ -362,7 +362,11 @@ class DvfRepository(ITransactionRepository):
             # This simulates a building footprint for visualization
             delta = 0.00005  # ~5m at mid-latitudes
 
-            polygon = f'''[[[{lon - delta}, {lat - delta}], [{lon + delta}, {lat - delta}], [{lon + delta}, {lat + delta}], [{lon - delta}, {lat + delta}], [{lon - delta}, {lat - delta}]]]'''
+            polygon = (
+                f"[[[{lon - delta}, {lat - delta}], [{lon + delta}, {lat - delta}], "
+                f"[{lon + delta}, {lat + delta}], [{lon - delta}, {lat + delta}], "
+                f"[{lon - delta}, {lat - delta}]]]"
+            )
 
             properties = f'"id": "{r[0]}"'
             if dpe:
@@ -371,7 +375,8 @@ class DvfRepository(ITransactionRepository):
                 properties += f', "annee": {int(annee)}'
 
             features.append(
-                f'{{"type": "Feature", "properties": {{{properties}}}, "geometry": {{"type": "Polygon", "coordinates": {polygon}}}}}'
+                f'{{"type": "Feature", "properties": {{{properties}}}, '
+                f'"geometry": {{"type": "Polygon", "coordinates": {polygon}}}}}'
             )
 
         return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'

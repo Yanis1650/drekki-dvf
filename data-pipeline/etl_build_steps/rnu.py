@@ -52,7 +52,7 @@ def step_rnu(conn, dept, gpkg_path):
         GROUP BY 1, 2
     """)
 
-    conn.execute(f"""
+    conn.execute("""
         CREATE TEMP TABLE _rnu_grid_density AS
         SELECT
             g.gx, g.gy,

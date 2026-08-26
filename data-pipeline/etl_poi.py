@@ -70,12 +70,12 @@ class PoiEtlPipeline:
             logger.info("No schools CSV provided, generating sample data from mutations")
             # Generate POI from existing mutation locations for development
             result = conn.execute("""
-                SELECT DISTINCT 
+                SELECT DISTINCT
                     code_commune,
                     longitude,
                     latitude
                 FROM mutations_aggregated
-                WHERE longitude IS NOT NULL 
+                WHERE longitude IS NOT NULL
                   AND latitude IS NOT NULL
                 LIMIT 5000
             """).fetchall()
@@ -126,12 +126,12 @@ class PoiEtlPipeline:
             logger.info("No transport CSV provided, generating sample data from mutations")
             # Generate synthetic transport stations
             result = conn.execute("""
-                SELECT DISTINCT 
+                SELECT DISTINCT
                     code_commune,
                     AVG(longitude) as lon,
                     AVG(latitude) as lat
                 FROM mutations_aggregated
-                WHERE longitude IS NOT NULL 
+                WHERE longitude IS NOT NULL
                   AND latitude IS NOT NULL
                 GROUP BY code_commune
                 LIMIT 2000
@@ -170,12 +170,12 @@ class PoiEtlPipeline:
         """Create indexes for fast spatial queries."""
         # Index on type_poi for filtering
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_poi_type 
+            CREATE INDEX IF NOT EXISTS idx_poi_type
             ON points_interet(type_poi)
         """)
         # Index on coordinates for spatial queries
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_poi_coords 
+            CREATE INDEX IF NOT EXISTS idx_poi_coords
             ON points_interet(longitude, latitude)
         """)
         logger.info("Spatial indexes created")
@@ -200,8 +200,8 @@ class PoiEtlPipeline:
         try:
             self.create_poi_table(conn)
 
-            schools_count = self.load_schools_from_csv(conn, schools_csv)
-            transport_count = self.load_transport_from_csv(conn, transport_csv)
+            self.load_schools_from_csv(conn, schools_csv)
+            self.load_transport_from_csv(conn, transport_csv)
 
             self.create_spatial_index(conn)
 

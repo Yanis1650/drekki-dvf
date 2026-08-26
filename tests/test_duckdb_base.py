@@ -1,10 +1,8 @@
 """Tests pour DuckDBConnectionBase."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import duckdb
-import pytest
 
 from app.repositories.duckdb_base import DuckDBConnectionBase
 

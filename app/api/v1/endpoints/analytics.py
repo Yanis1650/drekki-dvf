@@ -6,8 +6,6 @@ Provides historical market data and trend analysis.
 import logging
 from typing import Annotated
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import Settings, get_duckdb_pool, get_settings
@@ -19,6 +17,8 @@ from app.schemas import (
     YearlyTrendResponse,
 )
 from app.services.analytics_service import AnalyticsService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -51,7 +51,7 @@ async def get_market_trends(
     years: Annotated[int, Query(description="Number of years to analyze", ge=1, le=20)] = 10,
 ) -> MarketTrendsResponse:
     """Get market trends for a location.
-    
+
     Analyzes historical DVF data (2014-2025) to provide:
     - Yearly price evolution (avg price/m²)
     - Transaction volume trends
@@ -59,11 +59,11 @@ async def get_market_trends(
     - Potential investment gain based on trend slope
     - Market direction (bullish/bearish/stable)
     - Confidence score based on data quality
-    
+
     **Location Parameters:**
     - Provide either `code_commune` OR (`lat` + `lon`)
     - If using coordinates, specify `radius` for area analysis
-    
+
     **Methodology:**
     - Applies Mericskay filters (surface > 9m², price > 2000€)
     - Uses linear regression for trend slope calculation
@@ -141,10 +141,10 @@ async def get_parcel_history(
     limit: Annotated[int, Query(description="Max transactions", ge=1, le=100)] = 100,
 ) -> ParcelHistoryResponse:
     """Get transaction history for a specific parcel.
-    
+
     Returns historical sales data for MapLibre tooltips.
     Useful for understanding parcel-specific price evolution.
-    
+
     Args:
         parcel_id: Cadastral parcel ID (e.g., "35238000AB0123")
         limit: Maximum number of transactions to return (default: 5)

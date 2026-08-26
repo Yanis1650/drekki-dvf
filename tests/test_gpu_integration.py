@@ -1,18 +1,18 @@
 """Tests d'intégration GPU : 1.Zone U  2.PLUi SIREN  3.Fallback sans PLU  4.Sous-zones  5.Partition sans zones."""
 
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
 
-# Stub les dépendances ETL lourdes (geopandas/fiona/shapely) absentes du venv de test.
-for _m in ("geopandas", "fiona", "shapely", "shapely.geometry", "shapely.validation"):
-    sys.modules.setdefault(_m, MagicMock())
+from conftest import stub_missing_modules  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "data-pipeline"))
-from etl_build_steps.gpu import step_gpu  # noqa: E402
+stub_missing_modules(
+    "geopandas", "fiona", "pyogrio", "shapely", "shapely.geometry",
+    "shapely.validation", "shapely.ops", "shapely.strtree", "owslib", "owslib.wfs",
+    "owslib.util", "pyproj", "pyproj.transformer", "requests", "osmnx", "networkx",
+    "polars", "polars.exceptions", "polars.selectors", "aiohttp", "rtree",
+)
 
 import duckdb  # noqa: E402
 import pytest  # noqa: E402
+from etl_build_steps.gpu import step_gpu  # noqa: E402
 
 
 def _wkt_box(cx: float, cy: float, half: float = 1_000.0) -> str:

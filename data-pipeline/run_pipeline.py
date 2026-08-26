@@ -71,7 +71,7 @@ def _run(cmd: list[str], cwd: Path = ROOT, critical: bool = True) -> int:
     status = "OK" if result.returncode == 0 else f"ERREUR (code {result.returncode})"
     print(f"  [{status}] {elapsed:.0f}s")
     if result.returncode != 0 and critical:
-        print(f"\nETAPE BLOQUANTE ECHOUEE — arrêt du pipeline.", file=sys.stderr)
+        print("\nETAPE BLOQUANTE ECHOUEE — arrêt du pipeline.", file=sys.stderr)
         sys.exit(result.returncode)
     return result.returncode
 
@@ -89,7 +89,7 @@ def step_download_plu(dept: str, gpkg: Path, force: bool = False) -> bool:
     if gpkg.exists() and not force:
         size_mb = gpkg.stat().st_size / 1e6
         print(f"  {gpkg.name} déjà présent ({size_mb:.0f} MB) — téléchargement ignoré")
-        print(f"  (--skip-download pour ne jamais redemander, supprimer le fichier pour forcer)")
+        print("  (--skip-download pour ne jamais redemander, supprimer le fichier pour forcer)")
         return True
 
     rc = _run(
@@ -102,7 +102,7 @@ def step_download_plu(dept: str, gpkg: Path, force: bool = False) -> bool:
         return False
 
     # Intégrer le ZIP PLUi s'il est présent à la racine
-    zip_pattern = list(ROOT.glob(f"*PLUi*.zip")) + list(ROOT.glob(f"*plui*.zip"))
+    zip_pattern = list(ROOT.glob("*PLUi*.zip")) + list(ROOT.glob("*plui*.zip"))
     if zip_pattern:
         print(f"\n  ZIP PLUi détecté : {zip_pattern[0].name}")
         _run_merge_plui(zip_pattern[0], gpkg, dept)
@@ -111,10 +111,12 @@ def step_download_plu(dept: str, gpkg: Path, force: bool = False) -> bool:
 
 def _run_merge_plui(zip_path: Path, gpkg: Path, dept: str) -> None:
     """Intègre un ZIP PLUi CNIG dans le GeoPackage existant."""
-    import zipfile, tempfile, shutil
+    import shutil
+    import tempfile
+    import zipfile
+
     import geopandas as gpd
     import pandas as pd
-    from shapely.geometry import shape
 
     # Trouver le SIREN dans le nom du ZIP (ex: 243500139_PLUi_20251218.zip)
     stem = zip_path.stem
@@ -167,15 +169,15 @@ def _run_merge_plui(zip_path: Path, gpkg: Path, dept: str) -> None:
 
 
 def _add_plui_communes(gpkg: Path, partition: str, datappro: str, siren: str | None) -> None:
-    import requests
     import geopandas as gpd
     import pandas as pd
+    import requests
 
-    WFS = "https://data.geopf.fr/wfs/ows"
+    wfs_url = "https://data.geopf.fr/wfs/ows"
     commune_list: list[str] = []
     if siren:
         try:
-            r = requests.get(WFS, params={
+            r = requests.get(wfs_url, params={
                 "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
                 "TYPENAMES": "wfs_du:doc_urba_com", "outputFormat": "application/json",
                 "count": 300, "CQL_FILTER": f"partition = '{partition}'",
@@ -264,7 +266,7 @@ def step_validate_plu(db: Path, commune: str) -> bool:
     """Valide le mapping PLUi pour une commune test."""
     _banner("5/6", f"Validation PLU — commune {commune}")
     if not db.exists():
-        print(f"  SKIP: base introuvable")
+        print("  SKIP: base introuvable")
         return False
     rc = _run(
         [sys.executable, str(ROOT / "data-pipeline" / "validate_plu.py"),

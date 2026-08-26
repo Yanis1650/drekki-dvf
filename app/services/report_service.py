@@ -92,9 +92,13 @@ class ReportService:
 
         stats = await self._dvf_repo.get_price_stats(mutation.code_commune)
 
-        # Enrichment
-        enrichment_data = {}
-        if mutation.latitude and mutation.longitude:
+        # Enrichissement : dict vide quand les POI ne sont pas charges ou que la
+        # mutation n'est pas geolocalisee. Le rapport doit alors omettre la
+        # section — le remplir de 5.0 affichait un radar d'apparence mesuree
+        # alors qu'aucune donnee ne l'etayait.
+        enrichment_data: dict[str, float] = {}
+        has_coords = bool(mutation.latitude and mutation.longitude)
+        if has_coords and self._enrichment.is_available:
             enrichment = await self._enrichment.calculate_enrichment(
                 latitude=mutation.latitude,
                 longitude=mutation.longitude,
@@ -103,12 +107,14 @@ class ReportService:
             enrichment_data = {
                 'education_score': float(enrichment.schools_score),
                 'transport_score': float(enrichment.transport_score),
-                'commerce_score': float(enrichment.commerce_score if hasattr(enrichment, 'commerce_score') else 5.0),
+                'commerce_score': float(getattr(enrichment, 'commerce_score', 0.0)),
                 'green_spaces_score': float(enrichment.green_spaces_score),
                 'global_score': float(enrichment.global_score),
             }
+        elif not has_coords:
+            logger.info("Mutation %s sans coordonnees : rapport sans enrichissement.", id_mutation)
         else:
-            enrichment_data = {k: 5.0 for k in ['education_score', 'transport_score', 'commerce_score', 'green_spaces_score', 'global_score']}
+            logger.info("POI non charges : rapport %s genere sans enrichissement.", id_mutation)
 
         # Parcel Geometry for Map
         parcelle = None

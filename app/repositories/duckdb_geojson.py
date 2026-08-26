@@ -20,13 +20,16 @@ def build_transactions_geojson(
     limit: int = 1000,
 ) -> str:
     """Build GeoJSON FeatureCollection of transaction points."""
+    # `f.` est necessaire : sans qualification, DuckDB voit l'alias is_outlier
+    # se referencer lui-meme et rejette la requete
+    # (« cannot be referenced before it is defined »).
     query = """
-        SELECT id_mutation, longitude, latitude, prix_m2,
-               date_mutation, valeur_fonciere, nature_mutation,
-               COALESCE(is_outlier, FALSE) AS is_outlier
-        FROM france_foncier_test
-        WHERE longitude BETWEEN ? AND ? AND latitude BETWEEN ? AND ?
-          AND longitude IS NOT NULL AND latitude IS NOT NULL
+        SELECT f.id_mutation, f.longitude, f.latitude, f.prix_m2,
+               f.date_mutation, f.valeur_fonciere, f.nature_mutation,
+               COALESCE(f.is_outlier, FALSE) AS is_outlier
+        FROM france_foncier_test f
+        WHERE f.longitude BETWEEN ? AND ? AND f.latitude BETWEEN ? AND ?
+          AND f.longitude IS NOT NULL AND f.latitude IS NOT NULL
         LIMIT ?
     """
     try:
@@ -84,7 +87,10 @@ def build_parcelles_geojson(
     dept_clause = "AND p.code_commune LIKE ?" if dept_prefix else ""
 
     filter_clause = ""
-    parcelle_id_expr = "CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'), COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0'))"
+    parcelle_id_expr = (
+        "CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'), "
+        "COALESCE(p.section,''), LPAD(COALESCE(p.numero,''),4,'0'))"
+    )
     if filter == "zan":
         filter_clause = f"""
           AND EXISTS (

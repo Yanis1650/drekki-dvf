@@ -24,9 +24,6 @@ import time
 from pathlib import Path
 
 import duckdb
-
-logger = logging.getLogger(__name__)
-
 from etl_build_steps import (
     DATA_DIR,
     MAIN_DB,
@@ -38,6 +35,8 @@ from etl_build_steps import (
     step_optimize,
     step_rnu,
 )
+
+logger = logging.getLogger(__name__)
 
 try:
     from validate_plu import validate_plui_mapping as _validate_plu

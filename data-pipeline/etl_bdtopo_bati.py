@@ -16,7 +16,6 @@ Cible: INCONNU passe de ~35% a < 10% (apres GPU).
 Output: Met a jour densification_scores pour les INCONNU restants.
 """
 
-import sys
 import time
 from pathlib import Path
 
@@ -65,9 +64,9 @@ def main():
         print(f"\n  ERREUR: {BDTOPO_GPKG} introuvable.")
         print(f"  -> Telecharger la BD TOPO IGN dept {TEST_DEPT}:")
         print(f"     {BDTOPO_DOWNLOAD_URL}")
-        print(f"  -> Extraire le GeoPackage et le placer dans:")
+        print("  -> Extraire le GeoPackage et le placer dans:")
         print(f"     {BDTOPO_GPKG}")
-        print(f"\n  Alternative: copier le .gpkg depuis l'archive:")
+        print("\n  Alternative: copier le .gpkg depuis l'archive:")
         print(f"     BDTOPO_*/1_DONNEES_LIVRAISON_*/BDT_*_D0{TEST_DEPT}/BDT_*_D0{TEST_DEPT}.gpkg")
         return
 

@@ -1,28 +1,23 @@
 """Tests unitaires pour le package etl_build_steps."""
 
-import sys
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 # Ajouter data-pipeline au path pour importer etl_build_steps
-sys.path.insert(0, str(Path(__file__).parent.parent / "data-pipeline"))
-
 from etl_build_steps.config import (
     BDNB_PARQUET,
     DATA_DIR,
-    GRID_SIZE,
     GPU_WFS_URL,
+    GRID_SIZE,
     MAIN_DB,
     W_BDNB,
     W_DENSIF,
     W_DVF,
     W_FRAICHEUR,
 )
-from etl_build_steps.utils import print_distribution, step_banner
 from etl_build_steps.optimize import step_optimize
+from etl_build_steps.utils import print_distribution, step_banner
 
 
 class TestConfig:

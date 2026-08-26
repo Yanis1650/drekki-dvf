@@ -92,7 +92,7 @@ class ProximityScorer:
             # Query POI with distances
             result = conn.execute("""
                 WITH poi_distances AS (
-                    SELECT 
+                    SELECT
                         id,
                         nom,
                         sous_type,
@@ -108,7 +108,7 @@ class ProximityScorer:
                       AND longitude BETWEEN ? AND ?
                       AND latitude BETWEEN ? AND ?
                 )
-                SELECT 
+                SELECT
                     MIN(distance_m) as nearest,
                     SUM(CASE WHEN distance_m <= 500 THEN 1 ELSE 0 END) as count_500m,
                     SUM(CASE WHEN distance_m <= 1000 THEN 1 ELSE 0 END) as count_1km,

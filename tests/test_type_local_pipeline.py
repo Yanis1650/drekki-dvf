@@ -7,27 +7,22 @@ Tests:
 4. get_mutations_in_radius populates type_local on MutationAggregate
 """
 
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Stub heavy geo dependencies before any import
-for _m in (
-    "geopandas", "fiona",
-    "shapely", "shapely.geometry", "shapely.validation", "shapely.strtree",
-    "pyproj", "rtree",
-    "osmnx",
-    "networkx",
-    "numpy", "numpy.typing",
-):
-    sys.modules.setdefault(_m, MagicMock())
+from conftest import stub_missing_modules  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+stub_missing_modules(
+    "geopandas", "fiona", "pyogrio", "shapely", "shapely.geometry",
+    "shapely.validation", "shapely.ops", "shapely.strtree", "owslib", "owslib.wfs",
+    "owslib.util", "pyproj", "pyproj.transformer", "requests", "osmnx", "networkx",
+    "polars", "polars.exceptions", "polars.selectors", "aiohttp", "rtree",
+)
+
 
 import duckdb
 import polars as pl
 import pytest
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. ETL aggregation: type_local must survive group_by + agg
@@ -201,7 +196,6 @@ async def test_get_mutations_in_radius_type_local(tmp_path):
     """)
     conn.close()
 
-    from app.repositories.duckdb_analytics_repository import DuckDBAnalyticsRepository
 
     # We test the radius mixin indirectly through the radius mixin module
     from app.repositories.duckdb.transactions_radius_mixin import DuckDBTransactionsRadiusMixin

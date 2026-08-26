@@ -124,7 +124,7 @@ class PoiRepository(IEnrichmentRepository):
 
         result = conn.execute("""
             WITH poi_dist AS (
-                SELECT 
+                SELECT
                     id, nom, sous_type, longitude, latitude,
                     6371000 * ACOS(
                         LEAST(1.0, GREATEST(-1.0,
@@ -177,7 +177,7 @@ class PoiRepository(IEnrichmentRepository):
 
         query = """
             WITH poi_dist AS (
-                SELECT 
+                SELECT
                     id, nom, type_poi, sous_type, longitude, latitude,
                     6371000 * ACOS(
                         LEAST(1.0, GREATEST(-1.0,

@@ -261,7 +261,7 @@ class DuckDBAnalyticsRepository:
                 """
                 params = [parcel_id, limit]
             else:
-                print(f"🔍 [REPO] No suitable table found in connection")
+                print("🔍 [REPO] No suitable table found in connection")
                 return []
         else:
             print(f"🔍 [REPO] Searching for exact ID only: '{parcel_id}'")
@@ -284,7 +284,7 @@ class DuckDBAnalyticsRepository:
                 """
                 params = [parcel_id, limit]
             else:
-                print(f"🔍 [REPO] No suitable table found in connection")
+                print("🔍 [REPO] No suitable table found in connection")
                 return []
 
         try:
