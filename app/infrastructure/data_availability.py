@@ -70,6 +70,41 @@ def table_exists(conn: Any, table: str) -> bool:
     return exists
 
 
+def column_exists(conn: Any, table: str, column: str) -> bool:
+    """Indique si une colonne existe (résultat mémorisé).
+
+    Les bases construites par une version antérieure du pipeline peuvent
+    manquer des colonnes ajoutées depuis (`type_local` sur
+    `mutations_aggregated`, par exemple). Sélectionner une colonne absente fait
+    échouer la requête entière au binding : mieux vaut la retirer du SELECT et
+    renvoyer le champ à None.
+    """
+    key = (id(conn), f"{table}.{column}")
+    with _lock:
+        cached = _cache.get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM duckdb_columns() WHERE table_name = ? AND column_name = ? LIMIT 1",
+            [table, column],
+        ).fetchone()
+        exists = row is not None
+    except Exception as exc:
+        logger.warning("Vérification de `%s.%s` impossible : %s", table, column, exc)
+        return False
+
+    with _lock:
+        _cache[key] = exists
+    if not exists:
+        logger.info(
+            "Colonne `%s.%s` absente — base construite par une version anterieure du pipeline.",
+            table, column,
+        )
+    return exists
+
+
 def require_table(conn: Any, table: str, dataset: str, hint: str = "") -> None:
     """Vérifie la présence d'une table, ou lève `DataUnavailableError`.
 

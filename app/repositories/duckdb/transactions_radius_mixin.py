@@ -5,6 +5,7 @@ from decimal import Decimal
 from math import cos, radians
 
 from app.domain.models import MutationAggregate, NatureMutation
+from app.infrastructure.data_availability import column_exists
 
 
 def _parse_mutation_date(val) -> date:
@@ -70,7 +71,13 @@ class DuckDBTransactionsRadiusMixin:
         lat_delta = radius_meters / 111000
         lon_delta = radius_meters / (111000 * abs(cos(radians(lat))))
 
-        query = """
+        # `type_local` a ete ajoute apres coup au pipeline : les bases
+        # construites avant ne l'ont pas, et le selectionner ferait echouer
+        # toute la requete au binding plutot que de laisser le champ vide.
+        has_type_local = column_exists(conn, "mutations_aggregated", "type_local")
+        type_local_select = "type_local" if has_type_local else "NULL AS type_local"
+
+        query = f"""
             WITH bbox_filtered AS (
                 SELECT *
                 FROM mutations_aggregated
@@ -93,7 +100,7 @@ class DuckDBTransactionsRadiusMixin:
             SELECT
                 id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                 code_commune, parcelles, surface_habitable_totale, nombre_locaux,
-                prix_m2, longitude, latitude, distance_meters, type_local
+                prix_m2, longitude, latitude, distance_meters, {type_local_select}
             FROM with_distance
             WHERE distance_meters <= ?
         """
