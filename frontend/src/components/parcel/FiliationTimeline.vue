@@ -14,6 +14,9 @@ const emit = defineEmits(['highlight-parcels']);
 const filiation = ref(null);
 const loading = ref(false);
 const error = ref(null);
+// Distingue « donnee non chargee sur ce serveur » d'une vraie panne :
+// l'API repond 503 error=data_unavailable quand l'ETL DFI n'a jamais tourne.
+const dataUnavailable = ref(false);
 const showLexique = ref(false);
 
 // Get all ancestor parcel IDs for highlighting
@@ -40,15 +43,19 @@ watch(() => props.idParcelle, async (newId) => {
 
   loading.value = true;
   error.value = null;
+  dataUnavailable.value = false;
 
   try {
     const response = await client.get(`/filiation/${newId}`);
     filiation.value = response.data;
   } catch (err) {
-    console.error('Erreur chargement filiation:', err);
-    if (err.response?.status === 404) {
+    filiation.value = null;
+    if (err.response?.status === 503 && err.response?.data?.error === 'data_unavailable') {
+      dataUnavailable.value = true;
+    } else if (err.response?.status === 404) {
       error.value = 'Aucune filiation trouvée pour cette parcelle';
     } else {
+      console.error('Erreur chargement filiation:', err);
       error.value = 'Erreur lors du chargement de la filiation';
     }
   } finally {
@@ -126,6 +133,14 @@ const getOperationTooltip = (nature) => {
       <p>Chargement de la filiation...</p>
     </div>
 
+    <div v-else-if="dataUnavailable" class="unavailable-state">
+      <p class="unavailable-title">Historique cadastral non disponible</p>
+      <p class="unavailable-hint">
+        Les données de filiation (DFI) n'ont pas été chargées pour ce
+        département. Absence d'information, et non absence de division.
+      </p>
+    </div>
+
     <div v-else-if="error" class="error-state">
       <p>{{ error }}</p>
     </div>
@@ -195,6 +210,7 @@ const getOperationTooltip = (nature) => {
 
 .loading-state,
 .error-state,
+.unavailable-state,
 .empty-state {
   text-align: center;
   padding: 24px;
@@ -204,6 +220,24 @@ const getOperationTooltip = (nature) => {
 
 .error-state {
   color: #ef4444;
+}
+
+.unavailable-state {
+  background: #fefce8;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  color: #854d0e;
+}
+
+.unavailable-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.unavailable-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.85;
 }
 
 .spinner {

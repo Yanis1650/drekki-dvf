@@ -14,15 +14,15 @@ const stats = computed(() => {
   const all = features.value;
   if (all.length === 0) return null;
 
-  const prices = all.map(f => f.properties.prix_m2).filter(p => p > 0);
+  // Prix moyen hors valeurs aberrantes, comme partout ailleurs dans l'appli.
+  const outliers = all.filter(f => f.properties.is_outlier).length;
+  const prices = all
+    .filter(f => !f.properties.is_outlier)
+    .map(f => f.properties.prix_m2)
+    .filter(p => p > 0);
   const avgPrice = prices.length > 0
     ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
     : 0;
-
-  const zanFort = all.filter(f =>
-    f.properties.scores?.zan_category === 'FORT'
-  ).length;
-  const zanPct = Math.round((zanFort / all.length) * 100);
 
   const dates = all
     .map(f => f.properties.date_mutation)
@@ -33,7 +33,7 @@ const stats = computed(() => {
     ? new Date(dates[0]).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
     : 'N/A';
 
-  return { avgPrice, count: all.length, zanPct, lastDate };
+  return { avgPrice, count: all.length, outliers, lastDate };
 });
 
 const fmt = (v) =>
@@ -84,17 +84,20 @@ const fmt = (v) =>
 
     <div class="w-px h-7 bg-slate-200"></div>
 
-    <!-- Potentiel ZAN -->
-    <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <!-- Valeurs aberrantes exclues du prix moyen -->
+    <div
+      class="flex items-center gap-2.5"
+      title="Transactions au prix/m² aberrant, exclues du prix moyen"
+    >
+      <div class="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z" />
         </svg>
       </div>
       <div>
-        <p class="text-[9px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-0.5">Fort ZAN</p>
-        <p class="text-sm font-bold text-slate-800 tabular-nums leading-none">{{ stats.zanPct }}%</p>
+        <p class="text-[9px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-0.5">Aberrantes</p>
+        <p class="text-sm font-bold text-slate-800 tabular-nums leading-none">{{ stats.outliers }}</p>
       </div>
     </div>
 

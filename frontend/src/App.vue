@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue';
 import AppTopbar          from './components/layout/AppTopbar.vue';
 import AppSidebar         from './components/layout/AppSidebar.vue';
-import ParcelPanelTabbed  from './components/parcel/ParcelPanelTabbed.vue';
 import client             from './api/client';
 import { useParcelSelection } from './composables/useParcelSelection';
+
+// Le panneau ne s'affiche qu'après un clic sur une parcelle : le charger à la
+// demande sort ses graphiques du bundle initial.
+const ParcelPanelTabbed = defineAsyncComponent(
+  () => import('./components/parcel/ParcelPanelTabbed.vue'),
+);
 
 const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParcelSelection();
 
