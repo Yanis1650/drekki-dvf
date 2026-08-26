@@ -75,7 +75,7 @@ class DuckDBTransactionsMixin:
                 query = f"""
                     SELECT id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                            code_commune, parcelles, surface_habitable_totale, nombre_locaux,
-                           prix_m2, longitude, latitude
+                           prix_m2, longitude, latitude, NULL AS type_local
                     FROM mutations_aggregated
                     WHERE list_contains(parcelles, ?)
                     ORDER BY date_mutation DESC
@@ -89,7 +89,7 @@ class DuckDBTransactionsMixin:
                         SELECT m.id_mutation, m.date_mutation, m.nature_mutation,
                                m.valeur_fonciere, m.code_commune, m.parcelles,
                                m.surface_habitable_totale, m.nombre_locaux,
-                               m.prix_m2, m.longitude, m.latitude
+                               m.prix_m2, m.longitude, m.latitude, NULL AS type_local
                         FROM mutations_aggregated m, UNNEST(m.parcelles) AS p(pid)
                         WHERE p.pid = ? ORDER BY m.date_mutation DESC LIMIT {limit}
                     """
@@ -100,7 +100,9 @@ class DuckDBTransactionsMixin:
                     SELECT id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                            code_commune, [cadastre_parcelle_id] AS parcelles,
                            surface_habitable_totale, COALESCE(nombre_locaux, 1) AS nombre_locaux,
-                           prix_m2, longitude, latitude
+                           prix_m2, longitude, latitude,
+                           COALESCE(is_outlier, FALSE) AS is_outlier,
+                           type_local
                     FROM france_foncier_test
                     WHERE cadastre_parcelle_id = ?
                     ORDER BY date_mutation DESC
@@ -122,6 +124,8 @@ class DuckDBTransactionsMixin:
                 nombre_locaux=r[7] if r[7] else 0,
                 longitude=r[9] if len(r) > 9 else None,
                 latitude=r[10] if len(r) > 10 else None,
+                is_outlier=bool(r[11]) if len(r) > 11 else False,
+                type_local=r[12] if len(r) > 12 else None,
             )
             for r in results
         ]

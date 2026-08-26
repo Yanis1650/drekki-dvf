@@ -147,18 +147,37 @@ class DvfRepository(ITransactionRepository):
         date_from: date | None = None,
         date_to: date | None = None,
     ) -> dict[str, Decimal]:
-        """Get price statistics for a commune."""
-        conn = self._get_connection()
-        query = """
-            SELECT
-                MIN(valeur_fonciere / surface_habitable_totale) as min_price,
-                MAX(valeur_fonciere / surface_habitable_totale) as max_price,
-                MEDIAN(valeur_fonciere / surface_habitable_totale) as median_price,
-                AVG(valeur_fonciere / surface_habitable_totale) as avg_price
-            FROM mutations_aggregated
-            WHERE code_commune = ?
-              AND surface_habitable_totale > 0
+        """Get price statistics for a commune (outliers exclus).
+
+        Utilise france_foncier_test (table enrichie) pour bénéficier du flag
+        is_outlier calculé par l'ETL. Fallback sur mutations_aggregated si la
+        table enrichie n'existe pas (base non encore buildée).
         """
+        conn = self._get_connection()
+        tables = {r[0] for r in conn.execute("SHOW TABLES").fetchall()}
+        if "france_foncier_test" in tables:
+            query = """
+                SELECT
+                    MIN(prix_m2)    as min_price,
+                    MAX(prix_m2)    as max_price,
+                    MEDIAN(prix_m2) as median_price,
+                    AVG(prix_m2)    as avg_price
+                FROM france_foncier_test
+                WHERE code_commune = ?
+                  AND prix_m2 IS NOT NULL AND prix_m2 > 0
+                  AND COALESCE(is_outlier, FALSE) = FALSE
+            """
+        else:
+            query = """
+                SELECT
+                    MIN(valeur_fonciere / surface_habitable_totale) as min_price,
+                    MAX(valeur_fonciere / surface_habitable_totale) as max_price,
+                    MEDIAN(valeur_fonciere / surface_habitable_totale) as median_price,
+                    AVG(valeur_fonciere / surface_habitable_totale) as avg_price
+                FROM mutations_aggregated
+                WHERE code_commune = ?
+                  AND surface_habitable_totale > 0
+            """
         params: list = [code_commune]
 
         if date_from:

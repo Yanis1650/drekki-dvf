@@ -139,7 +139,10 @@ class ProximityScorer:
         Returns:
             Dict mapping category to ProximityResult
         """
-        categories = ["education", "transport", "commerce", "environnement", "nuisances"]
+        categories = [
+            "education", "transport", "transit",
+            "commerce", "environnement", "nuisances",
+        ]
         results = {}
 
         for category in categories:
@@ -153,7 +156,8 @@ class ProximityScorer:
         """Map category name to type_poi in database."""
         mapping = {
             "education": "ecole",
-            "transport": "gare",
+            "transport": "transport",
+            "transit": "transit",
             "commerce": "commerce",
             "environnement": "environnement",
             "nuisances": "nuisance",

@@ -43,11 +43,16 @@ const sourceLabel = computed(() => {
   return map[props.sourceCes] || props.sourceCes;
 });
 
+// DVF score = 0 means no transactions on this parcel (commune-level score used)
+const dvfNaParcel = computed(() =>
+  props.scoreDvf === 0 || props.scoreDvf === null
+);
+
 const subScores = computed(() => [
-  { key: 'bdnb', label: 'BDNB', value: props.scoreBdnb, color: '#6366f1', weight: '30%' },
-  { key: 'dvf', label: 'DVF', value: props.scoreDvf, color: '#527f8c', weight: '25%' },
-  { key: 'zan', label: 'Densification', value: props.scoreDensification, color: '#10b981', weight: '25%' },
-  { key: 'fraicheur', label: 'Fraicheur', value: props.scoreFraicheur, color: '#f59e0b', weight: '20%' },
+  { key: 'bdnb',     label: 'BDNB · bâtiment documenté',   value: props.scoreBdnb,         color: '#6366f1', weight: '30%' },
+  { key: 'dvf',      label: 'DVF · données de marché',      value: props.scoreDvf,          color: '#527f8c', weight: '25%', naParcel: dvfNaParcel.value },
+  { key: 'zan',      label: 'Source ZAN · emprise sol',     value: props.scoreDensification, color: '#10b981', weight: '25%' },
+  { key: 'fraicheur',label: 'Fraîcheur · dernière vente',   value: props.scoreFraicheur,    color: '#f59e0b', weight: '20%' },
 ]);
 </script>
 
@@ -137,16 +142,21 @@ const subScores = computed(() => [
             <div class="sub-score-header">
               <span class="sub-score-label">{{ s.label }}</span>
               <span class="sub-score-weight">{{ s.weight }}</span>
-              <span class="sub-score-value" :style="{ color: s.color }">
+              <span
+                v-if="s.naParcel"
+                class="sub-score-na"
+              >n/a parcelle</span>
+              <span v-else class="sub-score-value" :style="{ color: s.color }">
                 {{ s.value != null ? Math.round(s.value * 100) + '%' : '—' }}
               </span>
             </div>
             <div class="sub-bar-track">
-              <div 
+              <div
+                v-if="!s.naParcel"
                 class="sub-bar-fill"
-                :style="{ 
+                :style="{
                   width: animated && s.value != null ? (s.value * 100) + '%' : '0%',
-                  backgroundColor: s.color 
+                  backgroundColor: s.color
                 }"
               />
             </div>
@@ -370,6 +380,15 @@ const subScores = computed(() => [
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.sub-score-na {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  font-style: italic;
   min-width: 36px;
   text-align: right;
 }

@@ -52,11 +52,13 @@ async def search_transactions(
                 parcelles=list(m.parcelles),
                 surface_habitable_totale=m.surface_habitable_totale,
                 nombre_locaux=m.nombre_locaux,
+                type_local=m.type_local.value if m.type_local else None,
                 prix_m2=m.prix_m2,
                 longitude=m.longitude,
                 latitude=m.latitude,
+                is_outlier=m.is_outlier,
             ))
-            if m.prix_m2:
+            if m.prix_m2 and not m.is_outlier:
                 total_price += m.prix_m2
                 price_count += 1
         return SearchResultResponse(
@@ -103,9 +105,11 @@ async def search_transactions_enriched(
                 parcelles=list(m.parcelles),
                 surface_habitable_totale=m.surface_habitable_totale,
                 nombre_locaux=m.nombre_locaux,
+                type_local=m.type_local.value if m.type_local else None,
                 prix_m2=m.prix_m2,
                 longitude=m.longitude,
                 latitude=m.latitude,
+                is_outlier=m.is_outlier,
             )
             enrichment = None
             if m.latitude and m.longitude:
@@ -116,6 +120,7 @@ async def search_transactions_enriched(
                 enrichment = EnrichmentScoreResponse(
                     education_score=ed.schools_score,
                     transport_score=ed.transport_score,
+                    transit_score=ed.transit_score,
                     nuisances_score=ed.nuisances_score,
                     green_spaces_score=ed.green_spaces_score,
                     global_score=ed.global_score,
@@ -124,7 +129,7 @@ async def search_transactions_enriched(
                 mutation=mutation_response,
                 enrichment=enrichment,
             ))
-            if m.prix_m2:
+            if m.prix_m2 and not m.is_outlier:
                 total_price += m.prix_m2
                 price_count += 1
         return EnrichedSearchResultResponse(
@@ -190,7 +195,10 @@ async def get_commune_mutations(
                 nature_mutation=m.nature_mutation.value, valeur_fonciere=m.valeur_fonciere,
                 code_commune=m.code_commune, parcelles=list(m.parcelles),
                 surface_habitable_totale=m.surface_habitable_totale,
-                nombre_locaux=m.nombre_locaux, prix_m2=m.prix_m2,
+                nombre_locaux=m.nombre_locaux,
+                type_local=m.type_local.value if m.type_local else None,
+                prix_m2=m.prix_m2,
+                is_outlier=m.is_outlier,
             )
         return [to_resp(m) for m in mutations[:limit]]
     except Exception:

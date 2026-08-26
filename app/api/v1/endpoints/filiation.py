@@ -1,11 +1,17 @@
 """Filiation API endpoints."""
 
 import logging
-from pathlib import Path as PathLib
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from app.schemas.filiation import AncestorInfo, FiliationResponse
+from app.api.deps import Settings, get_settings
+from app.domain.filiation_models import FiliationNode
+from app.schemas.filiation import (
+    AncestorInfo,
+    FiliationNodeResponse,
+    FiliationResponse,
+)
 from app.services.filiation_service import FiliationService
 
 logger = logging.getLogger(__name__)
@@ -13,9 +19,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/filiation", tags=["filiation"])
 
 
-def get_filiation_service() -> FiliationService:
-    """Dependency injection for filiation service."""
-    return FiliationService(duckdb_path=PathLib("./data/foncier.duckdb"))
+def _node_to_response(node: FiliationNode) -> FiliationNodeResponse:
+    parent = _node_to_response(node.parent) if node.parent else None
+    op = node.nature_operation.value if node.nature_operation else None
+    return FiliationNodeResponse(
+        id_parcelle=node.id_parcelle,
+        date_division=node.date_division,
+        nature_operation=op,
+        depth=node.depth,
+        truncated=node.truncated,
+        coherence_geo=node.coherence_geo,
+        parent=parent,
+    )
+
+
+def _any_truncated_in_chain(node: FiliationNode) -> bool:
+    cur: FiliationNode | None = node
+    while cur is not None:
+        if cur.truncated:
+            return True
+        cur = cur.parent
+    return False
+
+
+def get_filiation_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FiliationService:
+    """Injection : même base DuckDB que le reste de l'API."""
+    return FiliationService(duckdb_path=settings.duckdb_path)
 
 
 @router.get("/{id_parcelle}", response_model=FiliationResponse)
@@ -82,6 +113,7 @@ async def get_parcel_filiation(
                 id_parcelle=a["id_parcelle"],
                 date_division=a["date_division"],
                 nature_operation=a["nature_operation"],
+                coherence_geo=a.get("coherence_geo", "NON_VERIFIABLE"),
             )
             for a in ancestors_chain
         ]
@@ -90,7 +122,9 @@ async def get_parcel_filiation(
             id_parcelle=id_parcelle,
             filiation_summary=summary,
             depth=node.depth,
+            truncated=_any_truncated_in_chain(node),
             ancestors=ancestors,
+            tree=_node_to_response(node),
         )
 
     except ValueError as e:

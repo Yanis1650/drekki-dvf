@@ -23,17 +23,19 @@ class DuckDBTransactionsRadiusMixin:
         date_from: date | None = None,
         date_to: date | None = None,
     ) -> dict[str, Decimal]:
-        """Get price statistics for a commune."""
+        """Get price statistics for a commune (outliers exclus)."""
         conn = self._get_connection(self._dept_from_commune(code_commune))
+        # Utilise france_foncier_test (joint spatial) pour bénéficier du flag is_outlier.
         query = """
             SELECT
-                MIN(valeur_fonciere / surface_habitable_totale) as min_price,
-                MAX(valeur_fonciere / surface_habitable_totale) as max_price,
-                MEDIAN(valeur_fonciere / surface_habitable_totale) as median_price,
-                AVG(valeur_fonciere / surface_habitable_totale) as avg_price
-            FROM mutations_aggregated
+                MIN(prix_m2)    as min_price,
+                MAX(prix_m2)    as max_price,
+                MEDIAN(prix_m2) as median_price,
+                AVG(prix_m2)    as avg_price
+            FROM france_foncier_test
             WHERE code_commune = ?
-              AND surface_habitable_totale > 0
+              AND prix_m2 IS NOT NULL AND prix_m2 > 0
+              AND COALESCE(is_outlier, FALSE) = FALSE
         """
         params: list = [code_commune]
 
@@ -91,7 +93,7 @@ class DuckDBTransactionsRadiusMixin:
             SELECT
                 id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                 code_commune, parcelles, surface_habitable_totale, nombre_locaux,
-                prix_m2, longitude, latitude, distance_meters
+                prix_m2, longitude, latitude, distance_meters, type_local
             FROM with_distance
             WHERE distance_meters <= ?
         """
@@ -129,6 +131,7 @@ class DuckDBTransactionsRadiusMixin:
                 nombre_locaux=r[7],
                 longitude=r[9],
                 latitude=r[10],
+                type_local=r[12] if len(r) > 12 else None,
             )
             for r in results
         ]

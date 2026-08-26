@@ -1,157 +1,180 @@
-# Intégration PLU - Guide d'Implémentation
+# Intégration PLU/PLUi — Guide d'implémentation
 
 ## Contexte
 
-L'API GPU (Géoportail de l'Urbanisme) n'est pas directement accessible via un endpoint REST simple. Les données PLU sont disponibles via :
+Les Plans Locaux d'Urbanisme (PLU) déterminent les règles constructives parcelle par parcelle.
+Le pipeline ETL les utilise à l'étape 3 (GPU) pour assigner à chaque parcelle INCONNU un CES
+potentiel réglementaire plutôt qu'une valeur de fallback RNU.
 
-1. **WFS (Web Feature Service)** : Standard OGC pour interroger des données géographiques
-2. **Fichiers CNIG** : Téléchargement des PLU au format standardisé
-3. **API Géoplateforme** : Nouvelle API IGN (remplace GPU)
+**Deux types de documents** coexistent sur le territoire :
+- **PLU communal** : partition `DU_<INSEE>` — un document par commune
+- **PLUi intercommunal (EPCI)** : partition `DU_<SIREN_EPCI>` — un document couvre plusieurs communes membres
 
-## Approches Possibles
-
-### Option 1 : WFS (Recommandé pour production)
-
-**Avantages** :
-- Données officielles et à jour
-- Interrogation par coordonnées
-- Standard OGC
-
-**Inconvénients** :
-- Configuration complexe
-- Requêtes lentes (réseau)
-
-**Exemple d'implémentation** :
-```python
-from owslib.wfs import WebFeatureService
-
-wfs = WebFeatureService(
-    url='https://data.geopf.fr/wfs',
-    version='2.0.0'
-)
-
-# Interroger par bbox
-response = wfs.getfeature(
-    typename='LANDUSE.ZONING',
-    bbox=(lon-0.001, lat-0.001, lon+0.001, lat+0.001),
-    srsname='EPSG:4326'
-)
-```
+Le pipeline résout les deux cas via une table de mapping commune → partition.
 
 ---
 
-### Option 2 : Fichiers CNIG (Recommandé pour ce projet)
+## Architecture des données
 
-**Avantages** :
-- Données locales (pas de réseau)
-- Requêtes rapides
-- Intégration DuckDB facile
+### Tables DuckDB créées par `import_plu.py`
 
-**Inconvénients** :
-- Nécessite téléchargement initial
-- Mise à jour manuelle
+#### `plu_commune_partition`
+| Colonne        | Type    | Description                                |
+|----------------|---------|--------------------------------------------|
+| `code_commune` | VARCHAR | Code INSEE commune (4 ou 5 chiffres)       |
+| `partition`    | VARCHAR | Identifiant GPU ex: `DU_35238`, `DU_243500139` |
 
-**Implémentation** :
+Index : `idx_pcp_commune(code_commune)`
 
-1. **Télécharger les PLU** :
-   - Source : https://www.geoportail-urbanisme.gouv.fr/
-   - Format : GeoJSON ou Shapefile
-   - Scope : Département 35 (Ille-et-Vilaine)
+Source : couche `doc_urba` du GeoPackage GPU, filtrée sur :
+- état dans `{Approuvé, Opposable, Applicable, En vigueur}`
+- code INSEE non NULL et longueur valide (4 ou 5 caractères)
 
-2. **Importer dans DuckDB** :
+#### `plu_zones`
+| Colonne     | Type     | Description                                   |
+|-------------|----------|-----------------------------------------------|
+| `partition` | VARCHAR  | Clé de jointure avec `plu_commune_partition`  |
+| `typezone`  | VARCHAR  | Type CNIG normalisé (U, AU, A, N, …)          |
+| `libelle`   | VARCHAR  | Libellé libre (informatif, non utilisé pour CES) |
+| `datappro`  | DATE     | Date d'approbation du PLU                     |
+| `geometry`  | GEOMETRY | Polygone de zone (projection locale Lambert 93) |
+
+Index : `idx_pz_partition(partition)`
+
+Source : couche `zone_urba` du GeoPackage GPU.
+
+### Colonnes ajoutées dans `densification_scores`
+
+| Colonne              | Type    | Description                                         |
+|----------------------|---------|-----------------------------------------------------|
+| `source_ces`         | VARCHAR | `'plu_gpu'` si CES issu du PLU, sinon `'rnu_proximite'` |
+| `plu_datappro`       | DATE    | Date d'approbation du PLU source                    |
+| `libelle_zone`       | VARCHAR | Libellé libre de la zone PLU                        |
+| `zone_non_mutable`   | BOOLEAN | `TRUE` pour zones A et N (faible constructibilité)  |
+
+### Table de diagnostic
+
+#### `plu_coverage_issues`
+| Colonne            | Type    | Description                      |
+|--------------------|---------|----------------------------------|
+| `code_commune`     | VARCHAR | Code INSEE                       |
+| `parcelles_inconnu`| INTEGER | Nombre de parcelles non résolues |
+| `motif`            | VARCHAR | Voir motifs ci-dessous           |
+
+**Motifs** :
+- `no_plu_gpu` — commune absente de `plu_commune_partition` (pas de PLU importé)
+- `partition_without_zones` — partition mappée mais aucune zone spatiale trouvée
+- `plu_recently_revised` — `datappro` < 180 jours → re-run ETL recommandé
+
+---
+
+## Scripts
+
+### `import_plu.py` — Import du GeoPackage GPU
+
+Importe les couches `doc_urba` et `zone_urba` d'un GeoPackage GPU dans DuckDB.
+Doit être exécuté **avant** `etl_build_dept.py`.
+
+```bash
+# Avec GeoPackage local
+python import_plu.py 35 --db data/dept35.duckdb --gpkg data/plu_35.gpkg
+
+# Avec téléchargement automatique depuis la Géoplateforme IGN
+python import_plu.py 35 --db data/dept35.duckdb --download
+```
+
+**Source GeoPackage** : `https://data.geopf.fr/telechargement/resource/pack_plu`
+Un fichier par département, ~200–800 MB selon la densité communale.
+
+**Détection du champ commune** : le script détecte automatiquement le nom du champ
+INSEE dans `doc_urba` (variantes CNIG selon millésime : `insee`, `code_commune`, `code_insee`).
+
+**Validation de contenu** : après détection du champ, le script compte et logue les
+lignes avec code INSEE NULL ou de longueur invalide (hors 4–5 caractères). Ces lignes
+sont exclues du mapping mais n'interrompent pas l'import.
+
+### `validate_plu.py` — Validation du mapping PLUi
+
+Vérifie sur données réelles que le mapping PLUi fonctionne. Mesure le taux de
+`rnu_proximite` sur les **parcelles bâties uniquement** (`emprise_sol_m2 > 0`).
+
+```bash
+python validate_plu.py data/dept35.duckdb
+python validate_plu.py data/dept35.duckdb --commune 35238
+```
+
+**Seuil** : `MAX_RNU_FALLBACK_RATE = 0.15`
+Exit code 1 si, pour une commune avec partition PLU connue, plus de 15 % de ses
+parcelles bâties ont `source_ces = 'rnu_proximite'`. Les communes sans partition
+connue (pas de PLU GPU) ne déclenchent pas d'échec.
+
+Ce script est appelé automatiquement dans `etl_build_dept.py` après `step_gpu`,
+en mode **non-bloquant** : un avertissement est loggé mais l'ETL ne s'arrête pas.
+
+---
+
+## Étape GPU dans le pipeline ETL (`etl_build_steps/gpu.py`)
+
+### Flux de résolution
+
+```
+parcelle.code_commune
+    → JOIN plu_commune_partition → partition
+    → JOIN plu_zones (ST_Intersects centroïde × zone) → typezone
+    → normalisation typezone → parent_zone (U/AU/A/N/autre)
+    → CES potentiel + catégorie + flag zone_non_mutable
+```
+
+### Normalisation `typezone` → `parent_zone`
+
 ```sql
-CREATE TABLE plu_zones AS
-SELECT 
-    code_commune,
-    libelle_zone,  -- U, AU, A, N
-    ST_GeomFromText(geometry) as geometry
-FROM read_json('data/plu_35.geojson');
-
-CREATE INDEX idx_plu_spatial ON plu_zones USING RTREE(geometry);
+CASE
+    WHEN typezone LIKE 'AU%' THEN 'AU'   -- AU avant A (ordre crucial)
+    WHEN typezone LIKE 'U%'  THEN 'U'
+    WHEN typezone LIKE 'A%'  THEN 'A'
+    WHEN typezone LIKE 'N%'  THEN 'N'
+    ELSE 'autre'
+END
 ```
 
-3. **Modifier ETL densification** :
-```python
-# Dans etl_densification.py, remplacer:
-# CAST(0.40 AS DECIMAL(5, 4)) as ces_potentiel
+### Table de correspondance CES
 
-# Par:
-CASE 
-    WHEN plu.libelle_zone LIKE 'U%' THEN 0.50
-    WHEN plu.libelle_zone LIKE 'AU%' THEN 0.30
-    WHEN plu.libelle_zone LIKE 'A%' THEN 0.05
-    WHEN plu.libelle_zone LIKE 'N%' THEN 0.02
-    ELSE 0.40
-END as ces_potentiel
+| Zone parent | CES potentiel | Catégorie      | `zone_non_mutable` |
+|-------------|---------------|----------------|--------------------|
+| U           | 0.50          | MOYEN          | FALSE              |
+| AU          | 0.30          | FORT           | FALSE              |
+| A           | 0.05          | NON_MUTABLE    | TRUE               |
+| N           | 0.02          | NON_MUTABLE    | TRUE               |
+| autre       | 0.40          | FAIBLE         | FALSE              |
 
-# Ajouter LEFT JOIN:
-LEFT JOIN plu_zones plu ON ST_Contains(plu.geometry, ST_Centroid(p.geometry))
-```
+Le flag `zone_non_mutable` permet d'interpréter `surface_constructible_restante`
+sans écraser la valeur calculée.
+
+### Cas non résolus
+
+Les parcelles qui restent `INCONNU` après l'étape GPU sont tracées dans
+`plu_coverage_issues`. Les causes les plus fréquentes :
+1. Commune hors périmètre du GeoPackage téléchargé
+2. PLUi dont la commune n'est pas listée dans `doc_urba`
+3. Centroïde de la parcelle hors des zones connues (erreur géométrique GPU)
 
 ---
 
-### Option 3 : Valeurs par défaut par commune (Solution temporaire)
+## Migration sur base existante
 
-**Avantages** :
-- Simple et rapide
-- Pas de dépendance externe
+Pour ajouter les colonnes PLU à une base déjà construite sans rebuild complet :
 
-**Inconvénients** :
-- Approximation grossière
-- Pas de différenciation intra-commune
-
-**Implémentation** :
-```python
-# Mapping commune → CES potentiel moyen
-CES_BY_COMMUNE = {
-    "35238": 0.45,  # Rennes (urbain dense)
-    "35281": 0.35,  # Saint-Malo (urbain moyen)
-    # ... autres communes
-}
-
-# Dans ETL:
-CASE 
-    WHEN code_commune = '35238' THEN 0.45
-    WHEN code_commune = '35281' THEN 0.35
-    ELSE 0.40
-END as ces_potentiel
+```bash
+duckdb data/dept35.duckdb < migrations/add_plu_datappro.sql
 ```
 
----
-
-## Recommandation
-
-**Pour ce projet** : **Option 2 (Fichiers CNIG)**
-
-**Raison** :
-- Données locales → Performances optimales
-- Intégration DuckDB native
-- Pas de dépendance réseau
-- Précision maximale (zone par zone)
-
-**Étapes d'implémentation** :
-
-1. Télécharger PLU Dept 35 depuis Géoportail
-2. Convertir en GeoJSON si nécessaire
-3. Créer table `plu_zones` dans DuckDB
-4. Modifier `etl_densification.py` pour JOIN spatial
-5. Re-exécuter ETL
+Puis ré-exécuter `import_plu.py` et relancer uniquement `step_gpu`.
 
 ---
 
 ## Ressources
 
 - **Géoportail de l'Urbanisme** : https://www.geoportail-urbanisme.gouv.fr/
-- **Standard CNIG** : http://cnig.gouv.fr/
-- **OWSLib (WFS)** : https://geopython.github.io/OWSLib/
+- **Standard CNIG PLU** : http://cnig.gouv.fr/
+- **Géoplateforme IGN (téléchargements)** : https://data.geopf.fr/
 - **DuckDB Spatial** : https://duckdb.org/docs/extensions/spatial
-
----
-
-## TODO
-
-- [ ] Télécharger PLU Dept 35
-- [ ] Créer script `data-pipeline/import_plu.py`
-- [ ] Modifier `etl_densification.py` pour intégrer PLU
-- [ ] Tester sur échantillon de parcelles
-- [ ] Documenter dans CHECKPOINT_13.md

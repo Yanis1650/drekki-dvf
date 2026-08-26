@@ -38,15 +38,29 @@ class OsmPoiConfig:
         OsmTag("amenity", "library", "education", weight=0.5),
     ]
 
-    # Transport POI
+    # Transport POI — bus, vélo, mobilités douces (décroissance exponentielle)
     TRANSPORT_TAGS = [
-        OsmTag("public_transport", "station", "transport", weight=1.5),
-        OsmTag("railway", "station", "transport", weight=1.5),
-        OsmTag("railway", "halt", "transport", weight=1.0),
         OsmTag("highway", "bus_stop", "transport", weight=0.5),
         OsmTag("amenity", "bus_station", "transport", weight=1.0),
-        OsmTag("railway", "tram_stop", "transport", weight=0.8),
-        OsmTag("station", "subway", "transport", weight=1.2),
+        OsmTag("amenity", "bicycle_rental", "transport", weight=0.4),
+        OsmTag("amenity", "bicycle_parking", "transport", weight=0.3),
+    ]
+
+    # Transit POI — gares ferroviaires / métro / tram (décroissance en cloche TOD)
+    # Effet non-monotone : zone optimale 400-800m, pénalisé si trop proche (bruit).
+    TRANSIT_TAGS = [
+        OsmTag("railway", "station", "transit", weight=1.5),
+        OsmTag("railway", "halt", "transit", weight=1.0),
+        OsmTag("railway", "tram_stop", "transit", weight=0.8),
+        OsmTag("public_transport", "stop_position", "transit", weight=1.0),
+    ]
+
+    # Nuisances POI — facteurs négatifs de valeur (bruit, pollution, industrie)
+    NUISANCES_TAGS = [
+        OsmTag("railway", "rail", "nuisances", weight=1.2),
+        OsmTag("railway", "yard", "nuisances", weight=1.0),
+        OsmTag("aeroway", "aerodrome", "nuisances", weight=1.5),
+        OsmTag("landuse", "industrial", "nuisances", weight=1.0),
     ]
 
     # Commerce POI
@@ -71,6 +85,8 @@ class OsmPoiConfig:
         return (
             cls.EDUCATION_TAGS +
             cls.TRANSPORT_TAGS +
+            cls.TRANSIT_TAGS +
+            cls.NUISANCES_TAGS +
             cls.COMMERCE_TAGS +
             cls.ENVIRONMENT_TAGS
         )
@@ -81,6 +97,8 @@ class OsmPoiConfig:
         mapping = {
             "education": cls.EDUCATION_TAGS,
             "transport": cls.TRANSPORT_TAGS,
+            "transit": cls.TRANSIT_TAGS,
+            "nuisances": cls.NUISANCES_TAGS,
             "commerce": cls.COMMERCE_TAGS,
             "environnement": cls.ENVIRONMENT_TAGS,
         }
@@ -118,7 +136,7 @@ class OsmClient:
             GeoDataFrame with all POI
         """
         if categories is None:
-            categories = ["education", "transport", "commerce", "environnement"]
+            categories = ["education", "transport", "transit", "nuisances", "commerce", "environnement"]
 
         all_gdf = []
 
@@ -165,7 +183,7 @@ class OsmClient:
             GeoDataFrame with all POI
         """
         if categories is None:
-            categories = ["education", "transport", "commerce", "environnement"]
+            categories = ["education", "transport", "transit", "nuisances", "commerce", "environnement"]
 
         all_gdf = []
 
@@ -216,7 +234,7 @@ class OsmClient:
             GeoDataFrame with all POI
         """
         if categories is None:
-            categories = ["education", "transport", "commerce", "environnement"]
+            categories = ["education", "transport", "transit", "nuisances", "commerce", "environnement"]
 
         all_gdf = []
 

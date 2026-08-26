@@ -62,6 +62,7 @@ class EnrichmentService:
             id_parcelle=parcelle_id or "unknown",
             schools_score=scores.get("education", self._default_score()).score,
             transport_score=scores.get("transport", self._default_score()).score,
+            transit_score=scores.get("transit", self._default_score()).score,
             nuisances_score=scores.get("nuisances", self._default_score()).score,
             green_spaces_score=scores.get("environnement", self._default_score()).score,
             commerce_score=scores.get("commerce", self._default_score()).score,
@@ -85,28 +86,18 @@ class EnrichmentService:
         # Calculate scores with decay
         scores = self._quality_scorer.score_all(proximities)
 
+        def _s(key: str) -> dict:
+            obj = scores.get(key, self._default_score())
+            return {"score": obj.score, **obj.details}
+
         return {
             "global_score": scores.get("global", self._default_score()).score,
-            "education": {
-                "score": scores.get("education", self._default_score()).score,
-                **scores.get("education", self._default_score()).details,
-            },
-            "transport": {
-                "score": scores.get("transport", self._default_score()).score,
-                **scores.get("transport", self._default_score()).details,
-            },
-            "commerce": {
-                "score": scores.get("commerce", self._default_score()).score,
-                **scores.get("commerce", self._default_score()).details,
-            },
-            "environnement": {
-                "score": scores.get("environnement", self._default_score()).score,
-                **scores.get("environnement", self._default_score()).details,
-            },
-            "nuisances": {
-                "score": scores.get("nuisances", self._default_score()).score,
-                **scores.get("nuisances", self._default_score()).details,
-            },
+            "education":     _s("education"),
+            "transport":     _s("transport"),
+            "transit":       _s("transit"),
+            "nuisances":     _s("nuisances"),
+            "environnement": _s("environnement"),
+            "commerce":      _s("commerce"),
         }
 
     async def get_nearby_poi(

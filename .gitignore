@@ -127,3 +127,12 @@ temp/
 *.tar.gz
 *.tgz
 *.rar
+
+# ============ Claude Code (config locale) ============
+.claude/
+
+# ============ Références externes vendorisées (téléchargements) ============
+geoportail-urbanisme-dev-master/
+
+# Extensions DuckDB téléchargées localement
+.duckdb_ext/

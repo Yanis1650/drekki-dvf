@@ -62,6 +62,30 @@ class DecayFunction:
             return 0.0
         return 10.0 / (1 + exp(steepness * (distance - midpoint)))
 
+    @staticmethod
+    def gaussian(
+        distance: float,
+        peak_distance: float = 600,
+        sigma: float = 300,
+    ) -> float:
+        """Courbe en cloche (TOD — Transit-Oriented Development).
+
+        Modélise l'effet non-monotone des gares :
+          - Trop proche (< 200m) : bruit, score faible
+          - Zone optimale 400-800m : score maximal ≈ 10
+          - Au-delà de 1500m : effet quasi nul
+
+        Formule : score = 10 * exp(-((d - peak_distance)² / (2 * sigma²)))
+          peak_distance=600m, sigma=300m
+          score ≈ 10.0 à 600m
+          score ≈  6.1 à 300m et 900m
+          score ≈  1.4 à 1200m (≈ 2*sigma de la crête)
+          score ≈  1.4 à   0m  (même valeur qu'à 1200m par symétrie)
+        """
+        if distance is None or distance < 0:
+            return 0.0
+        return 10.0 * exp(-((distance - peak_distance) ** 2) / (2 * sigma ** 2))
+
 
 class QualityScorer:
     """Converts proximity metrics into quality scores (0-10).
@@ -71,10 +95,13 @@ class QualityScorer:
 
     # Decay parameters per category
     EDUCATION_HALFLIFE = 600   # Score = 5 at 600m
-    TRANSPORT_HALFLIFE = 400   # Score = 5 at 400m (more critical)
+    TRANSPORT_HALFLIFE = 400   # Score = 5 at 400m (bus/vélo)
     COMMERCE_HALFLIFE = 500
     ENVIRONMENT_HALFLIFE = 700
     NUISANCE_HALFLIFE = 400    # Inverse decay: score = 10 - exponential(...)
+    # Transit TOD : gaussienne centrée sur 600m, σ=300m
+    TRANSIT_PEAK = 600         # Distance optimale en mètres
+    TRANSIT_SIGMA = 300        # Écart-type de la cloche
 
     def __init__(self, decay_type: str = "exponential") -> None:
         """Initialize with decay function type.
@@ -218,6 +245,38 @@ class QualityScorer:
             },
         )
 
+    def score_transit(self, proximity: ProximityResult) -> QualityScore:
+        """Score TOD (Transit-Oriented Development) — effet cloche gaussien.
+
+        La proximité d'une gare est un facteur POSITIF avec un optimum à 600m :
+          - Trop loin (> 1500m) : peu d'effet
+          - Zone optimale (400-800m) : score ≈ 10
+          - Trop proche (< 200m) : bruit fort, score bas (≈ 1-2)
+
+        Utilise DecayFunction.gaussian() — pas exponentielle, pas linéaire.
+        Contrairement au transport_score (bus/vélo), aucun bonus de comptage :
+        la présence d'une seule grande gare suffit.
+        """
+        raw = self._decay.gaussian(
+            proximity.nearest_distance_m,
+            peak_distance=self.TRANSIT_PEAK,
+            sigma=self.TRANSIT_SIGMA,
+        )
+        total = min(10.0, raw)
+
+        return QualityScore(
+            category="transit",
+            score=Decimal(str(round(total, 1))),
+            details={
+                "raw_gaussian": round(raw, 3),
+                "nearest_m": proximity.nearest_distance_m,
+                "count_1km": proximity.count_1km,
+                "types": proximity.poi_types,
+                "peak_distance_m": self.TRANSIT_PEAK,
+                "sigma_m": self.TRANSIT_SIGMA,
+            },
+        )
+
     def score_nuisances(self, proximity: ProximityResult) -> QualityScore:
         """Calculate nuisances score.
 
@@ -251,14 +310,24 @@ class QualityScorer:
         proximities: dict[str, ProximityResult],
         weights: dict[str, float] | None = None,
     ) -> dict[str, QualityScore]:
-        """Score all categories and compute weighted global score."""
+        """Score all categories and compute weighted global score.
+
+        Pondérations (somme = 1.00) :
+          schools_score    20%  — accès à l'éducation
+          transport_score  15%  — bus, vélo, mobilités douces
+          transit_score    20%  — gares (effet TOD cloche)
+          nuisances_score  20%  — nuisances inversées
+          green_spaces     10%  — espaces verts
+          commerce_score   15%  — commerces de proximité
+        """
         if weights is None:
             weights = {
-                "education": 0.25,
-                "transport": 0.25,
-                "commerce": 0.20,
-                "environnement": 0.15,
-                "nuisances": 0.15,
+                "education":   0.20,
+                "transport":   0.15,
+                "transit":     0.20,
+                "nuisances":   0.20,
+                "environnement": 0.10,
+                "commerce":    0.15,
             }
 
         scores = {}
@@ -268,6 +337,9 @@ class QualityScorer:
 
         if "transport" in proximities:
             scores["transport"] = self.score_transport(proximities["transport"])
+
+        if "transit" in proximities:
+            scores["transit"] = self.score_transit(proximities["transit"])
 
         if "commerce" in proximities:
             scores["commerce"] = self.score_commerce(proximities["commerce"])

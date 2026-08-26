@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_settings
+from app.api.deps import Settings, get_duckdb_pool, get_settings
+from app.infrastructure.duckdb_pool import DuckDBPool
 from app.repositories.duckdb_analytics_repository import DuckDBAnalyticsRepository
 from app.schemas import (
     MarketTrendsResponse,
@@ -22,10 +23,12 @@ from app.services.analytics_service import AnalyticsService
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
-def get_analytics_repository() -> DuckDBAnalyticsRepository:
-    """Dependency for analytics repository."""
-    settings = get_settings()
-    return DuckDBAnalyticsRepository(settings.duckdb_path)
+def get_analytics_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+    pool: Annotated[DuckDBPool | None, Depends(get_duckdb_pool)],
+) -> DuckDBAnalyticsRepository:
+    """Dependency for analytics repository with optional pool routing."""
+    return DuckDBAnalyticsRepository(settings.duckdb_path, pool=pool)
 
 
 def get_analytics_service() -> AnalyticsService:

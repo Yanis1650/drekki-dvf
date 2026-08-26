@@ -133,6 +133,7 @@ def run_dvf_etl():
         pl.len().alias("nombre_locaux"),
         pl.first("longitude"),
         pl.first("latitude"),
+        pl.first("type_local"),
     )
 
     # Calculate prix_m2 and filter min surface

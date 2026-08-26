@@ -102,7 +102,7 @@ class DuckDBDensificationMixin:
         dept = self._dept_from_commune(code_commune) if code_commune else None
         conn = self._get_connection(dept)
 
-        clauses = ["1=1"]
+        clauses = ["COALESCE(f.is_outlier, FALSE) = FALSE"]
         params: list = []
 
         if code_commune:

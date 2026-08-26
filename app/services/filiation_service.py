@@ -5,11 +5,11 @@ using recursive graph algorithms with caching.
 """
 
 import logging
-from functools import lru_cache
 from pathlib import Path
 
 from app.domain.filiation_models import DFINature, FiliationNode
 from app.repositories.filiation_repository import (
+    DEFAULT_DEPTH_LIMIT,
     DuckDBFiliationRepository,
     IFiliationRepository,
 )
@@ -19,85 +19,55 @@ logger = logging.getLogger(__name__)
 
 class FiliationService:
     """Service for calculating parcel filiation trees.
-    
-    Uses recursive algorithms with LRU cache to efficiently trace
-    parcel ancestors (administrative history).
+
+    Delegates tree reconstruction to the repository (which enforces depth_limit
+    and cycle detection). The service focuses on formatting and higher-level logic.
+
+    Note : le LRU cache a été retiré de get_ancestors car la détection de cycles
+    utilise un set mutable (_visited) incompatible avec functools.lru_cache.
+    Le cache peut être réintroduit à un niveau supérieur (endpoint) si nécessaire.
     """
 
-    MAX_DEPTH = 10  # Anti-infinite loop protection
-
     def __init__(
-        self, repository: IFiliationRepository | None = None, duckdb_path: Path | str = "./data/foncier.duckdb"
+        self,
+        repository: IFiliationRepository | None = None,
+        duckdb_path: Path | str = "./data/foncier.duckdb",
+        depth_limit: int = DEFAULT_DEPTH_LIMIT,
     ) -> None:
         """Initialize filiation service.
-        
+
         Args:
-            repository: Filiation repository (defaults to DuckDB)
+            repository:  Filiation repository (defaults to DuckDB)
             duckdb_path: Path to DuckDB database
+            depth_limit: Maximum ancestor depth (default DEFAULT_DEPTH_LIMIT=10)
         """
         self._repo = repository or DuckDBFiliationRepository(db_path=duckdb_path)
+        self._depth_limit = depth_limit
 
-    @lru_cache(maxsize=500)
     def get_ancestors(
-        self, code_commune: str, section: str, numero: str, depth: int = 0
+        self, code_commune: str, section: str, numero: str
     ) -> FiliationNode:
-        """Retrieve ancestor tree recursively with caching.
-        
-        Traces back the administrative history of a parcel by following
-        mother-daughter relationships. Uses LRU cache to avoid redundant
-        database queries.
-        
+        """Retrieve ancestor tree with depth bounding and cycle detection.
+
+        Delegates to repository.build_filiation_tree() which handles:
+          - Depth limit (truncated=True when reached)
+          - Cycle detection (truncated=True + ERROR logged when cycle found)
+          - Optional geometry coherence validation (coherence_geo field)
+
         Args:
             code_commune: 3-digit commune code
-            section: 2-char section
-            numero: 4-char parcel number
-            depth: Current recursion depth (internal)
-            
+            section:      2-char section
+            numero:       4-char parcel number
+
         Returns:
-            FiliationNode with parent chain
+            FiliationNode with parent chain; truncated=True on any node
+            where the tree could not be fully reconstructed.
         """
-        # Anti-infinite loop protection
-        if depth >= self.MAX_DEPTH:
-            logger.warning(
-                f"Max depth {self.MAX_DEPTH} reached for {section}{numero} in commune {code_commune}"
-            )
-            return FiliationNode(
-                id_parcelle=f"{section}{numero}",
-                parent=None,
-                children=[],
-                depth=depth,
-            )
-
-        # Query direct parents
-        parents = self._repo.get_parents(code_commune, section, numero)
-
-        if not parents:
-            # Leaf node (original parcel, no known division)
-            return FiliationNode(
-                id_parcelle=f"{section}{numero}",
-                parent=None,
-                children=[],
-                depth=depth,
-            )
-
-        # Take first parent (most common case: simple division)
-        # TODO: Handle multiple parents (fusion) in future version
-        parent_filiation = parents[0]
-        parent_section = parent_filiation.parcelle_mere[:2]
-        parent_numero = parent_filiation.parcelle_mere[2:]
-
-        # Recursive call to get parent's ancestors
-        parent_node = self.get_ancestors(
-            code_commune, parent_section, parent_numero, depth + 1
-        )
-
-        return FiliationNode(
-            id_parcelle=f"{section}{numero}",
-            parent=parent_node,
-            children=[],
-            date_division=parent_filiation.date_validation,
-            nature_operation=parent_filiation.nature_dfi,
-            depth=depth,
+        return self._repo.build_filiation_tree(
+            code_commune,
+            section,
+            numero,
+            depth_limit=self._depth_limit,
         )
 
     def format_filiation_summary(self, node: FiliationNode) -> str:
@@ -152,7 +122,12 @@ class FiliationService:
                 {
                     "id_parcelle": current.parent.id_parcelle,
                     "date_division": current.date_division,
-                    "nature_operation": current.nature_operation,
+                    "nature_operation": (
+                        current.nature_operation.value
+                        if current.nature_operation
+                        else None
+                    ),
+                    "coherence_geo": current.coherence_geo,
                 }
             )
             current = current.parent
@@ -161,5 +136,4 @@ class FiliationService:
         return list(reversed(chain))
 
     def clear_cache(self) -> None:
-        """Clear LRU cache (useful for testing)."""
-        self.get_ancestors.cache_clear()
+        """No-op — LRU cache removed (cycle detection requires mutable state)."""

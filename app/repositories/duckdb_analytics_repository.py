@@ -12,25 +12,44 @@ from pathlib import Path
 import duckdb
 
 from app.domain.analytics_models import YearlyTrend
+from app.infrastructure.duckdb_pool import DuckDBPool
 
 
 class DuckDBAnalyticsRepository:
     """Analytics repository for market trends analysis.
-    
+
     Handles complex temporal and spatial aggregations for market insights.
     Uses DuckDB's analytical functions for efficient yearly grouping.
+    Supports multi-dept pool routing for get_parcel_history.
     """
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, pool: DuckDBPool | None = None) -> None:
         self._db_path = Path(db_path)
+        self._pool = pool
         self._conn: duckdb.DuckDBPyConnection | None = None
 
-    def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Lazy connection initialization with spatial extension."""
+    def _get_main_connection(self) -> duckdb.DuckDBPyConnection:
+        """Lazy connection to main/legacy DB (for trends spanning many depts)."""
         if self._conn is None:
             self._conn = duckdb.connect(str(self._db_path), read_only=True)
             self._conn.execute("INSTALL spatial; LOAD spatial;")
         return self._conn
+
+    def _get_dept_connection(self, parcel_id: str) -> duckdb.DuckDBPyConnection:
+        """Route to the correct dept DB via pool, or fall back to main DB."""
+        if self._pool is not None:
+            try:
+                return self._pool.get_for_parcelle(parcel_id)
+            except Exception:
+                pass
+        return self._get_main_connection()
+
+    def _available_tables(self, conn: duckdb.DuckDBPyConnection) -> list[str]:
+        """List tables in the given connection."""
+        try:
+            return [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+        except Exception:
+            return []
 
     async def get_market_trends(
         self,
@@ -41,24 +60,28 @@ class DuckDBAnalyticsRepository:
         years: int = 10,
     ) -> list[YearlyTrend]:
         """Get market trends over time for a location.
-        
+
         Strategy:
         1. Filter by commune OR radius around coordinates
         2. Apply Mericskay methodology filters
         3. Group by year and calculate metrics
         4. Calculate YoY percentage changes
-        
+
+        Table detection:
+        - Tries france_foncier_test first (has is_outlier flag, most accurate)
+        - Falls back to mutations_aggregated if france_foncier_test not available
+
         Args:
             code_commune: INSEE commune code (e.g., "35238" for Rennes)
             lat: Latitude for radius search (WGS84)
             lon: Longitude for radius search (WGS84)
             radius_meters: Search radius in meters
             years: Number of years to analyze (from current year backwards)
-        
+
         Returns:
             List of YearlyTrend objects ordered by year ascending
         """
-        conn = self._get_connection()
+        conn = self._get_main_connection()
 
         # Determine current year and start year
         current_year = datetime.now().year
@@ -88,15 +111,28 @@ class DuckDBAnalyticsRepository:
         else:
             raise ValueError("Must provide either code_commune or (lat, lon)")
 
-        # Query with Mericskay filters and yearly aggregation
+        tables = self._available_tables(conn)
+        use_fft = "france_foncier_test" in tables
+
+        if use_fft:
+            # france_foncier_test has outlier flag and pre-computed prix_m2
+            data_table = "france_foncier_test"
+            extra_filter = "AND COALESCE(is_outlier, FALSE) = FALSE"
+        elif "mutations_aggregated" in tables:
+            data_table = "mutations_aggregated"
+            extra_filter = ""  # No is_outlier column in mutations_aggregated
+        else:
+            print(f"ERROR: Neither france_foncier_test nor mutations_aggregated found in {self._db_path}")
+            return []
+
         query = f"""
             WITH filtered_data AS (
-                SELECT 
+                SELECT
                     YEAR(TRY_CAST(date_mutation AS DATE)) as year,
                     prix_m2,
                     valeur_fonciere,
                     surface_habitable_totale
-                FROM france_foncier_test
+                FROM {data_table}
                 WHERE {location_filter}
                   AND TRY_CAST(date_mutation AS DATE) >= DATE '{start_year}-01-01'
                   AND TRY_CAST(date_mutation AS DATE) <= DATE '{current_year}-12-31'
@@ -105,9 +141,10 @@ class DuckDBAnalyticsRepository:
                   AND valeur_fonciere > 2000
                   AND prix_m2 IS NOT NULL
                   AND prix_m2 > 0
+                  {extra_filter}
             ),
             yearly_stats AS (
-                SELECT 
+                SELECT
                     year,
                     AVG(prix_m2) as avg_price_m2,
                     COUNT(*) as transaction_volume
@@ -116,7 +153,7 @@ class DuckDBAnalyticsRepository:
                 GROUP BY year
                 ORDER BY year ASC
             )
-            SELECT 
+            SELECT
                 year,
                 avg_price_m2,
                 transaction_volume,
@@ -128,7 +165,7 @@ class DuckDBAnalyticsRepository:
         try:
             results = conn.execute(query).fetchall()
         except Exception as e:
-            print(f"ERROR: get_market_trends query failed: {e}")
+            print(f"ERROR: get_market_trends query failed (table={data_table}): {e}")
             return []
 
         # Convert to domain models and calculate YoY changes
@@ -160,84 +197,101 @@ class DuckDBAnalyticsRepository:
         limit: int = 100,
     ) -> list[dict]:
         """Get transaction history for a specific parcel.
-        
-        Used for MapLibre tooltips to show historical sales.
-        
+
+        Routes to the correct dept DB via pool when available,
+        so france_foncier_test (which only exists in dept DBs) is found.
+
         Args:
             parcel_id: Cadastral parcel ID (14 chars: commune(5) + prefixe(3) + section(2) + numero(4))
             limit: Maximum number of transactions to return
-        
-        Returns:
-            List of transaction dicts with date, price, and price_m2
-        """
-        conn = self._get_connection()
 
-        # DEBUG: Log input parcel ID
+        Returns:
+            List of transaction dicts with date, price, price_m2, surface, type_local
+        """
+        conn = self._get_dept_connection(parcel_id)
+
         print(f"🔍 [REPO] get_parcel_history called with parcel_id: '{parcel_id}'")
         print(f"🔍 [REPO] parcel_id length: {len(parcel_id)}")
 
-        # Parcel ID structure (14 chars):
-        # - code_commune: 5 chars (e.g., "35238")
-        # - prefixe: 3 chars (e.g., "000")
-        # - section: 2 chars (e.g., "AO")
-        # - numero: 4 chars with leading zeros (e.g., "0141")
-        #
-        # DVF may store the numero WITHOUT leading zeros (e.g., "141" instead of "0141")
-        # So we need to match both formats
+        tables = self._available_tables(conn)
 
         if len(parcel_id) == 14:
             # Extract components
             base_id = parcel_id[:10]  # commune + prefixe + section
             numero_padded = parcel_id[10:]  # 4-char numero with leading zeros
             numero_stripped = numero_padded.lstrip('0') or '0'  # Remove leading zeros
+            alt_id_short = base_id + numero_stripped
 
-            # Build alternative IDs that DVF might use
-            alt_id_short = base_id + numero_stripped  # e.g., "35238000AO141"
-
-            query = """
-                SELECT 
-                    date_mutation,
-                    valeur_fonciere,
-                    prix_m2,
-                    surface_habitable_totale,
-                    cadastre_parcelle_id
-                FROM france_foncier_test
-                WHERE cadastre_parcelle_id IN (?, ?)
-                  AND valeur_fonciere > 0
-                ORDER BY date_mutation DESC
-                LIMIT ?
-            """
-            params = [parcel_id, alt_id_short, limit]
-
-            # DEBUG: Log the exact match parameters
             print(f"🔍 [REPO] Searching for exact IDs: '{parcel_id}' OR '{alt_id_short}'")
+
+            if "france_foncier_test" in tables:
+                query = """
+                    SELECT
+                        date_mutation,
+                        valeur_fonciere,
+                        prix_m2,
+                        surface_habitable_totale,
+                        cadastre_parcelle_id,
+                        COALESCE(is_outlier, FALSE) AS is_outlier,
+                        type_local
+                    FROM france_foncier_test
+                    WHERE cadastre_parcelle_id IN (?, ?)
+                      AND valeur_fonciere > 0
+                    ORDER BY date_mutation DESC
+                    LIMIT ?
+                """
+                params = [parcel_id, alt_id_short, limit]
+            elif "mutations_aggregated" in tables:
+                # Fallback: search by parcel in dvf_parcelles list
+                query = """
+                    SELECT
+                        date_mutation,
+                        valeur_fonciere,
+                        prix_m2,
+                        surface_habitable_totale,
+                        NULL AS cadastre_parcelle_id,
+                        FALSE AS is_outlier,
+                        type_local
+                    FROM mutations_aggregated
+                    WHERE list_contains(parcelles, ?)
+                      AND valeur_fonciere > 0
+                    ORDER BY date_mutation DESC
+                    LIMIT ?
+                """
+                params = [parcel_id, limit]
+            else:
+                print(f"🔍 [REPO] No suitable table found in connection")
+                return []
         else:
-            # For non-14-char IDs, do exact match only
-            query = """
-                SELECT 
-                    date_mutation,
-                    valeur_fonciere,
-                    prix_m2,
-                    surface_habitable_totale,
-                    cadastre_parcelle_id
-                FROM france_foncier_test
-                WHERE cadastre_parcelle_id = ?
-                  AND valeur_fonciere > 0
-                ORDER BY date_mutation DESC
-                LIMIT ?
-            """
-            params = [parcel_id, limit]
             print(f"🔍 [REPO] Searching for exact ID only: '{parcel_id}'")
+
+            if "france_foncier_test" in tables:
+                query = """
+                    SELECT
+                        date_mutation,
+                        valeur_fonciere,
+                        prix_m2,
+                        surface_habitable_totale,
+                        cadastre_parcelle_id,
+                        COALESCE(is_outlier, FALSE) AS is_outlier,
+                        type_local
+                    FROM france_foncier_test
+                    WHERE cadastre_parcelle_id = ?
+                      AND valeur_fonciere > 0
+                    ORDER BY date_mutation DESC
+                    LIMIT ?
+                """
+                params = [parcel_id, limit]
+            else:
+                print(f"🔍 [REPO] No suitable table found in connection")
+                return []
 
         try:
             results = conn.execute(query, params).fetchall()
-
-            # DEBUG: Log results
             print(f"🔍 [REPO] Found {len(results)} transactions")
             if results:
                 unique_ids = set(r[4] for r in results if r[4])
                 print(f"🔍 [REPO] Unique cadastre_parcelle_ids in results: {unique_ids}")
-
         except Exception as e:
             print(f"ERROR: get_parcel_history failed: {e}")
             return []
@@ -253,12 +307,14 @@ class DuckDBAnalyticsRepository:
                 "price": float(r[1]),
                 "price_m2": float(r[2]) if r[2] else None,
                 "surface": float(r[3]) if r[3] else None,
+                "is_outlier": bool(r[5]),
+                "type_local": r[6] if len(r) > 6 else None,
             })
 
         return history
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Close the main DB connection (pool connections managed by pool)."""
         if self._conn:
             self._conn.close()
             self._conn = None

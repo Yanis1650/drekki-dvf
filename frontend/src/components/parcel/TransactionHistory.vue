@@ -1,54 +1,96 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
   transactions: {
     type: Array,
     default: () => []
   }
 });
 
+const outlierCount = computed(() =>
+  props.transactions.filter(tx => tx.is_outlier).length
+);
+
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleDateString('fr-FR', { 
+  return new Date(dateStr).toLocaleDateString('fr-FR', {
     year: 'numeric',
-    month: 'short',
-    day: 'numeric'
+    month: '2-digit',
+    day: '2-digit'
   });
 };
 
 const formatPrice = (price) => {
-  if (!price) return '';
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
+  if (!price) return '—';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0
   }).format(price);
+};
+
+const typeBadgeClass = (typeLocal) => {
+  if (!typeLocal) return 'badge-other';
+  if (typeLocal === 'Maison') return 'badge-maison';
+  if (typeLocal === 'Appartement') return 'badge-appt';
+  return 'badge-other';
+};
+
+const typeLabel = (typeLocal) => {
+  if (!typeLocal) return '—';
+  if (typeLocal === 'Appartement') return 'Appt.';
+  return typeLocal;
 };
 </script>
 
 <template>
   <div class="transactions-section">
     <h3 class="section-title">
-      💰 Historique des transactions
+      Transactions récentes
       <span class="count">{{ transactions.length }}</span>
     </h3>
-    
-    <div v-if="transactions.length > 0" class="transactions-list custom-scrollbar">
-      <div 
-        v-for="(tx, idx) in transactions" 
-        :key="idx"
-        class="transaction-item"
-      >
-        <div class="tx-header">
-          <span class="tx-date">{{ formatDate(tx.date) }}</span>
-          <span class="tx-price-m2">{{ tx.price_m2?.toFixed(0) || 'N/A' }} €/m²</span>
-        </div>
-        <div class="tx-details">
-          <span class="tx-total" v-if="tx.total_price">{{ formatPrice(tx.total_price) }}</span>
-          <span class="tx-surface" v-if="tx.surface">{{ tx.surface }} m²</span>
-        </div>
+
+    <div v-if="transactions.length > 0">
+      <!-- Column headers -->
+      <div class="table-header">
+        <span>Date</span>
+        <span>Type</span>
+        <span class="text-right">Valeur</span>
+        <span class="text-right">Prix/m²</span>
       </div>
+
+      <!-- Rows -->
+      <div
+        v-for="(tx, idx) in transactions"
+        :key="idx"
+        class="tx-row"
+        :class="{ 'tx-outlier': tx.is_outlier }"
+      >
+        <span class="tx-date">{{ formatDate(tx.date) }}</span>
+
+        <span>
+          <span v-if="tx.is_outlier" class="tx-badge badge-outlier">⚠ Outlier</span>
+          <span v-else :class="['tx-badge', typeBadgeClass(tx.type_local)]">
+            {{ typeLabel(tx.type_local) }}
+          </span>
+        </span>
+
+        <span class="tx-val" :class="{ 'tx-val-muted': tx.is_outlier }">
+          {{ formatPrice(tx.price) }}
+        </span>
+
+        <span class="tx-m2" :class="{ 'tx-m2-outlier': tx.is_outlier }">
+          {{ tx.price_m2 ? tx.price_m2.toFixed(0) + ' €' : '—' }}
+        </span>
+      </div>
+
+      <!-- Outlier footnote -->
+      <p v-if="outlierCount > 0" class="outlier-note">
+        {{ outlierCount }} transaction{{ outlierCount > 1 ? 's' : '' }} exclue{{ outlierCount > 1 ? 's' : '' }} des moyennes (outliers détectés)
+      </p>
     </div>
-    
+
     <div v-else class="empty-state">
       <p>Aucune transaction enregistrée</p>
     </div>
@@ -63,13 +105,15 @@ const formatPrice = (price) => {
 }
 
 .section-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #1e293b;
-  margin: 0 0 16px 0;
+  margin: 0 0 14px 0;
   display: flex;
   align-items: center;
   gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .count {
@@ -77,57 +121,107 @@ const formatPrice = (price) => {
   font-weight: 600;
   color: white;
   background: #6366f1;
-  padding: 3px 10px;
+  padding: 2px 9px;
   border-radius: 10px;
 }
 
-.transactions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 300px;
-  overflow-y: auto;
+.table-header {
+  display: grid;
+  grid-template-columns: 82px 76px 1fr 72px;
+  gap: 6px;
+  padding: 0 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 4px;
 }
 
-.transaction-item {
-  background: white;
-  border-radius: 12px;
-  padding: 14px 16px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+.text-right {
+  text-align: right;
 }
 
-.transaction-item:hover {
-  background: rgba(99, 102, 241, 0.03);
-  border-color: #6366f1;
-  transform: translateX(-4px);
-  box-shadow: 4px 0 0 #6366f1;
-}
-
-.tx-header {
-  display: flex;
-  justify-content: space-between;
+.tx-row {
+  display: grid;
+  grid-template-columns: 82px 76px 1fr 72px;
+  gap: 6px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid #f1f5f9;
   align-items: center;
-  margin-bottom: 6px;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+
+.tx-row:last-of-type {
+  border-bottom: none;
+}
+
+.tx-outlier {
+  opacity: 0.75;
 }
 
 .tx-date {
-  font-size: 14px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.tx-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-maison {
+  background: #e6f1fb;
+  color: #185fa5;
+}
+
+.badge-appt {
+  background: #eeedfe;
+  color: #534ab7;
+}
+
+.badge-outlier {
+  background: #faeeda;
+  color: #854f0b;
+}
+
+.badge-other {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.tx-val {
+  text-align: right;
   font-weight: 600;
   color: #1e293b;
 }
 
-.tx-price-m2 {
-  font-size: 15px;
-  font-weight: 700;
-  color: #6366f1;
+.tx-val-muted {
+  color: #94a3b8;
 }
 
-.tx-details {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
+.tx-m2 {
+  text-align: right;
   color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.tx-m2-outlier {
+  color: #EF9F27;
+  font-weight: 600;
+}
+
+.outlier-note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
 }
 
 .empty-state {

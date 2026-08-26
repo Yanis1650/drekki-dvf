@@ -25,16 +25,26 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifecycle handler."""
-    # Startup: Create tables
-    engine = create_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """App lifecycle handler.
+
+    La connexion PostgreSQL (users/credits) est optionnelle : si Postgres
+    n'est pas disponible (dev sans BDD), l'API DuckDB démarre quand même.
+    """
+    engine = None
+    try:
+        engine = create_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "PostgreSQL indisponible au démarrage — fonctionnalités users/credits désactivées. (%s)", exc
+        )
 
     yield
 
-    # Shutdown: Dispose engine
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 app = FastAPI(

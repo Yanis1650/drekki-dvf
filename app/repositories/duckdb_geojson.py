@@ -20,7 +20,8 @@ def build_transactions_geojson(
     """Build GeoJSON FeatureCollection of transaction points."""
     query = """
         SELECT id_mutation, longitude, latitude, prix_m2,
-               date_mutation, valeur_fonciere, nature_mutation
+               date_mutation, valeur_fonciere, nature_mutation,
+               COALESCE(is_outlier, FALSE) AS is_outlier
         FROM france_foncier_test
         WHERE longitude BETWEEN ? AND ? AND latitude BETWEEN ? AND ?
           AND longitude IS NOT NULL AND latitude IS NOT NULL
@@ -44,6 +45,7 @@ def build_transactions_geojson(
             props.append(f'"valeur_fonciere": {float(r[5])}')
         if r[6]:
             props.append(f'"nature": "{r[6]}"')
+        props.append(f'"is_outlier": {str(bool(r[7])).lower()}')
         features.append(
             f'{{"type": "Feature", "properties": {{{", ".join(props)}}}, '
             f'"geometry": {{"type": "Point", "coordinates": [{float(r[1])}, {float(r[2])}]}}}}'

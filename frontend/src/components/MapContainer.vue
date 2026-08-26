@@ -43,7 +43,7 @@ const { mapContainer, isLoading } = useMapContainer(props, emit);
 </template>
 
 <style>
-.maplibregl-ctrl-top-right { top: 80px !important; }
+.maplibregl-ctrl-top-right { top: 12px !important; }
 .maplibregl-ctrl-group {
   background: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(12px) !important;

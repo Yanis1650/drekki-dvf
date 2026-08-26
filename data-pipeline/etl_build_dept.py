@@ -39,6 +39,34 @@ from etl_build_steps import (
     step_rnu,
 )
 
+try:
+    from validate_plu import validate_plui_mapping as _validate_plu
+except ImportError:
+    _validate_plu = None
+
+try:
+    from import_plu import import_plu_into_duckdb as _import_plu
+except ImportError:
+    _import_plu = None
+
+
+def _auto_import_plu(conn, dept: str, gpkg_override=None) -> None:
+    """Importe les tables PLU dans la base en cours de construction.
+
+    Appelé automatiquement entre step_densification et step_gpu.
+    Sans GeoPackage disponible, l'étape GPU sera sautée (warning déjà géré dans gpu.py).
+    """
+    if _import_plu is None:
+        return
+    gpkg = gpkg_override or (DATA_DIR / f"plu_{dept}.gpkg")
+    if not gpkg.exists():
+        print(f"\n  INFO: {gpkg.name} absent — import PLU saute (GPU step sautera)")
+        return
+    print(f"\n  Import PLU depuis {gpkg.name}...")
+    conn.execute("INSTALL spatial; LOAD spatial;")
+    result = _import_plu(conn, gpkg, dept)
+    print(f"  PLU OK: {result['communes']} communes, {result['zones']} zones")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build per-department DuckDB")
@@ -64,6 +92,12 @@ def parse_args():
         type=Path,
         default=None,
         help="Chemin de sortie (defaut: data/dept{DEPT}.duckdb)",
+    )
+    parser.add_argument(
+        "--gpkg",
+        type=Path,
+        default=None,
+        help="GeoPackage PLU (defaut: data/plu_<DEPT>.gpkg)",
     )
     return parser.parse_args()
 
@@ -103,7 +137,23 @@ def main():
     step_densification(conn, dept)
 
     if not args.skip_gpu:
+        _auto_import_plu(conn, dept, getattr(args, "gpkg", None))
         step_gpu(conn, dept)
+        # Validation non-bloquante : log si le seuil est dépassé, ne fait jamais échouer l'ETL.
+        if _validate_plu is not None:
+            try:
+                val = _validate_plu(output_path)
+                if not val["ok"]:
+                    logger.warning(
+                        "PLUi mapping degrade — commune %s: %.0f%% parcelles baties en rnu_proximite (seuil 15%%)",
+                        val["commune"], val["rnu_rate_built"] * 100,
+                    )
+                    print(f"  WARN: PLUi mapping potentiellement casse pour commune {val['commune']}"
+                          f" — {val['rnu_rate_built']*100:.0f}% rnu_proximite (seuil 15%)")
+                else:
+                    logger.debug("PLUi validation OK commune %s", val["commune"])
+            except Exception as e:
+                logger.warning("Validation PLU echouee (non bloquant): %s", e)
 
     bdtopo = args.bdtopo
     if not args.skip_bdtopo:

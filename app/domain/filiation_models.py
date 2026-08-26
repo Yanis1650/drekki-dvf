@@ -62,9 +62,17 @@ class ParcelFiliation(BaseModel):
 
 class FiliationNode(BaseModel):
     """Nœud d'arbre de filiation parcellaire.
-    
+
     Représente une parcelle dans l'arbre généalogique administratif.
     Permet de remonter aux ancêtres (parcelles mères) de manière récursive.
+
+    Champs de sécurité :
+      truncated    : True si la récursion a été interrompue (profondeur max atteinte
+                     ou cycle détecté). Signifie que l'arbre est incomplet à partir
+                     de ce nœud.
+      coherence_geo: Cohérence géométrique fille/mère calculée par ST_Intersection.
+                     Valeurs : 'OK', 'PARTIELLE', 'DOUTEUSE', 'NON_VERIFIABLE'.
+                     'NON_VERIFIABLE' si les géométries ne sont pas disponibles.
     """
 
     id_parcelle: str = Field(description="Identifiant complet parcelle (Section + Numéro)")
@@ -81,6 +89,20 @@ class FiliationNode(BaseModel):
         None, description="Type d'opération (division, lotissement, etc.)"
     )
     depth: int = Field(default=0, ge=0, description="Profondeur dans l'arbre (0 = racine)")
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "True si la reconstruction s'est arrêtée ici (depth_limit atteint "
+            "ou cycle détecté). L'arbre ancêtre est incomplet à partir de ce nœud."
+        ),
+    )
+    coherence_geo: str = Field(
+        default="NON_VERIFIABLE",
+        description=(
+            "Cohérence géométrique fille/mère : "
+            "'OK' (≥80%), 'PARTIELLE' (≥30%), 'DOUTEUSE' (<30%), 'NON_VERIFIABLE'."
+        ),
+    )
 
     class Config:
         # Allow self-referential models
@@ -94,11 +116,15 @@ class FiliationNode(BaseModel):
                     "date_division": None,
                     "nature_operation": None,
                     "depth": 1,
+                    "truncated": False,
+                    "coherence_geo": "NON_VERIFIABLE",
                 },
                 "children": [],
                 "date_division": "1990-08-13",
                 "nature_operation": "1",
                 "depth": 0,
+                "truncated": False,
+                "coherence_geo": "OK",
             }
         }
 

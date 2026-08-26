@@ -84,8 +84,10 @@ class MutationAggregate(BaseModel):
     parcelles: list[str]  # Relaxed validation for ETL compatibility
     surface_habitable_totale: Decimal
     nombre_locaux: int = Field(ge=1)
+    type_local: TypeLocal | None = None
     longitude: float | None = None
     latitude: float | None = None
+    is_outlier: bool = False  # Prix/m² hors P5-P95 communal ou départemental
 
     @computed_field
     @property
@@ -100,11 +102,13 @@ class EnrichmentScore(BaseModel):
     """Score d'enrichissement qualitatif pour une parcelle.
 
     Agrège les données contextuelles (écoles, transports, nuisances).
+    transit_score est calculé à la volée (gaussienne TOD) — pas stocké en base.
     """
 
     id_parcelle: CodeParcelle
     schools_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     transport_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
+    transit_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     nuisances_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     green_spaces_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     commerce_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
@@ -112,15 +116,25 @@ class EnrichmentScore(BaseModel):
     @computed_field
     @property
     def global_score(self) -> Decimal:
-        """Score global pondéré (moyenne simple)."""
-        scores = [
-            self.schools_score,
-            self.transport_score,
-            self.nuisances_score,
-            self.green_spaces_score,
-            self.commerce_score,
-        ]
-        return sum(scores) / len(scores)
+        """Score global pondéré sur 6 composantes.
+
+        Pondérations :
+          schools_score    20%
+          transport_score  15%  (bus, vélo)
+          transit_score    20%  (gares — courbe cloche TOD)
+          nuisances_score  20%  (inversé)
+          green_spaces     10%
+          commerce_score   15%
+        """
+        weighted = (
+            self.schools_score     * Decimal("0.20")
+            + self.transport_score * Decimal("0.15")
+            + self.transit_score   * Decimal("0.20")
+            + self.nuisances_score * Decimal("0.20")
+            + self.green_spaces_score * Decimal("0.10")
+            + self.commerce_score  * Decimal("0.15")
+        )
+        return weighted.quantize(Decimal("0.01"))
 
 
 class DensificationScore(BaseModel):

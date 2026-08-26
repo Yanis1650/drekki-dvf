@@ -247,7 +247,9 @@ class OsmEnrichmentEtl:
         """Map OSM category to type_poi."""
         mapping = {
             "education": "ecole",
-            "transport": "gare",
+            "transport": "transport",
+            "transit": "transit",
+            "nuisances": "nuisance",
             "commerce": "commerce",
             "environnement": "environnement",
         }

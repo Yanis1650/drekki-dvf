@@ -12,6 +12,10 @@ const props = defineProps({
   },
 });
 
+// Extract commune code and département from parcel ID (first 5 / first 2 chars)
+const codeCommune = computed(() => props.parcelId?.slice(0, 5) || null);
+const dept = computed(() => props.parcelId?.slice(0, 2) || null);
+
 const emit = defineEmits(['close']);
 
 // Generate satellite image URL using Mapbox Static Images API
@@ -93,7 +97,7 @@ const formattedId = computed(() => {
           </span>
         </div>
         <h2 class="parcel-id">{{ formattedId }}</h2>
-        <p class="parcel-raw" v-if="parcelId">ID: {{ parcelId }}</p>
+        <p class="parcel-raw" v-if="parcelId">{{ parcelId }}<span v-if="codeCommune"> · {{ codeCommune }} · {{ dept }}</span></p>
       </div>
       
       <button @click="emit('close')" class="close-btn" title="Fermer le panneau">

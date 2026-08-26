@@ -24,7 +24,7 @@ Guide pour déployer sur un VPS avec **35 Go disque** et **11 Go RAM**.
                                   ▼
                           ┌──────────────┐
                           │  /app/data/  │
-                          │  foncier.duckdb
+                          │  dept35.duckdb (par département)
                           └──────────────┘
 ```
 
@@ -65,9 +65,9 @@ nano .env
 POSTGIS_PASSWORD=<mot_de_passe_fort>
 ```
 
-**Données DuckDB** : Le volume `foncier_data` contient la base DuckDB. Soit :
-- vous avez déjà une base pré-construite à monter ;
-- soit vous lancez l'ETL après le déploiement (voir ci-dessous).
+**Données DuckDB** : Le dossier `./data/` est monté dans le backend. Soit :
+- vous transférez un `dept35.duckdb` construit en local (voir section ci-dessous) ;
+- soit vous lancez l'ETL après le déploiement sur le VPS.
 
 ### 4. Lancer les conteneurs
 
@@ -82,20 +82,46 @@ Vérifier les logs :
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-### 5. Construire les données DVF (ETL)
+### 5. Données DuckDB — Deux options
 
-La base DuckDB est vide au démarrage. Pour charger les données :
+#### Option A : Build local + transfert (recommandé si vous avez déjà `foncier.duckdb`)
+
+1. **En local** (avec `foncier.duckdb` déjà présent dans `data/`) :
+
+```powershell
+cd C:\Users\yanis\Desktop\emancipation\foncier-express
+.\.venv\Scripts\Activate.ps1
+python data-pipeline/etl_build_dept.py 35
+```
+
+> **Note** : Exécuter chaque commande sur une ligne séparée (ne pas tout coller en une fois).
+
+→ Crée `data/dept35.duckdb` (~1-2 GB).
+
+2. **Transférer vers le VPS** :
+
+```powershell
+# Créer le dossier data sur le VPS
+ssh user@TON_IP_VPS "mkdir -p foncier-express/data"
+
+# Envoyer le fichier (remplacer user et TON_IP_VPS)
+scp data\dept35.duckdb user@TON_IP_VPS:foncier-express/data/
+```
+
+3. **Sur le VPS** : les conteneurs utilisent déjà `./data/`. Redémarrer le backend si besoin :
 
 ```bash
-# Entrer dans le conteneur backend
-docker exec -it foncier-backend bash
+cd foncier-express
+docker compose -f docker-compose.prod.yml restart backend
+```
 
-# Exemple : un département (Ille-et-Vilaine = 35) ~1-2 GB
-python data-pipeline/etl_build_dept.py 35
+#### Option B : ETL directement sur le VPS
 
-# Ou plusieurs départements (attention à la place disque)
-# Chaque département ≈ 1-3 GB
-exit
+La base DuckDB est vide au démarrage. Pour charger les données sur le VPS :
+
+```bash
+# Nécessite que foncier.duckdb existe sur le VPS (ou les données sources)
+docker exec -it foncier-backend python data-pipeline/etl_build_dept.py 35
 ```
 
 **Estimation disque par département :**

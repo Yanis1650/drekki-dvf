@@ -1,141 +1,92 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
-import MapContainer from './components/MapContainer.vue';
-import SearchHUD from './components/SearchHUD.vue';
-import LayerSwitcher from './components/LayerSwitcher.vue';
-import ParcelPanel from './components/ParcelPanel.vue';
-import CreditModal from './components/CreditModal.vue';
-import client from './api/client';
+import { ref, computed, onMounted } from 'vue';
+import AppTopbar          from './components/layout/AppTopbar.vue';
+import AppSidebar         from './components/layout/AppSidebar.vue';
+import ParcelPanelTabbed  from './components/parcel/ParcelPanelTabbed.vue';
+import CreditModal        from './components/CreditModal.vue';
+import client             from './api/client';
 import { useParcelSelection } from './composables/useParcelSelection';
 
-// Parcel Selection with URL Deep Linking
 const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParcelSelection();
 
-// State
-const userBalance = ref(0);
-const selectedTransaction = ref(null);
-const showParcelPanel = ref(true);
-const relatedParcels = ref([]);  // For hover filiation highlight
+// ─── Global state ─────────────────────────────────────────────────────────────
+const userBalance    = ref(0);
 const showCreditModal = ref(false);
-const mapCenter = ref([-1.6778, 48.1173]); // Rennes default
-const transactions = ref({ type: 'FeatureCollection', features: [] });
-const loading = ref(false);
-const mapMode = ref('prix'); // 'prix' or 'zan'
-const activeFilter = ref(null);
-const mapRef = ref(null);
+const mapCenter      = ref([-1.6778, 48.1173]); // Rennes default
+const transactions   = ref({ type: 'FeatureCollection', features: [] });
+const loading        = ref(false);
+const mapMode        = ref('prix');
+const activeFilter   = ref(null);
+const relatedParcels = ref([]);
 const backendOffline = ref(false);
 
-// Ouvrir le panneau quand une parcelle est sélectionnée via l'URL
-watch(hasSelection, (selected) => {
-  if (selected) showParcelPanel.value = true;
+const sectorAvgPriceM2 = computed(() => {
+  const features = transactions.value?.features || [];
+  const valid = features.filter(f => f.properties.prix_m2 && !f.properties.is_outlier);
+  if (!valid.length) return 0;
+  return valid.reduce((s, f) => s + f.properties.prix_m2, 0) / valid.length;
 });
 
 const isNetworkError = (err) =>
   err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error');
 
-// API Calls
+// ─── API ──────────────────────────────────────────────────────────────────────
 const fetchUser = async () => {
   try {
     const res = await client.get('/users/me');
-    userBalance.value = res.data.credit_balance;
+    userBalance.value    = res.data.credit_balance;
     backendOffline.value = false;
   } catch (err) {
-    if (isNetworkError(err)) {
-      backendOffline.value = true;
-    }
-    console.error("Auth error:", err);
-    userBalance.value = 5; // Demo balance
+    if (isNetworkError(err)) backendOffline.value = true;
+    userBalance.value = 5; // demo balance
   }
 };
 
 const fetchTransactionsInRadius = async (lon, lat) => {
   loading.value = true;
   try {
-    const res = await client.get(`/land/search/enriched`, {
-      params: { lat, lon, radius: 500, limit: 200 }
+    const res = await client.get('/land/search/enriched', {
+      params: { lat, lon, radius: 500, limit: 200 },
     });
-    
-    const features = res.data.mutations.map(m => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [m.mutation.longitude, m.mutation.latitude]
-      },
-      properties: {
-        ...m.mutation,
-        prix_m2: parseFloat(m.mutation.prix_m2) || 0,
-        valeur_fonciere: parseFloat(m.mutation.valeur_fonciere) || 0,
-        scores: m.enrichment
-      }
-    }));
-    
-    transactions.value = { type: 'FeatureCollection', features };
+    transactions.value = {
+      type: 'FeatureCollection',
+      features: res.data.mutations.map((m) => ({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [m.mutation.longitude, m.mutation.latitude],
+        },
+        properties: {
+          ...m.mutation,
+          prix_m2: parseFloat(m.mutation.prix_m2) || 0,
+          valeur_fonciere: parseFloat(m.mutation.valeur_fonciere) || 0,
+          scores: m.enrichment,
+        },
+      })),
+    };
   } catch (err) {
     if (isNetworkError(err)) backendOffline.value = true;
-    console.error("Search error:", err);
+    console.error('Search error:', err);
   } finally {
     loading.value = false;
   }
 };
 
-const generateReport = async () => {
-  if (!selectedTransaction.value) return;
-  
-  if (userBalance.value < 1) {
-    showCreditModal.value = true;
-    return;
-  }
-
-  try {
-    const id = selectedTransaction.value.id_mutation;
-    const res = await client.get(`/transactions/report/${id}`, {
-      params: { format: 'pdf' },
-      responseType: 'blob'
-    });
-    
-    const url = window.URL.createObjectURL(new Blob([res.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `rapport_${id}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    
-    await fetchUser();
-  } catch (err) {
-    console.error("Report error:", err);
-    alert("Erreur lors de la génération du rapport.");
-  }
-};
-
-// Event Handlers
+// ─── Event handlers ───────────────────────────────────────────────────────────
 const onAddressSelect = (data) => {
   mapCenter.value = data.coordinates;
   fetchTransactionsInRadius(data.coordinates[0], data.coordinates[1]);
 };
 
-const onTransactionClick = (feature) => {
-  selectedTransaction.value = feature.properties;
-};
-
 const onParcelClick = (feature) => {
   selectParcel(feature.properties.id_parcelle, feature.properties);
-  showParcelPanel.value = true;
-};
-
-const onPanelClose = () => {
-  showParcelPanel.value = false;
 };
 
 const onHighlightRelated = (parcelIds) => {
   relatedParcels.value = parcelIds || [];
 };
 
-const onMapModeChange = (mode) => {
-  mapMode.value = mode;
-};
-
-// Lifecycle
+// ─── Init ─────────────────────────────────────────────────────────────────────
 onMounted(() => {
   fetchUser();
   fetchTransactionsInRadius(mapCenter.value[0], mapCenter.value[1]);
@@ -143,112 +94,88 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative w-screen h-screen overflow-hidden bg-slate-900">
-    
-    <!-- Backend Offline Banner -->
+  <div class="h-screen flex flex-col overflow-hidden bg-slate-100">
+
+    <!-- Offline banner -->
     <Transition
       enter-active-class="transition-all duration-300"
       leave-active-class="transition-all duration-300"
-      enter-from-class="opacity-0 -translate-y-4"
-      leave-to-class="opacity-0 -translate-y-4"
+      enter-from-class="opacity-0 -translate-y-full"
+      leave-to-class="opacity-0 -translate-y-full"
     >
       <div
         v-if="backendOffline"
-        class="absolute top-0 left-0 right-0 z-50 bg-amber-500/95 text-slate-900 px-4 py-3 text-center text-sm font-medium shadow-lg"
+        class="flex-shrink-0 bg-amber-400 text-slate-900 px-4 py-2
+               text-center text-xs font-semibold z-50"
       >
-        <span class="inline-block mr-2">⚠️</span>
-        L'API backend n'est pas accessible.
-        Lancez d'abord : <code class="bg-slate-900/20 px-1.5 py-0.5 rounded text-xs">uvicorn app.main:app --reload --port 8000</code>
-        (ou <code class="bg-slate-900/20 px-1.5 py-0.5 rounded text-xs">.\start.ps1</code>)
+        ⚠️ API backend inaccessible —
+        <code class="bg-black/10 px-1.5 py-0.5 rounded text-[11px]">
+          uvicorn app.main:app --reload --port 8000
+        </code>
       </div>
     </Transition>
 
-    <!-- Carte plein écran (focus principal) -->
-    <MapContainer 
-      ref="mapRef"
-      :center="mapCenter"
-      :transactions="transactions"
-      :mode="mapMode"
-      :active-filter="activeFilter"
-      :selected-parcel="selectedParcelId"
-      :related-parcels="relatedParcels"
-      class="absolute inset-0"
-      @transaction-click="onTransactionClick"
-      @parcel-click="onParcelClick"
-    />
-
-    <!-- Panneau gauche : rétréci par défaut, agrandi quand parcelle sélectionnée -->
-    <ParcelPanel 
-      :is-open="showParcelPanel"
-      :parcel-id="selectedParcelId"
-      :expanded="!!selectedParcelId"
-      @close="onPanelClose"
-      @highlight-related="onHighlightRelated"
-    />
-
-    <!-- Floating Search HUD (Top Center) -->
-    <SearchHUD 
+    <!-- Topbar -->
+    <AppTopbar
       :balance="userBalance"
-      :model-value="activeFilter"
-      class="absolute top-6 left-1/2 -translate-x-1/2 z-30"
+      :active-filter="activeFilter"
+      :map-mode="mapMode"
+      :loading="loading"
       @search-select="onAddressSelect"
       @buy-credits="showCreditModal = true"
-      @update:model-value="activeFilter = $event"
+      @update:active-filter="activeFilter = $event"
+      @update:map-mode="mapMode = $event"
     />
 
-    <!-- Layer Switcher (Bottom Left) -->
-    <LayerSwitcher 
-      class="absolute bottom-6 left-6 z-30"
-      @change="onMapModeChange"
-    />
+    <!-- Content: sidebar + main -->
+    <div class="flex-1 flex min-h-0">
+      <AppSidebar />
 
-    <!-- Loading Indicator -->
+      <main class="flex-1 relative overflow-hidden">
+        <RouterView v-slot="{ Component }">
+          <component
+            :is="Component"
+            :transactions="transactions"
+            :center="mapCenter"
+            :mode="mapMode"
+            :active-filter="activeFilter"
+            :selected-parcel="selectedParcelId"
+            :related-parcels="relatedParcels"
+            :loading="loading"
+            @parcel-click="onParcelClick"
+          />
+        </RouterView>
+      </main>
+    </div>
+
+    <!-- Parcel panel — persists across route changes -->
     <Transition
-      enter-active-class="transition-opacity duration-300"
-      leave-active-class="transition-opacity duration-300"
-      enter-from-class="opacity-0"
-      leave-to-class="opacity-0"
+      enter-active-class="transition-all duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
+      leave-active-class="transition-all duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
+      enter-from-class="translate-x-full opacity-0"
+      leave-to-class="translate-x-full opacity-0"
     >
-      <div 
-        v-if="loading" 
-        class="absolute top-24 left-1/2 -translate-x-1/2 z-40 
-               bg-white/90 backdrop-blur-lg rounded-full px-6 py-3 
-               shadow-lg flex items-center gap-3"
-      >
-        <div class="w-5 h-5 border-2 border-sage-500 border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm font-medium text-slate-700">Chargement des données...</span>
-      </div>
+      <ParcelPanelTabbed
+        v-if="hasSelection"
+        :parcel-id="selectedParcelId"
+        :sector-avg-price-m2="sectorAvgPriceM2"
+        @close="clearSelection"
+        @highlight-related="onHighlightRelated"
+      />
     </Transition>
 
-    <!-- Credit Modal -->
-    <CreditModal 
+    <!-- Credit modal -->
+    <CreditModal
       :is-open="showCreditModal"
       @close="showCreditModal = false"
       @success="fetchUser"
     />
-
-    <!-- Branding Watermark -->
-    <div class="absolute bottom-6 right-6 z-20 flex items-center gap-2 
-                bg-white/80 backdrop-blur-md rounded-lg px-4 py-2 shadow-md">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sage-500 to-sage-700 
-                  flex items-center justify-center shadow-md">
-        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-sm font-bold text-slate-800">Foncier<span class="text-sage-600">Express</span></p>
-        <p class="text-[10px] text-slate-400 -mt-0.5">Analyse foncière premium</p>
-      </div>
-    </div>
   </div>
 </template>
 
 <style>
-/* Global app styles */
 #app {
   width: 100%;
   height: 100%;
 }
-
 </style>

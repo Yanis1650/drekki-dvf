@@ -28,6 +28,7 @@ class EnrichmentScoreResponse(BaseModel):
 
     education_score: Decimal = Field(ge=0, le=10)
     transport_score: Decimal = Field(ge=0, le=10)
+    transit_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     nuisances_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     green_spaces_score: Decimal = Field(ge=0, le=10, default=Decimal("5.0"))
     global_score: Decimal = Field(ge=0, le=10)
@@ -52,9 +53,11 @@ class MutationResponse(BaseModel):
     parcelles: list[str]
     surface_habitable_totale: Decimal
     nombre_locaux: int
+    type_local: str | None = None
     prix_m2: Decimal | None = None
     longitude: float | None = None
     latitude: float | None = None
+    is_outlier: bool = False
 
 
 class EnrichedMutationResponse(BaseModel):

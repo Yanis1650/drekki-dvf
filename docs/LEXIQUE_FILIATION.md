@@ -59,6 +59,41 @@ Le géomètre-cadastreur établit un **croquis** constatant les changements, san
 
 ---
 
+## Limites connues de l'implémentation
+
+### Profondeur bornée à 10 niveaux
+
+La reconstruction récursive de l'arbre ancêtre s'arrête à **10 générations** par défaut (`depth_limit=10`).
+Les communes ayant subi plusieurs remaniements cadastraux successifs peuvent dépasser cette limite.
+Lorsqu'un nœud est tronqué, le champ `truncated: true` est exposé dans la réponse API et dans le modèle `FiliationNode`. Le frontend doit afficher un indicateur visuel (ex. « ⚠ historique incomplet »).
+
+### Détection de cycles
+
+Des erreurs de saisie dans les données DFI peuvent créer des références circulaires (A → B → C → A). Le module détecte ces cycles via un set `visited_ids` maintenu pendant la récursion. En cas de cycle, un **ERROR** est loggé, l'arbre partiel est retourné avec `truncated: true`, et aucune exception n'est levée côté API.
+
+### Aménagements fonciers ruraux (remembrements)
+
+Les opérations de **remembrement** (SAFER, aménagement foncier agricole et forestier) ne figurent **pas** dans les données DFI. Ces opérations redistribuent des parcelles sans correspondance géographique 1-à-1 ; la chaîne de filiation DFI ne s'applique pas. Pour ces communes :
+
+- L'arbre ancêtre peut être vide (pas d'ancêtre retrouvé) même pour des parcelles récentes
+- Ce comportement est **normal** — ce n'est pas un bug de l'implémentation
+- Aucune correction n'est possible sans source de données complémentaire (SAFER, registre parcellaire graphique)
+
+### Validation géométrique optionnelle
+
+Le champ `coherence_geo` compare la surface de la parcelle fille avec celle de sa mère via `ST_Intersection`. Cette validation est **optionnelle** :
+
+| Valeur | Condition |
+|--------|-----------|
+| `OK` | Overlap ≥ 80% |
+| `PARTIELLE` | Overlap ≥ 30% (division avec reste, cas normal) |
+| `DOUTEUSE` | Overlap < 30% (possible erreur de saisie DFI — WARNING loggé) |
+| `NON_VERIFIABLE` | Géométrie absente ou extension spatiale non disponible |
+
+La valeur `DOUTEUSE` ne bloque pas la réponse API mais doit être traitée comme un signal d'alerte.
+
+---
+
 ## Références
 
 - [Documents de filiation informatisés (DFI)](https://data.economie.gouv.fr/explore/dataset/documents-de-filiation-informatises-dfi-des-parcelles/)

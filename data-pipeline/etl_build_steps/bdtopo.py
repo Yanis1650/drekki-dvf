@@ -1,7 +1,72 @@
 """Step 4: BD TOPO (emprise batie)."""
 
+import tempfile
+from pathlib import Path
+
+import geopandas as gpd
+from shapely.geometry import shape
+from shapely.validation import make_valid
+
 from .config import DATA_DIR
 from .utils import print_distribution, step_banner
+
+
+def _load_bdtopo_filtered(gpkg_path: Path) -> Path:
+    """Charge BD TOPO avec GeoPandas, filtre geometries corrompues, ecrit un gpkg propre."""
+    print("  Chargement BD TOPO (filtrage geometries corrompues)...")
+    import fiona
+
+    rows = []
+    skipped = 0
+    crs_wkt = None
+    with fiona.open(gpkg_path, layer="batiment") as src:
+        crs_wkt = src.crs_wkt
+        it = iter(src)
+        while True:
+            try:
+                feat = next(it)
+            except StopIteration:
+                break
+            except (ValueError, TypeError, KeyError):
+                skipped += 1
+                continue
+            if feat.get("properties", {}).get("construction_legere"):
+                continue
+            if feat.get("properties", {}).get("etat_de_l_objet") == "Detruit":
+                continue
+            try:
+                geom = shape(feat["geometry"])
+                if geom is None or geom.is_empty:
+                    skipped += 1
+                    continue
+                if not geom.is_valid:
+                    geom = make_valid(geom)
+                if geom is None or geom.is_empty:
+                    skipped += 1
+                    continue
+                props = feat.get("properties", {})
+                rows.append(
+                    {
+                        "cleabs": props.get("cleabs"),
+                        "nature": props.get("nature"),
+                        "usage_1": props.get("usage_1"),
+                        "hauteur": props.get("hauteur"),
+                        "nombre_d_etages": props.get("nombre_d_etages"),
+                        "geometry": geom,
+                    }
+                )
+            except Exception:
+                skipped += 1
+
+    if not rows:
+        raise ValueError("Aucun batiment valide dans le fichier BD TOPO")
+    if skipped:
+        print(f"  Geometries ignorees (corrompues/invalides): {skipped:,}")
+
+    gdf = gpd.GeoDataFrame(rows, crs=crs_wkt or "EPSG:2154")
+    tmp = Path(tempfile.gettempdir()) / f"bdtopo_bati_clean_{gpkg_path.stem}.gpkg"
+    gdf.to_file(tmp, driver="GPKG", layer="batiment")
+    return tmp
 
 
 def step_bdtopo(conn, dept, gpkg_path):
@@ -27,6 +92,8 @@ def step_bdtopo(conn, dept, gpkg_path):
         print("  Aucun INCONNU restant -- skip")
         return
 
+    clean_path = _load_bdtopo_filtered(gpkg_path)
+
     conn.execute("DROP TABLE IF EXISTS bdtopo_bati")
     conn.execute(f"""
         CREATE TABLE bdtopo_bati AS
@@ -34,13 +101,14 @@ def step_bdtopo(conn, dept, gpkg_path):
             cleabs AS id_bdtopo, nature, usage_1,
             CAST(hauteur AS DOUBLE) AS hauteur_m,
             CAST(nombre_d_etages AS INTEGER) AS nb_etages,
-            ST_Area(geometrie) AS emprise_m2,
-            geometrie AS geometry
-        FROM ST_Read('{gpkg_path.as_posix()}', layer='batiment')
-        WHERE (construction_legere IS NULL OR construction_legere = false)
-          AND (etat_de_l_objet IS NULL OR etat_de_l_objet != 'Detruit')
-          AND geometrie IS NOT NULL
+            ST_Area(geom) AS emprise_m2,
+            geom AS geometry
+        FROM ST_Read('{clean_path.as_posix()}', layer='batiment')
     """)
+    try:
+        clean_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
     bati_count = conn.execute("SELECT COUNT(*) FROM bdtopo_bati").fetchone()[0]
     print(f"  Batiments charges: {bati_count:,}")
