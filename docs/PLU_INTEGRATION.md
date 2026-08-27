@@ -68,6 +68,63 @@ Source : couche `zone_urba` du GeoPackage GPU.
 
 ---
 
+## Récupération des données depuis le WFS GPU
+
+`download_plu_wfs.py` construit le GeoPackage source. Deux pièges de l'API GPU
+ont chacun fait perdre l'essentiel des données du département 35 — les deux
+silencieusement, sans erreur ni avertissement.
+
+### Piège 1 — `zone_urba.insee` est quasi vide
+
+Le champ `insee` de la couche `zone_urba` n'est renseigné que pour une petite
+minorité de zones. Filtrer dessus paraît naturel et donne un résultat
+plausible, mais ampute le jeu de données :
+
+| Filtre sur `wfs_du:zone_urba` | Zones renvoyées (dept 35) |
+|-------------------------------|---------------------------|
+| `insee LIKE '35%'`            | 1 018                     |
+| `partition IN (…)`            | **22 235**                |
+
+C'est ce qui avait fait conclure que le PLUi de Rennes Métropole n'était pas
+publié sur le WFS, et justifié le téléchargement manuel d'une archive de
+184 Mo. Ses 4 069 zones y étaient depuis le début, sous la partition
+`DU_243500139`, simplement sans `insee`.
+
+**Toujours filtrer `zone_urba` sur `partition`.**
+
+Les partitions viennent de la couche `doc_urba_com`, qui porte le lien
+commune ↔ document. C'est la seule qui rattache une commune à un document
+**intercommunal** : un PLUi a une partition `DU_<SIREN_EPCI>`, qu'aucun filtre
+par code département ne peut retrouver.
+
+### Piège 2 — le serveur tronque sans le dire dans le corps
+
+Le WFS GPU plafonne ses réponses à **5 000 features** et ne supporte pas
+`startIndex`. Il signale la coupure dans l'en-tête GeoJSON :
+
+```json
+{ "numberMatched": 9627, "numberReturned": 5000, "features": [ … ] }
+```
+
+Comparer le nombre de features reçues au `count` demandé (9 999) ne détecte
+rien : la réponse paraît complète. Le seul test fiable est
+`numberReturned < numberMatched`, encapsulé dans `WfsResult.truncated`. Un lot
+tronqué est alors redécoupé partition par partition ; si une partition seule
+dépasse encore le plafond, le script le signale explicitement plutôt que de
+laisser croire à un import complet.
+
+### Couverture obtenue (département 35)
+
+| Indicateur                     | Avant | Après  |
+|--------------------------------|-------|--------|
+| Communes avec partition PLU    | 57    | **287** |
+| Zones PLU importées            | 5 087 | **22 235** |
+
+Sur 332 communes, 301 déclarent un document d'urbanisme et 287 en publient
+effectivement les zones. Les autres relèvent du RNU, sans PLU opposable.
+
+---
+
 ## Scripts
 
 ### `import_plu.py` — Import du GeoPackage GPU

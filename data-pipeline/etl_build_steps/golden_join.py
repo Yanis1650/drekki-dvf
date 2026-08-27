@@ -123,6 +123,23 @@ def step_golden_join(conn, dept):
     main_conn.close()
 
     print("  Spatial join...")
+
+    # `type_local` a ete ajoute au pipeline apres coup : les bases sources
+    # construites avant ne l'ont pas, et le selectionner fait echouer tout le
+    # golden join au binding. On le remplace alors par NULL — la colonne reste
+    # presente en sortie, simplement vide, plutot que de bloquer le build.
+    src_cols = {
+        r[0] for r in conn.execute(
+            "SELECT column_name FROM duckdb_columns() "
+            "WHERE table_name = 'mutations_aggregated'"
+        ).fetchall()
+    }
+    if "type_local" in src_cols:
+        type_local_col = "mp.type_local"
+    else:
+        type_local_col = "CAST(NULL AS VARCHAR) AS type_local"
+        print("  INFO: type_local absent de la source — colonne laissee vide")
+
     bdnb_cols = (
         "b.dpe_energie, b.annee_construction, b.hauteur_moyenne, "
         "b.nb_niveau, b.type_usage, b.nb_log"
@@ -166,7 +183,7 @@ def step_golden_join(conn, dept):
             mp.longitude, mp.latitude,
             mp.id_parcelle AS cadastre_parcelle_id,
             mp.parcelle_geometry AS geometry,
-            mp.type_local,
+            {type_local_col},
             {bdnb_cols}
         FROM mutation_parcelle mp
         {bdnb_join}

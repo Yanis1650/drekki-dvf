@@ -2,21 +2,30 @@
 
 WFS public : https://data.geopf.fr/wfs/ows
 Layers GPU :
-  - wfs_du:doc_urba  → documents d'urbanisme (partition, idurba, etat, datappro)
-  - wfs_du:zone_urba → zones PLU (partition, insee, typezone, libelle, datappro, the_geom)
+  - wfs_du:doc_urba_com → lien commune ↔ document (insee, partition)
+  - wfs_du:doc_urba     → documents d'urbanisme (partition, idurba, etat, datappro)
+  - wfs_du:zone_urba    → zones PLU (partition, insee, typezone, libelle, datappro)
 
 Notes techniques (comportement observé du WFS GPU) :
   - startIndex n'est PAS supporté (retourne HTTP 400)
-  - count seul fonctionne, le serveur plafonne à ~1000 features/réponse
-  - Pour un département moyen (~1000 zones), un seul appel suffit
-  - Pour un dept plus grand, on découpe par plages INSEE (35001-35100, etc.)
+  - count seul fonctionne ; on découpe par lots de partitions
+
+**Ne jamais filtrer zone_urba sur `insee`.** Ce champ est très majoritairement
+vide dans la couche : sur le département 35, `insee LIKE '35%'` renvoie 1 018
+zones là où le filtre par partition en renvoie 22 235 — soit 95 % des zones
+perdues en silence. C'est ce qui avait fait conclure à tort que le PLUi de
+Rennes Métropole n'était pas publié sur le WFS : ses 4 069 zones y sont, sous
+la partition `DU_243500139`, mais sans `insee` renseigné.
 
 Stratégie :
-  1. Télécharge zone_urba filtré sur insee LIKE '<dept>%' → couvre PLU + PLUi
-  2. Extrait les partitions des zones
-  3. Télécharge doc_urba pour ces partitions (métadonnées : etat, typedoc)
+  1. Télécharge doc_urba_com filtré sur insee LIKE '<dept>%'
+     → mapping commune ↔ partition faisant autorité, PLUi EPCI compris
+       (les documents intercommunaux ont une partition DU_<SIREN>,
+        jamais DU_<INSEE> : les chercher par code département les rate)
+  2. Télécharge zone_urba filtré sur ces partitions (par lots)
+  3. Télécharge doc_urba pour les métadonnées (etat, typedoc)
   4. Construit un GeoPackage avec layers 'doc_urba' et 'zone_urba'
-     compatibles avec import_plu.py (champ code_commune dans doc_urba)
+     compatibles avec import_plu.py (une ligne par commune dans doc_urba)
 
 Usage :
     python data-pipeline/download_plu_wfs.py 35
@@ -31,6 +40,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import geopandas as gpd
 import pandas as pd
@@ -60,12 +70,31 @@ _ETAT_MAP: dict[str, str] = {
 
 # ── Requête WFS simple (sans pagination) ─────────────────────────────────────
 
-def _wfs_get(typename: str, cql_filter: str, count: int = MAX_COUNT) -> list[dict]:
-    """
-    Effectue une requête WFS GetFeature et retourne les features GeoJSON.
+class WfsResult(NamedTuple):
+    """Réponse WFS et son état de complétude.
 
-    Important : startIndex n'est pas supporté par ce WFS.
-    Si count < nombre réel de features, on découpe les requêtes par filtre.
+    Le serveur GPU plafonne ses réponses (5 000 features observées) et le
+    signale en renvoyant `numberReturned` < `numberMatched`. Comparer le nombre
+    de features au `count` demandé ne détecte pas ce cas : c'est ainsi que
+    4 627 zones du PLUi de Rennes disparaissaient sans le moindre message.
+    """
+
+    features: list[dict]
+    matched: int      # nombre total de features correspondant au filtre
+    returned: int     # nombre effectivement renvoyé
+
+    @property
+    def truncated(self) -> bool:
+        """True si le serveur a tronqué la réponse."""
+        return self.matched > self.returned
+
+
+def _wfs_get(typename: str, cql_filter: str, count: int = MAX_COUNT) -> WfsResult:
+    """
+    Effectue une requête WFS GetFeature.
+
+    Important : startIndex n'est pas supporté par ce WFS. La seule façon de
+    récupérer un jeu tronqué est de redécouper le filtre — voir `WfsResult`.
     """
     params = {
         "SERVICE": "WFS", "VERSION": "2.0.0", "REQUEST": "GetFeature",
@@ -76,7 +105,15 @@ def _wfs_get(typename: str, cql_filter: str, count: int = MAX_COUNT) -> list[dic
         try:
             r = requests.get(WFS_BASE, params=params, timeout=TIMEOUT_S)
             r.raise_for_status()
-            return r.json().get("features", [])
+            payload = r.json()
+            feats = payload.get("features", [])
+            matched = payload.get("numberMatched")
+            returned = payload.get("numberReturned")
+            return WfsResult(
+                features=feats,
+                matched=int(matched) if matched is not None else len(feats),
+                returned=int(returned) if returned is not None else len(feats),
+            )
         except requests.exceptions.HTTPError as e:
             if e.response is not None and e.response.status_code == 400:
                 # 400 = filtre invalide ou startIndex utilisé, ne pas retenter
@@ -88,69 +125,109 @@ def _wfs_get(typename: str, cql_filter: str, count: int = MAX_COUNT) -> list[dic
                 raise
         logger.warning("Tentative %d/%d pour %s", attempt, RETRY_COUNT, typename)
         time.sleep(2 * attempt)
-    return []
+    return WfsResult([], 0, 0)
 
 
-# ── Téléchargement zone_urba avec découpage par plages INSEE ─────────────────
+# ── Mapping commune ↔ partition (doc_urba_com) ───────────────────────────────
 
-def fetch_zone_urba(dept: str) -> gpd.GeoDataFrame:
+def fetch_commune_partition(dept: str) -> pd.DataFrame:
+    """Récupère le lien commune ↔ document depuis `doc_urba_com`.
+
+    C'est la seule source qui rattache correctement une commune à un document
+    intercommunal : un PLUi porte une partition `DU_<SIREN_EPCI>`, qu'aucun
+    filtre sur le code département ne peut retrouver.
+
+    Returns:
+        DataFrame à deux colonnes : code_commune, partition.
     """
-    Récupère toutes les zones PLU du département.
+    res = _wfs_get("wfs_du:doc_urba_com", f"insee LIKE '{dept}%'", count=MAX_COUNT)
+    if res.truncated:
+        logger.warning(
+            "doc_urba_com tronque (%d/%d) — mapping incomplet pour le dept %s",
+            res.returned, res.matched, dept,
+        )
+    rows = [
+        {"code_commune": p.get("insee"), "partition": p.get("partition")}
+        for p in (f.get("properties") or {} for f in res.features)
+        if p.get("insee") and p.get("partition")
+    ]
+    return pd.DataFrame(rows).drop_duplicates()
 
-    Comme startIndex n'est pas supporté, on découpe par plages de 100 codes INSEE
-    pour s'assurer de tout récupérer si le nombre de zones dépasse MAX_COUNT.
-    Exemples :
-      - dept 35 → 1018 zones → 1 seul appel suffit
-      - dept 59 → peut nécessiter plusieurs appels découpés par plage
+
+# ── Téléchargement zone_urba par partitions ──────────────────────────────────
+
+def fetch_zone_urba(partitions: list[str], batch_size: int = 20) -> gpd.GeoDataFrame:
+    """Récupère les zones PLU des partitions données, par lots.
+
+    Le filtre porte sur `partition`, jamais sur `insee` : voir l'avertissement
+    en tête de module. Un lot qui atteint le plafond de features est redécoupé
+    partition par partition, sinon on perdrait silencieusement des zones.
     """
-    print(f"  Strategie : decoupage par plages INSEE pour dept {dept}")
+    if not partitions:
+        return gpd.GeoDataFrame()
 
-    # Plages INSEE : <dept>001-<dept>100, <dept>101-<dept>200, ...
-    # Adapté pour codes communes 3-digits (ex: 35001 → 35 + 001)
     all_features: list[dict] = []
     seen_gids: set = set()
+    incomplete: list[str] = []
 
-    # D'abord essayer un seul appel pour tout le dept
-    try:
-        logger.info("Appel unique zone_urba dept %s...", dept)
-        feats = _wfs_get("wfs_du:zone_urba", f"insee LIKE '{dept}%'", count=MAX_COUNT)
-        logger.info("Appel unique: %d features", len(feats))
+    def _collect(feats: list[dict]) -> None:
+        for f in feats:
+            gid = f.get("id") or (f.get("properties") or {}).get("gid")
+            if gid not in seen_gids:
+                seen_gids.add(gid)
+                all_features.append(f)
 
-        if feats:
-            for f in feats:
-                gid = f.get("id") or f.get("properties", {}).get("gid")
-                if gid not in seen_gids:
-                    seen_gids.add(gid)
-                    all_features.append(f)
-
-            # Si on a moins que MAX_COUNT, on a tout
-            if len(feats) < MAX_COUNT:
-                print(f"  -> {len(all_features)} zones (appel unique)")
-                return _to_gdf(all_features)
-
-    except Exception as e:
-        logger.warning("Appel unique echoue: %s", e)
-
-    # Si on arrive ici, il faut decouper par plages de 100
-    print("  -> Decoupage par plages de 100 codes INSEE...")
-    for start in range(1, 1000, 100):
-        low = f"{dept}{start:03d}"
-        high = f"{dept}{min(start + 99, 999):03d}"
-        cql = f"insee >= '{low}' AND insee <= '{high}'"
+    def _fetch_one(part: str) -> None:
+        """Récupère une partition seule ; signale si elle reste tronquée."""
         try:
-            feats = _wfs_get("wfs_du:zone_urba", cql, count=MAX_COUNT)
-            for f in feats:
-                gid = f.get("id") or f.get("properties", {}).get("gid")
-                if gid not in seen_gids:
-                    seen_gids.add(gid)
-                    all_features.append(f)
-            if feats:
-                logger.info("  Plage %s-%s: %d features", low, high, len(feats))
+            res = _wfs_get("wfs_du:zone_urba", f"partition='{part}'", count=MAX_COUNT)
+        except Exception as exc:
+            logger.warning("Partition %s echouee: %s", part, exc)
+            incomplete.append(part)
+            return
+        if res.truncated:
+            # Une partition seule dépasse le plafond serveur : sans startIndex,
+            # on ne peut pas aller plus loin. On le dit plutôt que de laisser
+            # croire à un import complet.
+            logger.error(
+                "Partition %s tronquee par le serveur (%d/%d zones) — "
+                "donnees incompletes pour cette partition",
+                part, res.returned, res.matched,
+            )
+            incomplete.append(part)
+        _collect(res.features)
+        time.sleep(0.2)
+
+    total_batches = (len(partitions) + batch_size - 1) // batch_size
+    for i in range(0, len(partitions), batch_size):
+        batch = partitions[i: i + batch_size]
+        quoted = ", ".join(f"'{p}'" for p in batch)
+        num = i // batch_size + 1
+        print(f"  zone_urba lot {num}/{total_batches} ({len(batch)} partitions)...")
+        try:
+            res = _wfs_get("wfs_du:zone_urba", f"partition IN ({quoted})", count=MAX_COUNT)
         except Exception as e:
-            logger.warning("Plage %s-%s: %s", low, high, e)
+            logger.warning("Lot %d echoue (%s) — reprise partition par partition", num, e)
+            for part in batch:
+                _fetch_one(part)
+            continue
+
+        if res.truncated:
+            # Le serveur a coupé : on redécoupe partition par partition.
+            logger.info(
+                "Lot %d tronque (%d/%d) — redecoupage par partition",
+                num, res.returned, res.matched,
+            )
+            for part in batch:
+                _fetch_one(part)
+        else:
+            _collect(res.features)
         time.sleep(0.2)
 
     print(f"  -> {len(all_features)} zones PLU/PLUi")
+    if incomplete:
+        print(f"  ATTENTION: {len(incomplete)} partition(s) incompletes: "
+              f"{', '.join(incomplete[:5])}{' ...' if len(incomplete) > 5 else ''}")
     return _to_gdf(all_features)
 
 
@@ -172,9 +249,12 @@ def fetch_doc_urba_for_partitions(partitions: list[str]) -> gpd.GeoDataFrame:
         total_batches = (len(partitions) + batch_size - 1) // batch_size
         print(f"  doc_urba batch {batch_num}/{total_batches} ({len(batch)} partitions)...")
         try:
-            feats = _wfs_get("wfs_du:doc_urba", cql, count=len(batch) + 10)
-            if feats:
-                all_gdfs.append(_to_gdf(feats))
+            res = _wfs_get("wfs_du:doc_urba", cql, count=len(batch) + 10)
+            if res.truncated:
+                logger.warning("doc_urba batch %d tronque (%d/%d)",
+                               batch_num, res.returned, res.matched)
+            if res.features:
+                all_gdfs.append(_to_gdf(res.features))
         except Exception as e:
             logger.warning("Batch %d echoue: %s", batch_num, e)
         time.sleep(0.2)
@@ -204,25 +284,22 @@ def _to_gdf(features: list[dict], crs: str = "EPSG:4326") -> gpd.GeoDataFrame:
 
 # ── Construction doc_urba compatible import_plu.py ───────────────────────────
 
-def build_doc_urba(gdf_zones: gpd.GeoDataFrame, gdf_doc_raw: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def build_doc_urba(
+    df_commune_partition: pd.DataFrame, gdf_doc_raw: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
     """
     Construit la table doc_urba avec le champ 'code_commune' requis par import_plu.py.
 
-    import_plu.py cherche un champ 'code_commune', 'insee' ou 'code_insee'
-    dans la layer doc_urba du GeoPackage pour filtrer par département.
+    Une ligne **par commune**, pas par partition : `import_plu.py` en dérive
+    directement `plu_commune_partition`. Un PLUi couvrant 43 communes doit donc
+    produire 43 lignes — les réduire à une seule (ce que faisait un
+    `groupby('partition').first()` sur `zone_urba.insee`) rattachait le document
+    à une commune arbitraire et laissait les 42 autres sans PLU.
     """
-    if gdf_zones.empty:
+    if df_commune_partition.empty:
         return gpd.GeoDataFrame()
 
-    # Mapping partition → code_commune extrait de zone_urba.insee
-    zone_part = (
-        gdf_zones[["partition", "insee"]]
-        .dropna(subset=["partition", "insee"])
-        .drop_duplicates()
-        .groupby("partition", as_index=False)
-        .first()
-        .rename(columns={"insee": "code_commune"})
-    )
+    zone_part = df_commune_partition.drop_duplicates()
 
     if not gdf_doc_raw.empty:
         meta_cols = [c for c in
@@ -300,33 +377,49 @@ def main() -> None:
     print(f"  Source : {WFS_BASE}")
     print(f"  Sortie : {out}\n")
 
-    # 1. zones PLU
-    print("[1/4] Telechargement zone_urba...")
-    gdf_zones = fetch_zone_urba(dept)
+    # 1. mapping commune ↔ partition (source de verite, PLUi compris)
+    print("[1/5] Telechargement doc_urba_com (mapping commune <-> document)...")
+    df_cp = fetch_commune_partition(dept)
+    if df_cp.empty:
+        print(f"ERREUR: aucun document d'urbanisme pour le departement {dept}.", file=sys.stderr)
+        sys.exit(1)
+
+    partitions = sorted(df_cp["partition"].dropna().unique().tolist())
+    n_plui = sum(1 for p in partitions if not p.startswith(f"DU_{dept}"))
+    print(f"  -> {len(df_cp)} liens, {df_cp['code_commune'].nunique()} communes, "
+          f"{len(partitions)} partitions (dont {n_plui} intercommunales)")
+
+    # 2. zones PLU, filtrees sur ces partitions
+    print("\n[2/5] Telechargement zone_urba (par partition)...")
+    gdf_zones = fetch_zone_urba(partitions)
     if gdf_zones.empty:
         print(f"ERREUR: aucune zone trouvee pour le departement {dept}.", file=sys.stderr)
         sys.exit(1)
 
-    partitions = gdf_zones["partition"].dropna().unique().tolist()
-    n_plui = sum(1 for p in partitions if not p.startswith(f"DU_{dept}"))
-    print(f"  Partitions : {len(partitions)} (dont ~{n_plui} PLUi EPCI)")
-
-    # 2. métadonnées doc_urba
-    print("\n[2/4] Telechargement doc_urba (metadonnees)...")
+    # 3. métadonnées doc_urba
+    print("\n[3/5] Telechargement doc_urba (metadonnees)...")
     gdf_doc_raw = fetch_doc_urba_for_partitions(partitions)
     print(f"  -> {len(gdf_doc_raw):,} metadonnees")
 
-    # 3. construction doc_urba compatible
-    print("\n[3/4] Construction table doc_urba...")
-    gdf_doc = build_doc_urba(gdf_zones, gdf_doc_raw)
+    # 4. construction doc_urba compatible
+    print("\n[4/5] Construction table doc_urba...")
+    gdf_doc = build_doc_urba(df_cp, gdf_doc_raw)
 
     if "etat" in gdf_doc.columns:
         before = len(gdf_doc)
         gdf_doc = gdf_doc[gdf_doc["etat"].isin(APPROVED) | gdf_doc["etat"].isna()]
-        print(f"  Etat approuve : {len(gdf_doc)}/{before} partitions conservees")
+        print(f"  Etat approuve : {len(gdf_doc)}/{before} communes conservees")
 
-    # 4. sauvegarde
-    print(f"\n[4/4] Sauvegarde -> {out}")
+    # On ne garde que les communes dont le document a effectivement des zones :
+    # sans zone, la commune retomberait de toute facon sur le fallback RNU.
+    zoned = set(gdf_zones["partition"].dropna().unique())
+    before = len(gdf_doc)
+    gdf_doc = gdf_doc[gdf_doc["partition"].isin(zoned)]
+    if len(gdf_doc) < before:
+        print(f"  Zones publiees : {len(gdf_doc)}/{before} communes conservees")
+
+    # 5. sauvegarde
+    print(f"\n[5/5] Sauvegarde -> {out}")
     save_gpkg(gdf_doc, gdf_zones, out)
 
     if args.plui_copy:
