@@ -1,0 +1,242 @@
+/* ============================================================================
+   FONCIER-EXPRESS — Jetons de la charte graphique
+   ----------------------------------------------------------------------------
+   Ce fichier fait seul autorité sur la couleur, la typographie et l'espacement.
+   Aucune valeur hexadécimale ne doit apparaître ailleurs dans le front.
+
+   Règle de couleur du produit :
+     FROID (bleu)  = interface. Désigne uniquement ce qui est interactif ou
+                     sélectionné. N'est jamais une donnée.
+     CHAUD (ocre)  = donnée. Une seule rampe ordonnée pour toute quantité.
+     HACHURE       = absence de donnée. Jamais une couleur, jamais un zéro.
+
+   Contrastes vérifiés (WCAG 2.1, sur le fond de l'application) :
+     clair   ink 15.7 · ink-2 6.1 · ink-3 5.1 · accent 6.6 · alert 6.7 · warn 5.5
+     sombre  ink 14.3 · ink-2 7.8 · ink-3 5.2 · accent 7.8 · alert 6.2 · warn 7.9
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Surfaces ---------------------------------------------------------- */
+  --fe-ground:        #F7F6F3;  /* fond de l'application                     */
+  --fe-surface:       #FFFFFF;  /* panneaux, tables, champs                  */
+  --fe-surface-2:     #EEEDE9;  /* en-têtes de table, zones inactives        */
+  --fe-rule:          #DFDDD7;  /* filet standard                            */
+  --fe-rule-strong:   #BAB7AF;  /* filet de séparation majeure               */
+
+  /* --- Encres ------------------------------------------------------------ */
+  --fe-ink:           #1B1D1E;  /* texte principal, valeurs                  */
+  --fe-ink-2:         #5A5E60;  /* texte secondaire                          */
+  --fe-ink-3:         #66696B;  /* étiquettes, unités, graduations           */
+
+  /* --- Accent : un seul, fonctionnel ------------------------------------- */
+  --fe-accent:        #1F5C8B;  /* lien, action primaire, sélection          */
+  --fe-accent-hover:  #17486D;
+  --fe-accent-soft:   #E9F0F5;  /* fond de ligne sélectionnée                */
+  --fe-accent-ink:    #FFFFFF;  /* texte posé sur --fe-accent                */
+
+  /* --- Sémantique : rare, jamais décorative ------------------------------ */
+  --fe-alert:         #A32B0A;  /* contrainte réglementaire bloquante        */
+  --fe-alert-soft:    #FBEDE9;
+  --fe-warn:          #8A5A00;  /* donnée ancienne, échantillon insuffisant  */
+  --fe-warn-soft:     #FBF3E3;
+
+  /* --- Rampe séquentielle unique (toute quantité ordonnée) ---------------
+     Clarté OKLab strictement décroissante : .938 / .826 / .709 / .570 / .402
+     Survit au niveau de gris et à toutes les formes de daltonisme.          */
+  --fe-ramp-1:        #F3E9D9;
+  --fe-ramp-2:        #DFC194;
+  --fe-ramp-3:        #C29A55;
+  --fe-ramp-4:        #96702F;
+  --fe-ramp-5:        #5E421A;
+  --fe-ramp-1-ink:    #1B1D1E;
+  --fe-ramp-2-ink:    #1B1D1E;
+  --fe-ramp-3-ink:    #1B1D1E;
+  --fe-ramp-4-ink:    #FFFFFF;
+  --fe-ramp-5-ink:    #FFFFFF;
+
+  /* --- Zones PLU : catégoriel, validé CVD (pire paire ΔE 17.4 deutan) ----
+     Toujours doublé par une orientation de hachure : la couleur seule ne
+     porte jamais l'information.                                            */
+  --fe-plu-u:         #B4552F;  /* U   urbanisé      · hachure 45°           */
+  --fe-plu-a:         #B4AE20;  /* A   agricole      · hachure 90°           */
+  --fe-plu-n:         #2E7D4F;  /* N   naturel       · hachure 135°          */
+  --fe-plu-au:        #E0A11C;  /* AU  à urbaniser   · hachure croisée       */
+
+  /* --- Absence de donnée -------------------------------------------------- */
+  --fe-absent-ink:    #9A9D9F;
+
+  /* --- Typographie -------------------------------------------------------- */
+  --fe-font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fe-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --fe-text-label:  0.6875rem;  /* 11 px — étiquettes capitales              */
+  --fe-text-meta:   0.75rem;    /* 12 px — sources, notes                    */
+  --fe-text-body:   0.8125rem;  /* 13 px — texte courant, tables             */
+  --fe-text-lead:   0.9375rem;  /* 15 px — titres de section                 */
+  --fe-text-title:  1.25rem;    /* 20 px — titre de page                     */
+  --fe-text-figure: 1.75rem;    /* 28 px — valeur principale                 */
+
+  --fe-tracking-label: 0.06em;
+  --fe-leading-tight:  1.25;
+  --fe-leading-body:   1.45;
+
+  /* --- Trame de 4 px ------------------------------------------------------ */
+  --fe-space-1: 4px;
+  --fe-space-2: 8px;
+  --fe-space-3: 12px;
+  --fe-space-4: 16px;
+  --fe-space-5: 24px;
+  --fe-space-6: 32px;
+  --fe-space-7: 48px;
+
+  /* --- Géométrie ---------------------------------------------------------- */
+  --fe-radius-sm: 2px;   /* champs, badges                                   */
+  --fe-radius:    4px;   /* panneaux, boutons                                */
+  /* Aucun autre rayon. Aucune ombre, hormis celle-ci, réservée aux couches
+     réellement flottantes (menu déroulant, popup de carte).                 */
+  --fe-shadow-overlay: 0 2px 6px rgba(27, 29, 30, 0.14);
+
+  /* --- Mouvement : deux durées, aucune fantaisie -------------------------- */
+  --fe-dur-ui:   120ms;  /* états d'interface                                */
+  --fe-dur-data: 300ms;  /* transitions porteuses d'information              */
+  --fe-ease:     cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   Thème sombre — jeu de valeurs choisi, pas une inversion automatique.
+   Les deux blocs sont identiques : le premier suit le réglage système, le
+   second gagne quand l'utilisateur choisit explicitement.
+   ------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --fe-ground:        #15181A;
+    --fe-surface:       #1C2023;
+    --fe-surface-2:     #23282B;
+    --fe-rule:          #2F3538;
+    --fe-rule-strong:   #454C50;
+
+    --fe-ink:           #E8E6E2;
+    --fe-ink-2:         #A8ACAE;
+    --fe-ink-3:         #868B8D;
+
+    --fe-accent:        #6FB2E0;
+    --fe-accent-hover:  #8FC6EB;
+    --fe-accent-soft:   #15303F;
+    --fe-accent-ink:    #0E1417;
+
+    --fe-alert:         #E8785A;
+    --fe-alert-soft:    #331913;
+    --fe-warn:          #D9A441;
+    --fe-warn-soft:     #2E2413;
+
+    /* Rampe sombre : clarté croissante — plus clair = plus intense. */
+    --fe-ramp-1:        #2E2A25;
+    --fe-ramp-2:        #4A3F2C;
+    --fe-ramp-3:        #6E5B34;
+    --fe-ramp-4:        #A98C4C;
+    --fe-ramp-5:        #E2C48C;
+    --fe-ramp-1-ink:    #E8E6E2;
+    --fe-ramp-2-ink:    #E8E6E2;
+    --fe-ramp-3-ink:    #E8E6E2;
+    --fe-ramp-4-ink:    #15181A;
+    --fe-ramp-5-ink:    #15181A;
+
+    --fe-plu-u:         #D2764B;
+    --fe-plu-a:         #C6BF4C;
+    --fe-plu-n:         #4CA378;
+    --fe-plu-au:        #E8B043;
+
+    --fe-absent-ink:    #6E7375;
+    --fe-shadow-overlay: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fe-ground:        #15181A;
+  --fe-surface:       #1C2023;
+  --fe-surface-2:     #23282B;
+  --fe-rule:          #2F3538;
+  --fe-rule-strong:   #454C50;
+
+  --fe-ink:           #E8E6E2;
+  --fe-ink-2:         #A8ACAE;
+  --fe-ink-3:         #868B8D;
+
+  --fe-accent:        #6FB2E0;
+  --fe-accent-hover:  #8FC6EB;
+  --fe-accent-soft:   #15303F;
+  --fe-accent-ink:    #0E1417;
+
+  --fe-alert:         #E8785A;
+  --fe-alert-soft:    #331913;
+  --fe-warn:          #D9A441;
+  --fe-warn-soft:     #2E2413;
+
+  --fe-ramp-1:        #2E2A25;
+  --fe-ramp-2:        #4A3F2C;
+  --fe-ramp-3:        #6E5B34;
+  --fe-ramp-4:        #A98C4C;
+  --fe-ramp-5:        #E2C48C;
+  --fe-ramp-1-ink:    #E8E6E2;
+  --fe-ramp-2-ink:    #E8E6E2;
+  --fe-ramp-3-ink:    #E8E6E2;
+  --fe-ramp-4-ink:    #15181A;
+  --fe-ramp-5-ink:    #15181A;
+
+  --fe-plu-u:         #D2764B;
+  --fe-plu-a:         #C6BF4C;
+  --fe-plu-n:         #4CA378;
+  --fe-plu-au:        #E8B043;
+
+  --fe-absent-ink:    #6E7375;
+  --fe-shadow-overlay: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------------------------------------------------------------------------
+   Règles transverses — elles portent la charte, pas seulement ses couleurs.
+   ------------------------------------------------------------------------- */
+
+/* Tout chiffre est tabulaire : les colonnes s'alignent et les ordres de
+   grandeur se comparent verticalement sans effort de lecture. */
+.fe-num,
+table,
+input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Une valeur modélisée ou interpolée ne se présente jamais comme une mesure.
+   L'italique ne suffit pas seule : elle est toujours doublée par la mention
+   de source du cartouche qui la contient. */
+.fe-estimated {
+  font-style: italic;
+}
+
+/* Absence de donnée. Ne jamais substituer 0, un tiret seul, ni une valeur par
+   défaut : le pipeline répond 503 data_unavailable, l'interface le montre. */
+.fe-absent {
+  color: var(--fe-absent-ink);
+  background-image: repeating-linear-gradient(45deg,
+      transparent 0 3px,
+      color-mix(in srgb, var(--fe-absent-ink) 22%, transparent) 3px 4px);
+}
+
+/* Le focus clavier est visible partout, sans exception. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--fe-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
