@@ -108,6 +108,11 @@ class DuckDBFicheMixin:
                 d.surface_constructible_restante,
                 d.categorie          AS categorie_densification,
                 d.source_ces,
+                -- Le front lie deja `fiche.libelle_zone` : sans ces deux
+                -- colonnes, le libelle de zone PLU restait vide alors qu'il
+                -- est renseigne pour plus de la moitie des parcelles.
+                d.libelle_zone,
+                d.plu_datappro,
                 c.confidence_global,
                 c.confidence_label,
                 c.score_bdnb,
@@ -135,7 +140,7 @@ class DuckDBFicheMixin:
             "surface_parcelle_m2", "surface_plancher_m2", "emprise_sol_m2",
             "ces_actuel", "ces_potentiel", "potentiel_densification",
             "surface_constructible_restante", "categorie_densification",
-            "source_ces",
+            "source_ces", "libelle_zone", "plu_datappro",
             "confidence_global", "confidence_label", "score_bdnb",
             "score_dvf", "score_densification", "score_fraicheur",
         ]

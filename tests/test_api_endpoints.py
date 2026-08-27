@@ -181,6 +181,12 @@ class TestFicheParcelle:
         assert body["confidence_label"] == "Elevee"
         assert body["source_ces"] == "plu_gpu"
 
+    def test_fiche_expose_le_libelle_de_zone_plu(self, client):
+        """Le front lie `fiche.libelle_zone` : l'API doit le fournir."""
+        body = client.get(f"/api/v1/land/parcelles/{PARCELLE}/fiche").json()
+        assert body["libelle_zone"] == "UA"
+        assert body["plu_datappro"] == "2020-01-01"
+
     def test_parcelle_inconnue_renvoie_404(self, client):
         r = client.get(f"/api/v1/land/parcelles/{PARCELLE_SANS_DONNEES}/fiche")
         assert r.status_code == 404

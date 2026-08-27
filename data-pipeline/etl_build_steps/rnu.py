@@ -1,5 +1,6 @@
 """Step 5: RNU (classification proximite)."""
 
+from .bdtopo import _load_bdtopo_filtered
 from .config import DATA_DIR, GRID_SIZE
 from .utils import print_distribution, step_banner
 
@@ -23,12 +24,18 @@ def step_rnu(conn, dept, gpkg_path):
 
     if not has_bdtopo_table and gpkg_path.exists():
         print("  Chargement batiments BD TOPO pour grille RNU...")
+        # Le GeoPackage BD TOPO brut contient quelques geometries au WKB
+        # corrompu : ST_Read s'interrompt dessus (« Could not parse WKB input »)
+        # et faisait echouer toute l'etape. On passe par le meme nettoyage que
+        # step_bdtopo, qui les ecarte une a une.
+        clean = _load_bdtopo_filtered(gpkg_path)
+        # Le GeoPackage ecrit par GeoPandas nomme sa colonne geometrique `geom`
+        # (comme le lit deja step_bdtopo), pas `geometry`.
         conn.execute(f"""
             CREATE TEMP TABLE _rnu_bati AS
-            SELECT ST_Centroid(geometrie) AS pt
-            FROM ST_Read('{gpkg_path.as_posix()}', layer='batiment')
-            WHERE geometrie IS NOT NULL
-              AND (construction_legere IS NULL OR construction_legere = false)
+            SELECT ST_Centroid(geom) AS pt
+            FROM ST_Read('{clean.as_posix()}', layer='batiment')
+            WHERE geom IS NOT NULL
         """)
     elif has_bdtopo_table:
         conn.execute("""

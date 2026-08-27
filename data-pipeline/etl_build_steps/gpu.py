@@ -52,10 +52,67 @@ def _check_plu_tables(conn: duckdb.DuckDBPyConnection) -> bool:
 
 
 def _build_matched_parcelles(conn: duckdb.DuckDBPyConnection, dept: str) -> int:
-    """Jointure deux étapes : commune → partition → zone PLU."""
+    """Jointure deux étapes : commune → partition → zone PLU.
+
+    Traitée partition par partition. En un seul passage, la jointure spatiale
+    (800 000 parcelles INCONNU × 22 000 zones, avec un ST_Intersection dans la
+    fenêtre de tri) dépasse 25 Gio et DuckDB abandonne. Découper par partition
+    borne la mémoire sans changer le résultat : la jointure est de toute façon
+    contrainte à `z.partition = wp.partition`, donc aucune paire ne traverse
+    deux partitions.
+    """
     conn.execute("DROP TABLE IF EXISTS gpu_parcelles")
-    conn.execute(f"""
-        CREATE TABLE gpu_parcelles AS
+
+    partitions = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT partition FROM plu_commune_partition "
+            "WHERE partition IS NOT NULL ORDER BY partition"
+        ).fetchall()
+    ]
+    if not partitions:
+        conn.execute(_matched_sql(dept, partition=None, create=True))
+        return conn.execute("SELECT COUNT(*) FROM gpu_parcelles").fetchone()[0]
+
+    print(f"  Jointure spatiale : {len(partitions)} partitions...")
+    for i, part in enumerate(partitions, 1):
+        conn.execute(_matched_sql(dept, partition=part, create=(i == 1)))
+        if i % 25 == 0 or i == len(partitions):
+            done = conn.execute("SELECT COUNT(*) FROM gpu_parcelles").fetchone()[0]
+            print(f"    {i}/{len(partitions)} partitions — {done:,} parcelles rattachees")
+
+    # Quelques communes relèvent de deux documents : la parcelle est alors
+    # rattachée une fois par partition. Le passage unique dédupliquait via son
+    # ROW_NUMBER global ; à découpage égal, on déduplique ici. Sans cela,
+    # l'UPDATE en aval retiendrait une ligne arbitraire.
+    dupes = conn.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT id_parcelle FROM gpu_parcelles
+            GROUP BY id_parcelle HAVING COUNT(*) > 1
+        )
+    """).fetchone()[0]
+    if dupes:
+        print(f"  {dupes:,} parcelles couvertes par plusieurs documents — deduplication")
+        conn.execute("""
+            CREATE OR REPLACE TABLE gpu_parcelles AS
+            SELECT * EXCLUDE (rn) FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY id_parcelle
+                    -- Le document le plus récent fait foi.
+                    ORDER BY datappro DESC NULLS LAST
+                ) AS rn
+                FROM gpu_parcelles
+            ) WHERE rn = 1
+        """)
+
+    return conn.execute("SELECT COUNT(*) FROM gpu_parcelles").fetchone()[0]
+
+
+def _matched_sql(dept: str, partition: str | None, create: bool) -> str:
+    """Construit la requête de rattachement, pour une partition ou toutes."""
+    head = "CREATE TABLE gpu_parcelles AS" if create else "INSERT INTO gpu_parcelles"
+    part_filter = f"AND cp.partition = '{partition}'" if partition else ""
+    return f"""
+        {head}
         WITH inconnu AS (
             SELECT d.id_parcelle, d.surface_parcelle_m2, d.ces_actuel,
                    p.geometry, p.code_commune
@@ -69,6 +126,7 @@ def _build_matched_parcelles(conn: duckdb.DuckDBPyConnection, dept: str) -> int:
             SELECT i.*, cp.partition
             FROM inconnu i
             JOIN plu_commune_partition cp ON i.code_commune = cp.code_commune
+            {part_filter}
         ),
         matched AS (
             SELECT
@@ -98,8 +156,7 @@ def _build_matched_parcelles(conn: duckdb.DuckDBPyConnection, dept: str) -> int:
                 ELSE 'FAIBLE'
             END AS categorie_plu
         FROM matched WHERE rn = 1
-    """)
-    return conn.execute("SELECT COUNT(*) FROM gpu_parcelles").fetchone()[0]
+    """
 
 
 def _update_densification(conn: duckdb.DuckDBPyConnection) -> None:
