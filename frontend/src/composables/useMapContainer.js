@@ -1,11 +1,35 @@
 /**
- * Composable for MapLibre map initialization and data fetching.
+ * Initialisation de la carte MapLibre et récupération des données.
+ *
+ * Deux partis pris de la charte s'appliquent ici :
+ *
+ *  - Le fond de carte ne porte aucune couleur saturée. Les tuiles IGN sont
+ *    désaturées à l'affichage, pour que la donnée soit la seule chose colorée
+ *    à l'écran.
+ *
+ *  - La vue est à plat. L'inclinaison de 45° d'origine faisait joli mais
+ *    déformait les parcelles, c'est-à-dire précisément ce que l'utilisateur
+ *    vient lire.
+ *
+ * Référence : docs/CHARTE_GRAPHIQUE.md
  */
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import maplibregl from 'maplibre-gl';
 import client from '../api/client';
-import { mapColorSchemes } from './mapColorSchemes';
-import { addParcelleLayers, addTransactionLayers, setupMapEvents } from './mapLayerHelpers';
+import { token } from '../styles/tokens';
+import {
+  absenceFilter,
+  absenceProperty,
+  fillOpacity,
+  parcelFill,
+  pointFill,
+} from './mapColorSchemes';
+import {
+  addParcelleLayers,
+  addTransactionLayers,
+  registerHatchImages,
+  setupMapEvents,
+} from './mapLayerHelpers';
 
 // Fond de carte IGN (Géoplateforme) : libre, sans clé d'API, et servi par le
 // même hôte que le WFS d'urbanisme déjà utilisé par le pipeline.
@@ -19,6 +43,11 @@ const IGN_TILES = [
     '&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}'
 ];
 
+// Jeu de glyphes nécessaire aux couches de texte — le semis de valeurs et le
+// compte des agrégats. Le style d'origine n'en déclarait aucun, ce qui rendait
+// déjà le compte des agrégats muet.
+const GLYPHS = 'https://data.geopf.fr/annexes/ressources/vectorTiles/fonts/{fontstack}/{range}.pbf';
+
 export function useMapContainer(props, emit) {
   const mapContainer = ref(null);
   const isLoading = ref(true);
@@ -27,6 +56,7 @@ export function useMapContainer(props, emit) {
   function createMapStyle() {
     return {
       version: 8,
+      glyphs: GLYPHS,
       sources: {
         ign: {
           type: 'raster',
@@ -36,7 +66,17 @@ export function useMapContainer(props, emit) {
           maxzoom: 19
         }
       },
-      layers: [{ id: 'ign-base', type: 'raster', source: 'ign' }]
+      layers: [{
+        id: 'ign-base',
+        type: 'raster',
+        source: 'ign',
+        paint: {
+          // Le fond recule pour que la donnée passe devant.
+          'raster-saturation': -0.9,
+          'raster-contrast': -0.15,
+          'raster-opacity': 0.85
+        }
+      }]
     };
   }
 
@@ -69,38 +109,55 @@ export function useMapContainer(props, emit) {
     }
   }
 
+  /**
+   * Sélection et parcelles apparentées.
+   *
+   * Elles se signalent par le trait, pas par un remplissage de couleur : le
+   * remplissage porte déjà la donnée, et le rouge d'origine annonçait un
+   * problème là où il n'y avait qu'une sélection.
+   */
   function applyParcelHighlights() {
     if (!map?.getLayer('parcelles-fill')) return;
-    const scheme = mapColorSchemes[props.mode] || mapColorSchemes.prix;
     const sel = props.selectedParcel;
     const rel = props.relatedParcels || [];
+    const ink = token('--fe-ink');
+    const accent = token('--fe-accent');
+
     if (!sel && rel.length === 0) {
-      map.setPaintProperty('parcelles-fill', 'fill-color', scheme.parcelles);
-      map.setPaintProperty('parcelles-fill', 'fill-opacity', scheme.opacity || 0.25);
-      map.setPaintProperty('parcelles-line', 'line-width', 1.5);
-      map.setPaintProperty('parcelles-line', 'line-color', '#475569');
+      map.setPaintProperty('parcelles-line', 'line-width', 0.5);
+      map.setPaintProperty('parcelles-line', 'line-color', ink);
+      map.setPaintProperty('parcelles-line', 'line-opacity', 0.45);
       return;
     }
+
     const eqSel = ['==', ['get', 'id_parcelle'], sel];
     const inRel = ['in', ['get', 'id_parcelle'], ['literal', rel]];
-    let fillColor, lineWidth, lineColor;
-    if (rel.length > 0 && sel) {
-      fillColor = ['case', eqSel, 'rgba(239, 68, 68, 0.5)', inRel, 'rgba(251, 146, 60, 0.5)', scheme.parcelles];
-      lineWidth = ['case', eqSel, 5, inRel, 3, 1.5];
-      lineColor = ['case', eqSel, '#dc2626', inRel, '#ea580c', '#475569'];
-    } else if (sel) {
-      fillColor = ['case', eqSel, 'rgba(239, 68, 68, 0.5)', scheme.parcelles];
-      lineWidth = ['case', eqSel, 5, 1.5];
-      lineColor = ['case', eqSel, '#dc2626', '#475569'];
-    } else {
-      fillColor = ['case', inRel, 'rgba(251, 146, 60, 0.5)', scheme.parcelles];
-      lineWidth = ['case', inRel, 3, 1.5];
-      lineColor = ['case', inRel, '#ea580c', '#475569'];
+
+    map.setPaintProperty('parcelles-line', 'line-color',
+      ['case', eqSel, accent, inRel, accent, ink]);
+    map.setPaintProperty('parcelles-line', 'line-width',
+      ['case', eqSel, 2.5, inRel, 1.5, 0.5]);
+    map.setPaintProperty('parcelles-line', 'line-opacity',
+      ['case', eqSel, 1, inRel, 0.8, 0.45]);
+  }
+
+  /** Applique un mode de carte à toutes les couches concernées. */
+  function applyMode(mode) {
+    if (!map) return;
+    if (map.getLayer('parcelles-fill')) {
+      map.setPaintProperty('parcelles-fill', 'fill-color', parcelFill(mode));
+      map.setPaintProperty('parcelles-fill', 'fill-opacity', fillOpacity(mode));
     }
-    map.setPaintProperty('parcelles-fill', 'fill-color', fillColor);
-    map.setPaintProperty('parcelles-fill', 'fill-opacity', 0.5);
-    map.setPaintProperty('parcelles-line', 'line-width', lineWidth);
-    map.setPaintProperty('parcelles-line', 'line-color', lineColor);
+    if (map.getLayer('parcelles-absence')) {
+      map.setFilter('parcelles-absence', absenceFilter(absenceProperty(mode)));
+    }
+    if (map.getLayer('parcelles-plu-hachure')) {
+      map.setLayoutProperty('parcelles-plu-hachure', 'visibility',
+        mode === 'urbanisme' ? 'visible' : 'none');
+    }
+    if (map.getLayer('unclustered-point')) {
+      map.setPaintProperty('unclustered-point', 'circle-color', pointFill(mode));
+    }
   }
 
   onMounted(() => {
@@ -110,13 +167,14 @@ export function useMapContainer(props, emit) {
       style: createMapStyle(),
       center: props.center,
       zoom: 13,
-      pitch: 45,
-      bearing: -17.6,
+      pitch: 0,
+      bearing: 0,
       antialias: true
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.on('load', () => {
       isLoading.value = false;
+      registerHatchImages(map);
       addTransactionLayers(map, props.transactions, props.mode);
       addParcelleLayers(map, props.mode);
       setupMapEvents(map, emit, fetchTransactions, fetchParcelles);
@@ -127,22 +185,12 @@ export function useMapContainer(props, emit) {
   });
 
   watch(() => props.center, (newCenter) => {
-    if (map) map.flyTo({ center: newCenter, essential: true, zoom: 16, pitch: 50, duration: 2000 });
+    if (map) map.flyTo({ center: newCenter, essential: true, zoom: 16, duration: 800 });
   });
   watch(() => props.activeFilter, () => {
     if (map?.getSource('parcelles') && map.getZoom() >= 13) fetchParcelles();
   });
-  watch(() => props.mode, (newMode) => {
-    if (!map) return;
-    const scheme = mapColorSchemes[newMode] || mapColorSchemes.prix;
-    if (map.getLayer('parcelles-fill')) {
-      map.setPaintProperty('parcelles-fill', 'fill-color', scheme.parcelles);
-      map.setPaintProperty('parcelles-fill', 'fill-opacity', scheme.opacity || 0.25);
-    }
-    if (map.getLayer('unclustered-point')) {
-      map.setPaintProperty('unclustered-point', 'circle-color', scheme.points);
-    }
-  });
+  watch(() => props.mode, applyMode);
   watch(() => props.selectedParcel, applyParcelHighlights);
   watch(() => props.relatedParcels, applyParcelHighlights, { deep: true });
   watch(() => props.transactions, (newData) => {
