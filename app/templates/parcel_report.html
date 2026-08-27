@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapport Foncier - {{ parcel_id }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>{% include 'parcel_report_styles.css' %}</style>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>{% include 'report_styles.css' %}</style>
 </head>
 
 <body class="bg-white text-gray-800 p-4">
@@ -22,7 +22,7 @@
             <div class="text-right">
                 <div class="flex items-center gap-2">
                     <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                        <span class="text-lg">🏠</span>
+                        FE
                     </div>
                     <span class="font-bold text-lg">Foncier-Express</span>
                 </div>
@@ -34,7 +34,7 @@
     <!-- Fiche d'Identité -->
     <section class="mb-6">
         <h2 class="text-lg font-bold text-gray-900 border-b-2 border-indigo-500 pb-2 mb-4 flex items-center gap-2">
-            <span>📍</span> Identification Cadastrale
+            Identification Cadastrale
         </h2>
 
         <div class="grid grid-cols-3 gap-4">
@@ -68,7 +68,7 @@
     <!-- Analyse de Marché -->
     <section class="mb-6">
         <h2 class="text-lg font-bold text-gray-900 border-b-2 border-emerald-500 pb-2 mb-4 flex items-center gap-2">
-            <span>💰</span> Analyse de Marché DVF
+            Analyse de Marché DVF
         </h2>
 
         {% if transactions %}
@@ -198,7 +198,7 @@
     <!-- Scores d'Enrichissement -->
     <section class="mb-6">
         <h2 class="text-lg font-bold text-gray-900 border-b-2 border-purple-500 pb-2 mb-4 flex items-center gap-2">
-            <span>🎯</span> Scores de Qualité de Localisation
+            Scores de Qualité de Localisation
         </h2>
 
         {% if enrichment %}
@@ -240,7 +240,7 @@
     <!-- Filiation Parcellaire -->
     <section class="mb-6">
         <h2 class="text-lg font-bold text-gray-900 border-b-2 border-gray-400 pb-2 mb-4 flex items-center gap-2">
-            <span>🌳</span> Historique de Filiation
+            Historique de Filiation
         </h2>
 
         {% if filiation and filiation.events %}

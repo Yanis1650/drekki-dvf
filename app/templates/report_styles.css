@@ -1,0 +1,302 @@
+/* ============================================================================
+   FONCIER-EXPRESS — Feuille de style des rapports PDF
+   ----------------------------------------------------------------------------
+   Partagée par land_report.html et parcel_report.html.
+
+   Elle conserve le vocabulaire de classes des gabarits (hérité de Tailwind)
+   mais chaque classe résout désormais vers un jeton de la charte. Les gabarits
+   n'ont donc pas à être réécrits pour changer d'apparence.
+
+   Deux raisons de ne pas utiliser le CDN Tailwind ici : il exige un accès
+   réseau au moment du rendu Playwright — c'est ce qui produisait l'erreur
+   « Node cannot be found » — et il réintroduirait la palette par défaut que la
+   charte écarte.
+
+   Les valeurs reproduisent le thème CLAIR de frontend/src/styles/tokens.css.
+   Un rapport imprimé n'a pas de thème sombre. À maintenir en phase avec lui.
+   Référence : docs/CHARTE_GRAPHIQUE.md
+   ========================================================================== */
+
+:root {
+  --fe-ground: #F7F6F3;
+  --fe-surface: #FFFFFF;
+  --fe-surface-2: #EEEDE9;
+  --fe-rule: #DFDDD7;
+  --fe-rule-strong: #BAB7AF;
+
+  --fe-ink: #1B1D1E;
+  --fe-ink-2: #5A5E60;
+  --fe-ink-3: #66696B;
+
+  --fe-accent: #1F5C8B;
+  --fe-accent-soft: #E9F0F5;
+  --fe-accent-ink: #FFFFFF;
+
+  --fe-alert: #A32B0A;
+  --fe-alert-soft: #FBEDE9;
+  --fe-warn: #8A5A00;
+  --fe-warn-soft: #FBF3E3;
+
+  --fe-ramp-1: #F3E9D9;
+  --fe-ramp-2: #DFC194;
+  --fe-ramp-3: #C29A55;
+  --fe-ramp-4: #96702F;
+  --fe-ramp-5: #5E421A;
+
+  --fe-absent-ink: #9A9D9F;
+
+  --fe-radius-sm: 2px;
+  --fe-radius: 4px;
+}
+
+@page { size: A4; margin: 1cm; }
+
+* {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+body {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  background: var(--fe-surface);
+  color: var(--fe-ink);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 1rem;
+  margin: 0;
+}
+
+/* Tout chiffre est tabulaire, y compris sur papier. */
+body, table, .font-mono { font-variant-numeric: tabular-nums; }
+
+/* === Mise en page ========================================================= */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.col-span-2 { grid-column: span 2 / span 2; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-baseline { align-items: baseline; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.overflow-hidden { overflow: hidden; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.-left-8 { left: -2rem; }
+.page-break, .print-break { page-break-before: always; }
+
+/* === Espacement — trame de 4 px =========================================== */
+.p-3 { padding: 0.75rem; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.pt-4 { padding-top: 1rem; }
+.pb-2 { padding-bottom: 0.5rem; }
+.pl-6 { padding-left: 1.5rem; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-6 { margin-top: 1.5rem; }
+.mt-8 { margin-top: 2rem; }
+.mr-2 { margin-right: 0.5rem; }
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+
+/* === Dimensions =========================================================== */
+.w-full { width: 100%; }
+.w-4 { width: 1rem; }
+.w-8 { width: 2rem; }
+.h-2 { height: 0.5rem; }
+.h-4 { height: 1rem; }
+.h-8 { height: 2rem; }
+.h-full { height: 100%; }
+
+/* === Typographie — six tailles ============================================ */
+.text-xs   { font-size: 0.6875rem; line-height: 1.3; letter-spacing: 0.06em; }
+.text-sm   { font-size: 0.75rem;   line-height: 1.35; }
+.text-lg   { font-size: 0.9375rem; line-height: 1.3; }
+.text-xl   { font-size: 1.25rem;   line-height: 1.25; }
+.text-2xl  { font-size: 1.25rem;   line-height: 1.25; }
+.text-4xl  { font-size: 1.75rem;   line-height: 1.1; }
+.text-6xl  { font-size: 1.75rem;   line-height: 1.1; }
+.font-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.font-medium { font-weight: 500; }
+.font-semibold, .font-bold, .font-extrabold { font-weight: 600; }
+.uppercase { text-transform: uppercase; }
+.tracking-wide { letter-spacing: 0.06em; }
+.tracking-tight { letter-spacing: -0.01em; }
+.italic { font-style: italic; }
+
+/* === Filets =============================================================== */
+.border   { border: 1px solid var(--fe-rule); }
+.border-2 { border: 2px solid var(--fe-rule-strong); }
+.border-t { border-top: 1px solid var(--fe-rule); }
+.border-l-2 { border-left: 2px solid var(--fe-rule-strong); }
+.border-b-2 { border-bottom: 1px solid var(--fe-rule-strong); }
+
+.border-gray-100,
+.border-gray-200 { border-color: var(--fe-rule); }
+.border-white { border-color: var(--fe-surface); }
+
+.border-indigo-300,
+.border-blue-200,
+.border-blue-600,
+.border-purple-600 { border-color: var(--fe-accent); }
+
+.border-emerald-200,
+.border-green-200,
+.border-green-600 { border-color: var(--fe-ramp-3); }
+
+.border-amber-200 { border-color: var(--fe-warn); }
+.border-orange-200 { border-color: var(--fe-alert); }
+
+.rounded      { border-radius: var(--fe-radius); }
+.rounded-lg,
+.rounded-xl   { border-radius: var(--fe-radius); }
+.rounded-full { border-radius: 9999px; }
+
+/* === Fonds ================================================================
+   Froid = interface, chaud = donnée. Les fonds de bloc restent neutres ;
+   seule la donnée porte la rampe.                                          */
+.bg-white { background-color: var(--fe-surface); }
+.bg-gray-50,
+.bg-gray-100 { background-color: var(--fe-surface-2); }
+.bg-gray-300 { background-color: var(--fe-rule-strong); }
+
+.bg-indigo-100,
+.bg-purple-100,
+.bg-blue-50,
+.bg-blue-100,
+.bg-blue-200 { background-color: var(--fe-accent-soft); }
+.bg-indigo-500,
+.bg-blue-500,
+.bg-blue-600 { background-color: var(--fe-accent); }
+
+.bg-emerald-50,
+.bg-green-50,
+.bg-emerald-200,
+.bg-green-200 { background-color: var(--fe-ramp-1); }
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-green-600 { background-color: var(--fe-ramp-4); }
+
+.bg-amber-50 { background-color: var(--fe-warn-soft); }
+.bg-orange-50,
+.bg-red-50,
+.bg-red-200,
+.bg-orange-200 { background-color: var(--fe-alert-soft); }
+.bg-red-600,
+.bg-orange-600 { background-color: var(--fe-alert); }
+
+/* Aucun dégradé : les classes sont neutralisées pour que les gabarits
+   existants restent valides sans réécriture. */
+.bg-gradient-to-r,
+.bg-gradient-to-br { background-image: none; }
+header.bg-gradient-to-r { background: var(--fe-accent); }
+
+/* === Encres =============================================================== */
+.text-white { color: var(--fe-accent-ink); }
+.text-gray-400 { color: var(--fe-ink-3); }
+.text-gray-500 { color: var(--fe-ink-3); }
+.text-gray-600,
+.text-gray-700 { color: var(--fe-ink-2); }
+.text-gray-800,
+.text-gray-900 { color: var(--fe-ink); }
+
+.text-blue-100,
+.text-indigo-100,
+.text-indigo-200,
+.text-purple-100 { color: var(--fe-accent-soft); }
+.text-indigo-600,
+.text-indigo-700,
+.text-blue-600,
+.text-blue-700 { color: var(--fe-accent); }
+
+.text-emerald-600,
+.text-emerald-700,
+.text-green-600,
+.text-green-700 { color: var(--fe-ramp-5); }
+
+.text-amber-600,
+.text-amber-800 { color: var(--fe-warn); }
+
+.text-red-600,
+.text-red-700,
+.text-orange-600,
+.text-orange-700 { color: var(--fe-alert); }
+
+.bg-white\/20 { background-color: rgba(255, 255, 255, 0.18); }
+
+/* === Composants =========================================================== */
+.shadow { box-shadow: none; }
+
+.score-bar {
+  height: 8px;
+  border-radius: 1px;
+  background: var(--fe-surface-2);
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 1px;
+  background: var(--fe-ramp-4);
+}
+
+.gauge-container { position: relative; width: 160px; height: 80px; overflow: hidden; }
+
+.gauge-bg,
+.gauge-fill {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 16px solid transparent;
+  transform: rotate(-45deg);
+}
+
+.gauge-bg { border-top-color: var(--fe-surface-2); border-right-color: var(--fe-surface-2); }
+.gauge-fill { border-top-color: var(--fe-ramp-4); border-right-color: var(--fe-ramp-4); }
+
+/* Absence de donnée. Sur papier comme à l'écran : hachurée, jamais un zéro. */
+.absent {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  color: var(--fe-absent-ink);
+  border: 1px solid var(--fe-rule);
+  border-radius: var(--fe-radius-sm);
+  background-image: repeating-linear-gradient(45deg,
+      transparent 0 3px,
+      rgba(154, 157, 159, 0.2) 3px 4px);
+}
+
+/* Ligne de source : chaque rapport dit d'où viennent ses chiffres. */
+.source-line {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: var(--fe-ink-3);
+  border-top: 1px solid var(--fe-rule);
+  padding-top: 0.5rem;
+  margin-top: 1rem;
+}

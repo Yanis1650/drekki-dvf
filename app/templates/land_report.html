@@ -5,21 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapport Foncier - {{ mutation.id_mutation }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @page {
-            size: A4;
-            margin: 1.5cm;
-        }
-
-        body {
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-
-        .print-break {
-            page-break-before: always;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>{% include 'report_styles.css' %}</style>
 </head>
 
 <body class="bg-white text-gray-800">
