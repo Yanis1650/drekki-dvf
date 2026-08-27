@@ -1,3 +1,15 @@
+> **Correction (2026-08-27).** Ce rapport conclut au §3 que le PLUi de Rennes
+> Métropole n'est pas publié sur le WFS GPU, et recommande de le télécharger
+> manuellement. **C'est inexact.** Ses 4 069 zones y étaient, sous la partition
+> `DU_243500139` ; c'est le filtre `insee LIKE '35%'` de `download_plu_wfs.py`
+> qui les manquait, le champ `insee` étant quasi vide dans la couche
+> `zone_urba`. Le filtrage par `partition` renvoie 22 235 zones pour le
+> département 35 au lieu de 1 018.
+>
+> Les chiffres de couverture des §4-A et §5 sont donc à lire comme le symptôme
+> de ce bug, non comme l'état réel du GPU. Voir `docs/PLU_INTEGRATION.md`,
+> section « Récupération des données depuis le WFS GPU ».
+
 # Rapport de relance — département 35 (Foncier-Express)
 
 ## Date et heure d'exécution
