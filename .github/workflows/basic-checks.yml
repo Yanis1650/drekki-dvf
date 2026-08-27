@@ -48,6 +48,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Tailwind ignore silencieusement une classe inconnue : un `text-slate-500`
+      # oublié ne casserait rien et la charte fondrait sans bruit. Ce contrôle
+      # échoue à sa place. Voir docs/CHARTE_GRAPHIQUE.md
+      - name: Check Design Charter
+        working-directory: frontend
+        run: npm run check:charte
+
       - name: Build Frontend
         working-directory: frontend
         run: npm run build
