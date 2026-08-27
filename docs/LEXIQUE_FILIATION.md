@@ -1,5 +1,39 @@
 # Lexique — Historique Parcellaire (DFI)
 
+
+## Charger la filiation
+
+La table `dfi_filiations` n'existe pas par défaut : sans elle, l'endpoint
+`/api/v1/filiation/{id}` répond `503 data_unavailable` — l'absence de donnée
+est signalée, jamais interprétée comme « parcelle sans division ».
+
+L'étape est intégrée au build par département :
+
+```bash
+python data-pipeline/etl_build_dept.py 35        # etape 7/8
+```
+
+Ou seule, sur une base déjà construite :
+
+```bash
+python data-pipeline/etl_dfi.py --dept 35 --db data/dept35.duckdb
+```
+
+Les fichiers sources (un par département, ~67 Mo pour le 35) proviennent de
+[data.gouv.fr](https://www.data.gouv.fr/fr/datasets/historique-des-parcelles-cadastrales-filiation/)
+et se placent dans `data/`.
+
+Pour le département 35 : **826 838 relations sur 332 communes**.
+
+### Ce que `coherence_geo` peut dire
+
+La cohérence géométrique compare l'emprise de la fille à celle de la mère.
+Une mère divisée n'existe plus au cadastre courant : `NON_VERIFIABLE` est
+donc la réponse normale, pas un échec. La valeur n'est calculable que
+lorsque la parcelle mère figure encore dans `parcelles`.
+
+---
+
 ## Qu'est-ce que l'historique parcellaire ?
 
 L'**historique parcellaire** (ou **filiation cadastrale**) retrace la généalogie administrative d'une parcelle : d'où elle provient, par quelles opérations cadastrales elle a été créée, et quelles parcelles l'ont précédée.

@@ -14,6 +14,7 @@ from .config import (
     W_FRAICHEUR,
 )
 from .densification import step_densification
+from .dfi import step_dfi
 from .golden_join import step_golden_join
 from .gpu import step_gpu
 from .optimize import step_optimize
@@ -26,6 +27,7 @@ __all__ = [
     "step_bdtopo",
     "step_rnu",
     "step_confidence",
+    "step_dfi",
     "step_optimize",
     "DATA_DIR",
     "MAIN_DB",

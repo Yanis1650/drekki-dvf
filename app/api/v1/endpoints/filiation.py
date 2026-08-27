@@ -34,6 +34,22 @@ def _node_to_response(node: FiliationNode) -> FiliationNodeResponse:
     )
 
 
+def _generations_traced(node: FiliationNode) -> int:
+    """Nombre de générations remontées depuis la parcelle interrogée.
+
+    `node.depth` est la profondeur du nœud dans l'arbre : celle de la racine
+    vaut toujours 0. Le renvoyer tel quel affichait « 0 génération » même avec
+    une chaîne d'ancêtres — invisible tant que la table DFI était absente et
+    que l'endpoint ne servait que des arbres vides.
+    """
+    generations = 0
+    cur = node.parent
+    while cur is not None:
+        generations += 1
+        cur = cur.parent
+    return generations
+
+
 def _any_truncated_in_chain(node: FiliationNode) -> bool:
     cur: FiliationNode | None = node
     while cur is not None:
@@ -122,7 +138,7 @@ async def get_parcel_filiation(
         return FiliationResponse(
             id_parcelle=id_parcelle,
             filiation_summary=summary,
-            depth=node.depth,
+            depth=_generations_traced(node),
             truncated=_any_truncated_in_chain(node),
             ancestors=ancestors,
             tree=_node_to_response(node),

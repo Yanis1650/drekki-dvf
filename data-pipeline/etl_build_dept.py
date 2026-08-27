@@ -15,7 +15,8 @@ Etapes:
     4. BD TOPO        : Emprise batie pour INCONNU residuels
     5. RNU            : Classification proximite pour restants
     6. Confidence     : Score de confiance global
-    7. Optimize       : VACUUM + CHECKPOINT
+    7. DFI            : Filiation cadastrale (parcelles meres/filles)
+    8. Optimize       : VACUUM + CHECKPOINT
 """
 
 import argparse
@@ -30,6 +31,7 @@ from etl_build_steps import (
     step_bdtopo,
     step_confidence,
     step_densification,
+    step_dfi,
     step_golden_join,
     step_gpu,
     step_optimize,
@@ -160,6 +162,7 @@ def main():
         step_rnu(conn, dept, bdtopo)
 
     step_confidence(conn, dept)
+    step_dfi(conn, dept)
     step_optimize(conn, dept)
 
     conn.close()

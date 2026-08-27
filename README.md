@@ -97,8 +97,13 @@ Le pipeline ETL traite les données DVF open data. Consultez `data-pipeline/` po
 
 ```bash
 # Exemple : construire la base pour un département
-python data-pipeline/etl_build_dept.py --dept 35
+python data-pipeline/etl_build_dept.py 35
 ```
+
+Le pipeline enchaîne 8 étapes (jointure DVF × cadastre × BDNB, densification,
+zonage PLU, BD TOPO, RNU, score de confiance, filiation DFI, optimisation).
+Chaque source absente de `data/` fait sauter son étape : l'API le signalera
+alors par un `503 data_unavailable` plutôt que d'inventer une valeur.
 
 ### 6. Démarrage
 

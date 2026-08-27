@@ -19,8 +19,21 @@ logger = logging.getLogger(__name__)
 class DFIEtlPipeline:
     """ETL pipeline for DFI parcel filiation data."""
 
-    def __init__(self, output_path: Path | str = "./data/foncier.duckdb") -> None:
+    def __init__(
+        self,
+        output_path: Path | str = "./data/foncier.duckdb",
+        conn: duckdb.DuckDBPyConnection | None = None,
+    ) -> None:
+        """
+        Args:
+            output_path: base DuckDB cible, ouverte à la demande.
+            conn: connexion déjà ouverte à réutiliser. Indispensable quand le
+                pipeline tourne au sein d'`etl_build_dept.py` : DuckDB refuse
+                une seconde connexion au même fichier depuis le même processus
+                (« Can't open a connection to same database file »).
+        """
         self._output_path = Path(output_path)
+        self._conn = conn
 
     def parse_dfi_line(self, line: str) -> dict | None:
         """Parse a single DFI line according to fixed format.
@@ -169,11 +182,15 @@ class DFIEtlPipeline:
             logger.warning("No filiations to load")
             return
 
-        self._output_path.parent.mkdir(parents=True, exist_ok=True)
+        owns_conn = self._conn is None
+        if owns_conn:
+            self._output_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Loading {len(filiations):,} filiations to DuckDB: {self._output_path}")
+            conn = duckdb.connect(str(self._output_path))
+        else:
+            logger.info(f"Loading {len(filiations):,} filiations (connexion existante)")
+            conn = self._conn
 
-        logger.info(f"Loading {len(filiations):,} filiations to DuckDB: {self._output_path}")
-
-        conn = duckdb.connect(str(self._output_path))
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS dfi_filiations (
@@ -234,7 +251,9 @@ class DFIEtlPipeline:
             logger.info(f"✓ Loaded {count:,} filiation relationships to DuckDB")
 
         finally:
-            conn.close()
+            # Ne jamais fermer une connexion prêtée par l'appelant.
+            if owns_conn:
+                conn.close()
 
     def run(self, dfi_path: Path | str) -> int:
         """Execute full ETL pipeline for a DFI file.
@@ -355,6 +374,7 @@ def run_dfi_etl_from_zips(
     backup_dir: Path | str,
     dept_filter: str | None = None,
     replace: bool = False,
+    output_path: Path | str | None = None,
 ) -> None:
     """Process DFI from data_backup/*.txt.zip files.
 
@@ -362,6 +382,7 @@ def run_dfi_etl_from_zips(
         backup_dir: Directory containing dfiano-dep*-date.txt.zip
         dept_filter: Optional dept (e.g. "35" or "035")
         replace: Truncate before load
+        output_path: DuckDB output path (default: data/foncier.duckdb)
     """
     backup_dir = Path(backup_dir)
     zip_files = sorted(backup_dir.glob("dfiano-dep*.txt.zip"))
@@ -373,7 +394,7 @@ def run_dfi_etl_from_zips(
         logger.warning(f"No ZIP files found in {backup_dir}")
         return
 
-    pipeline = DFIEtlPipeline()
+    pipeline = DFIEtlPipeline(output_path=output_path or "./data/foncier.duckdb")
     if replace:
         _truncate_dfi_table(pipeline._output_path)
 
@@ -418,6 +439,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Use data_backup/*.zip instead of extracted folders",
     )
+    parser.add_argument(
+        "--db",
+        metavar="PATH",
+        default=None,
+        help="Base DuckDB cible (defaut: data/foncier.duckdb). "
+             "Utiliser data/dept35.duckdb pour alimenter la base servie par l'API.",
+    )
 
     args = parser.parse_args()
     path = Path(args.path)
@@ -427,9 +455,13 @@ if __name__ == "__main__":
         exit(1)
 
     if args.from_zips:
-        run_dfi_etl_from_zips(path, dept_filter=args.dept, replace=args.replace)
+        run_dfi_etl_from_zips(
+            path, dept_filter=args.dept, replace=args.replace, output_path=args.db
+        )
     elif path.is_dir():
-        run_dfi_etl_all_departments(path, dept_filter=args.dept, replace=args.replace)
+        run_dfi_etl_all_departments(
+            path, dept_filter=args.dept, replace=args.replace, output_path=args.db
+        )
     else:
-        pipeline = DFIEtlPipeline()
+        pipeline = DFIEtlPipeline(output_path=args.db or "./data/foncier.duckdb")
         pipeline.run(path)
