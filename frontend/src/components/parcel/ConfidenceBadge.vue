@@ -20,12 +20,20 @@ onMounted(() => {
   requestAnimationFrame(() => { animated.value = true; });
 });
 
+// La confiance est une quantite ORDONNEE : elle passe par la rampe unique, du
+// palier le plus foncé au plus clair. Elle n'est pas une alerte — une confiance
+// faible signale une donnee incomplete, pas un probleme sur la parcelle.
+const PALIER_CONFIANCE = { Elevee: 5, Moyenne: 4, Faible: 3 };
+
 const config = computed(() => {
-  const label = props.confidenceLabel;
-  if (label === 'Elevee') return { color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)', icon: 'shield-check' };
-  if (label === 'Moyenne') return { color: '#eab308', bg: 'rgba(234,179,8,0.08)', border: 'rgba(234,179,8,0.25)', icon: 'shield-half' };
-  if (label === 'Faible') return { color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.25)', icon: 'shield-alert' };
-  return { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', icon: 'shield-x' };
+  const palier = PALIER_CONFIANCE[props.confidenceLabel] || 2;
+  return {
+    color: `var(--fe-ramp-${palier})`,
+    ink: `var(--fe-ramp-${palier}-ink)`,
+    bg: 'var(--fe-surface-2)',
+    border: 'var(--fe-rule)',
+    icon: { 5: 'shield-check', 4: 'shield-half', 3: 'shield-alert' }[palier] || 'shield-x',
+  };
 });
 
 const globalPercent = computed(() =>
@@ -48,11 +56,22 @@ const dvfNaParcel = computed(() =>
   props.scoreDvf === 0 || props.scoreDvf === null
 );
 
+// Les quatre sous-scores sont sur la meme echelle : leur couleur vient donc de
+// leur VALEUR, pas de leur identite. Une couleur par source coderait une
+// difference qui n'existe pas, et empecherait de les comparer d'un regard.
+const palierDeScore = (v) =>
+  v == null ? null : Math.min(5, Math.max(1, Math.ceil((Number(v) / 100) * 5)));
+
+const couleurDeScore = (v) => {
+  const palier = palierDeScore(v);
+  return palier ? `var(--fe-ramp-${palier})` : 'var(--fe-rule-strong)';
+};
+
 const subScores = computed(() => [
-  { key: 'bdnb',     label: 'BDNB · bâtiment documenté',   value: props.scoreBdnb,         color: '#6366f1', weight: '30%' },
-  { key: 'dvf',      label: 'DVF · données de marché',      value: props.scoreDvf,          color: '#527f8c', weight: '25%', naParcel: dvfNaParcel.value },
-  { key: 'zan',      label: 'Source ZAN · emprise sol',     value: props.scoreDensification, color: '#10b981', weight: '25%' },
-  { key: 'fraicheur',label: 'Fraîcheur · dernière vente',   value: props.scoreFraicheur,    color: '#f59e0b', weight: '20%' },
+  { key: 'bdnb',      label: 'BDNB · bâtiment documenté', value: props.scoreBdnb,          weight: '30%', color: couleurDeScore(props.scoreBdnb) },
+  { key: 'dvf',       label: 'DVF · données de marché',   value: props.scoreDvf,           weight: '25%', color: couleurDeScore(props.scoreDvf), naParcel: dvfNaParcel.value },
+  { key: 'zan',       label: 'Source ZAN · emprise sol',  value: props.scoreDensification, weight: '25%', color: couleurDeScore(props.scoreDensification) },
+  { key: 'fraicheur', label: 'Fraîcheur · dernière vente', value: props.scoreFraicheur,    weight: '20%', color: couleurDeScore(props.scoreFraicheur) },
 ]);
 </script>
 
@@ -62,7 +81,7 @@ const subScores = computed(() => [
     <button class="confidence-header" @click="expanded = !expanded">
       <div class="header-left">
         <!-- Shield icon -->
-        <div class="shield-icon" :style="{ backgroundColor: config.bg, color: config.color }">
+        <div class="shield-icon" :style="{ backgroundColor: config.color, color: config.ink }">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             <path v-if="config.icon === 'shield-check'" d="M9 12l2 2 4-4" />
@@ -179,8 +198,8 @@ const subScores = computed(() => [
 <style scoped>
 .confidence-card {
   background: white;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 14px;
+  border: 1.5px solid var(--fe-rule);
+  border-radius: var(--fe-radius);
   overflow: hidden;
   transition: border-color 0.3s ease;
 }
@@ -198,7 +217,7 @@ const subScores = computed(() => [
 }
 
 .confidence-header:hover {
-  background: #f8fafc;
+  background: var(--fe-surface-2);
 }
 
 .header-left {
@@ -210,7 +229,7 @@ const subScores = computed(() => [
 .shield-icon {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--fe-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -226,7 +245,7 @@ const subScores = computed(() => [
 .confidence-title {
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--fe-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -240,7 +259,7 @@ const subScores = computed(() => [
   padding: 2px;
   border: none;
   background: transparent;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   cursor: pointer;
   border-radius: 50%;
   display: flex;
@@ -249,7 +268,7 @@ const subScores = computed(() => [
   transition: color 0.2s, background 0.2s;
 }
 .lexique-trigger:hover {
-  color: #527f8c;
+  color: var(--fe-accent);
   background: rgba(82, 127, 140, 0.1);
 }
 .lexique-trigger svg {
@@ -262,17 +281,17 @@ const subScores = computed(() => [
   margin: 0 16px 12px;
   background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(99, 102, 241, 0.04));
   border: 1px solid rgba(82, 127, 140, 0.15);
-  border-radius: 10px;
+  border-radius: var(--fe-radius);
   font-size: 12px;
   line-height: 1.5;
-  color: #475569;
+  color: var(--fe-ink-2);
 }
 .lexique-benefit {
   margin: 0 0 10px 0;
   padding: 8px 10px;
   background: rgba(16, 185, 129, 0.08);
-  border-radius: 8px;
-  border-left: 3px solid #10b981;
+  border-radius: var(--fe-radius);
+  border-left: 3px solid var(--fe-ramp-5);
   font-size: 12px;
 }
 .lexique-intro {
@@ -288,12 +307,12 @@ const subScores = computed(() => [
 .lexique-levels {
   margin: 8px 0 0 0;
   font-size: 11px;
-  color: #64748b;
+  color: var(--fe-ink-3);
 }
 
 .confidence-label {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -305,12 +324,12 @@ const subScores = computed(() => [
 
 .confidence-percent {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .chevron {
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   transition: transform 0.25s ease;
 }
 .chevron-open {
@@ -319,7 +338,7 @@ const subScores = computed(() => [
 
 .global-bar-track {
   height: 4px;
-  background: #f1f5f9;
+  background: var(--fe-surface-2);
 }
 
 .global-bar-fill {
@@ -333,16 +352,16 @@ const subScores = computed(() => [
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #fff7ed;
-  color: #c2410c;
+  background: var(--fe-alert-soft);
+  color: var(--fe-alert);
   font-size: 12px;
   font-weight: 500;
-  border-top: 1px solid #fed7aa;
+  border-top: 1px solid var(--fe-alert-soft);
 }
 
 .detail-panel {
   padding: 12px 16px 16px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--fe-surface-2);
 }
 
 .sub-scores {
@@ -366,19 +385,19 @@ const subScores = computed(() => [
 .sub-score-label {
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: var(--fe-ink-2);
   flex: 1;
 }
 
 .sub-score-weight {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   font-weight: 500;
 }
 
 .sub-score-value {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   min-width: 36px;
   text-align: right;
@@ -387,7 +406,7 @@ const subScores = computed(() => [
 .sub-score-na {
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   font-style: italic;
   min-width: 36px;
   text-align: right;
@@ -395,14 +414,14 @@ const subScores = computed(() => [
 
 .sub-bar-track {
   height: 5px;
-  background: #f1f5f9;
-  border-radius: 3px;
+  background: var(--fe-surface-2);
+  border-radius: var(--fe-radius-sm);
   overflow: hidden;
 }
 
 .sub-bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--fe-radius-sm);
   transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -412,15 +431,15 @@ const subScores = computed(() => [
   gap: 6px;
   margin-top: 12px;
   padding: 6px 12px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 8px;
+  background: var(--fe-ramp-1);
+  border: 1px solid var(--fe-ramp-2);
+  border-radius: var(--fe-radius);
   font-size: 11px;
-  color: #15803d;
+  color: var(--fe-ramp-5);
 }
 
 .source-tag strong {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Expand transition */

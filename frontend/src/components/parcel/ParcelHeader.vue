@@ -127,7 +127,7 @@ const formattedId = computed(() => {
 .header-bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #527f8c, #39616d);
+  background: linear-gradient(135deg, var(--fe-accent), var(--fe-accent));
 }
 
 .satellite-img {
@@ -181,8 +181,7 @@ const formattedId = computed(() => {
   gap: 6px;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
+  border-radius: var(--fe-radius);
   font-size: 11px;
   font-weight: 600;
   color: white;
@@ -192,7 +191,7 @@ const formattedId = computed(() => {
 
 .parcel-id {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 600;
   color: white;
   margin: 0;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -209,9 +208,8 @@ const formattedId = computed(() => {
 
 .close-btn {
   background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(8px);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--fe-radius);
   width: 38px;
   height: 38px;
   display: flex;
@@ -242,8 +240,7 @@ const formattedId = computed(() => {
   gap: 6px;
   padding: 6px 12px;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
+  border-radius: var(--fe-radius);
   font-size: 11px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);

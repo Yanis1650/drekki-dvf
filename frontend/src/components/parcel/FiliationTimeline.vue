@@ -187,15 +187,15 @@ const getOperationTooltip = (nature) => {
 
 <style scoped>
 .filiation-section {
-  background: #f8fafc;
-  border-radius: 16px;
+  background: var(--fe-surface-2);
+  border-radius: var(--fe-radius);
   padding: 20px;
 }
 
 .section-title {
   font-size: 15px;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--fe-ink);
   margin: 0 0 16px 0;
   display: flex;
   align-items: center;
@@ -205,7 +205,7 @@ const getOperationTooltip = (nature) => {
 .section-title .icon {
   width: 20px;
   height: 20px;
-  color: #527f8c;
+  color: var(--fe-accent);
 }
 
 .loading-state,
@@ -214,19 +214,19 @@ const getOperationTooltip = (nature) => {
 .empty-state {
   text-align: center;
   padding: 24px;
-  color: #64748b;
+  color: var(--fe-ink-3);
   font-size: 14px;
 }
 
 .error-state {
-  color: #ef4444;
+  color: var(--fe-alert);
 }
 
 .unavailable-state {
-  background: #fefce8;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  color: #854d0e;
+  background: var(--fe-warn-soft);
+  border: 1px solid var(--fe-warn-soft);
+  border-radius: var(--fe-radius);
+  color: var(--fe-warn);
 }
 
 .unavailable-title {
@@ -243,8 +243,8 @@ const getOperationTooltip = (nature) => {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #527f8c;
+  border: 3px solid var(--fe-rule);
+  border-top-color: var(--fe-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 12px;
@@ -256,7 +256,7 @@ const getOperationTooltip = (nature) => {
 
 .summary-card {
   background: linear-gradient(135deg, rgba(82, 127, 140, 0.08), rgba(63, 103, 117, 0.08));
-  border-radius: 12px;
+  border-radius: var(--fe-radius);
   padding: 14px;
   margin-bottom: 16px;
   border: 1px solid rgba(82, 127, 140, 0.15);
@@ -265,16 +265,16 @@ const getOperationTooltip = (nature) => {
 .summary-text {
   font-size: 14px;
   line-height: 1.5;
-  color: #334155;
+  color: var(--fe-ink-2);
   margin: 0 0 8px 0;
 }
 
 .depth-badge {
   display: inline-block;
-  background: #527f8c;
+  background: var(--fe-accent);
   color: white;
   padding: 4px 12px;
-  border-radius: 12px;
+  border-radius: var(--fe-radius);
   font-size: 11px;
   font-weight: 600;
 }
@@ -300,8 +300,7 @@ const getOperationTooltip = (nature) => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #527f8c;
-  box-shadow: 0 0 0 4px rgba(82, 127, 140, 0.2);
+  background: var(--fe-accent);
   z-index: 1;
 }
 
@@ -311,20 +310,19 @@ const getOperationTooltip = (nature) => {
   top: 16px;
   width: 2px;
   height: calc(100% - 4px);
-  background: linear-gradient(180deg, #527f8c, #e2e8f0);
+  background: linear-gradient(180deg, var(--fe-accent), var(--fe-rule));
 }
 
 .timeline-content {
   background: white;
-  border-radius: 10px;
+  border-radius: var(--fe-radius);
   padding: 12px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--fe-rule);
   transition: all 0.2s ease;
 }
 
 .timeline-content:hover {
-  border-color: #527f8c;
-  box-shadow: 0 4px 12px rgba(82, 127, 140, 0.1);
+  border-color: var(--fe-accent);
   transform: translateX(4px);
 }
 
@@ -339,21 +337,21 @@ const getOperationTooltip = (nature) => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--fe-ink);
 }
 
 .operation-badge {
   font-size: 10px;
-  color: #527f8c;
+  color: var(--fe-accent);
   background: rgba(82, 127, 140, 0.1);
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--fe-radius-sm);
   font-weight: 500;
 }
 
 .timeline-date {
   font-size: 12px;
-  color: #64748b;
+  color: var(--fe-ink-3);
 }
 
 .lexique-trigger {
@@ -361,7 +359,7 @@ const getOperationTooltip = (nature) => {
   padding: 4px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--fe-ink-3);
   cursor: pointer;
   border-radius: 50%;
   display: flex;
@@ -370,7 +368,7 @@ const getOperationTooltip = (nature) => {
   transition: color 0.2s, background 0.2s;
 }
 .lexique-trigger:hover {
-  color: #527f8c;
+  color: var(--fe-accent);
   background: rgba(82, 127, 140, 0.1);
 }
 .lexique-trigger svg {
@@ -381,12 +379,12 @@ const getOperationTooltip = (nature) => {
 .lexique-note {
   background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(63, 103, 117, 0.06));
   border: 1px solid rgba(82, 127, 140, 0.2);
-  border-radius: 12px;
+  border-radius: var(--fe-radius);
   padding: 14px 16px;
   margin-bottom: 16px;
   font-size: 13px;
   line-height: 1.55;
-  color: #475569;
+  color: var(--fe-ink-2);
 }
 .lexique-note p {
   margin: 0 0 8px 0;
@@ -400,7 +398,7 @@ const getOperationTooltip = (nature) => {
 .lexique-link {
   display: inline-block;
   font-size: 12px;
-  color: #527f8c;
+  color: var(--fe-accent);
   font-weight: 500;
   text-decoration: none;
 }

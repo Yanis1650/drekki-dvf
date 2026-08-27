@@ -99,15 +99,15 @@ const typeLabel = (typeLocal) => {
 
 <style scoped>
 .transactions-section {
-  background: #f8fafc;
-  border-radius: 16px;
+  background: var(--fe-surface-2);
+  border-radius: var(--fe-radius);
   padding: 20px;
 }
 
 .section-title {
   font-size: 13px;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--fe-ink);
   margin: 0 0 14px 0;
   display: flex;
   align-items: center;
@@ -120,9 +120,9 @@ const typeLabel = (typeLocal) => {
   font-size: 11px;
   font-weight: 600;
   color: white;
-  background: #6366f1;
+  background: var(--fe-accent);
   padding: 2px 9px;
-  border-radius: 10px;
+  border-radius: var(--fe-radius);
 }
 
 .table-header {
@@ -132,10 +132,10 @@ const typeLabel = (typeLocal) => {
   padding: 0 0 6px;
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--fe-rule);
   margin-bottom: 4px;
 }
 
@@ -148,7 +148,7 @@ const typeLabel = (typeLocal) => {
   grid-template-columns: 82px 76px 1fr 72px;
   gap: 6px;
   padding: 9px 0;
-  border-bottom: 0.5px solid #f1f5f9;
+  border-bottom: 0.5px solid var(--fe-surface-2);
   align-items: center;
   font-size: 12px;
   transition: background 0.15s;
@@ -164,70 +164,70 @@ const typeLabel = (typeLocal) => {
 
 .tx-date {
   font-size: 12px;
-  color: #475569;
+  color: var(--fe-ink-2);
 }
 
 .tx-badge {
   display: inline-block;
   font-size: 10px;
   padding: 2px 7px;
-  border-radius: 20px;
+  border-radius: var(--fe-radius);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .badge-maison {
-  background: #e6f1fb;
-  color: #185fa5;
+  background: var(--fe-accent-soft);
+  color: var(--fe-accent);
 }
 
 .badge-appt {
-  background: #eeedfe;
-  color: #534ab7;
+  background: var(--fe-accent-soft);
+  color: var(--fe-accent);
 }
 
 .badge-outlier {
-  background: #faeeda;
-  color: #854f0b;
+  background: var(--fe-warn-soft);
+  color: var(--fe-warn);
 }
 
 .badge-other {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--fe-surface-2);
+  color: var(--fe-ink-3);
 }
 
 .tx-val {
   text-align: right;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--fe-ink);
 }
 
 .tx-val-muted {
-  color: #94a3b8;
+  color: var(--fe-ink-3);
 }
 
 .tx-m2 {
   text-align: right;
-  color: #64748b;
+  color: var(--fe-ink-3);
   font-variant-numeric: tabular-nums;
 }
 
 .tx-m2-outlier {
-  color: #EF9F27;
+  color: var(--fe-warn);
   font-weight: 600;
 }
 
 .outlier-note {
   margin-top: 10px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   font-style: italic;
 }
 
 .empty-state {
   text-align: center;
   padding: 24px;
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   font-size: 14px;
 }
 </style>

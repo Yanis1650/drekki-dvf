@@ -54,7 +54,7 @@ const selectAddress = (feature) => {
       <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
         <MagnifyingGlassIcon 
           class="h-5 w-5 transition-colors duration-200"
-          :class="isFocused ? 'text-sage-500' : 'text-slate-400'"
+          :class="isFocused ? 'text-accent' : 'text-ink-3'"
         />
       </div>
       
@@ -65,17 +65,17 @@ const selectAddress = (feature) => {
         @blur="isFocused = false" 
         type="text" 
         placeholder="Rechercher une adresse..." 
-        class="w-full pl-12 pr-12 py-3.5 bg-white rounded-xl border-2 transition-all duration-200
-               text-slate-800 placeholder-slate-400 font-medium
-               focus:outline-none"
-        :class="isFocused 
-          ? 'border-sage-400 shadow-[0_0_0_4px_rgba(99,102,241,0.1)]' 
-          : 'border-slate-200 hover:border-slate-300 shadow-sm'"
+        class="w-full pl-12 pr-12 py-3.5 bg-surface rounded border-2 transition-all duration-200
+         text-ink placeholder-ink-3 font-medium
+         focus:outline-none"
+        :class="isFocused
+         ? 'border-accent '
+         : 'border-rule hover:border-rule-strong '"
       />
       
       <!-- Spinner -->
       <div v-if="loading" class="absolute right-4 top-1/2 -translate-y-1/2">
-        <svg class="animate-spin h-5 w-5 text-sage-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -93,27 +93,27 @@ const selectAddress = (feature) => {
     >
       <ul 
         v-if="results.length > 0" 
-        class="absolute z-50 w-full mt-2 bg-white rounded-xl border border-slate-200 shadow-xl 
-               max-h-72 overflow-y-auto custom-scrollbar"
+        class="absolute z-50 w-full mt-2 bg-surface rounded border border-rule
+         max-h-72 overflow-y-auto custom-scrollbar"
       >
         <li 
           v-for="(feature, index) in results" 
           :key="index"
           @click="selectAddress(feature)"
           class="group flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors
-                 hover:bg-sage-50 border-b border-slate-100 last:border-0"
+           hover:bg-accent-soft border-b border-rule last:border-0"
         >
           <!-- Pin Icon -->
-          <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-sage-100 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
-            <MapPinIcon class="h-4 w-4 text-slate-400 group-hover:text-sage-500 transition-colors" />
+          <div class="w-8 h-8 rounded bg-surface-2 group-hover:bg-accent-soft flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
+            <MapPinIcon class="h-4 w-4 text-ink-3 group-hover:text-accent transition-colors" />
           </div>
           
           <!-- Address Info -->
           <div class="flex-1 min-w-0">
-            <p class="font-semibold text-slate-800 text-sm leading-tight truncate group-hover:text-sage-700 transition-colors">
+            <p class="font-semibold text-ink text-body leading-tight truncate group-hover:text-accent transition-colors">
               {{ feature.properties.label }}
             </p>
-            <p class="text-xs text-slate-500 mt-0.5 truncate">
+            <p class="text-meta text-ink-3 mt-0.5 truncate">
               {{ feature.properties.context }}
             </p>
           </div>

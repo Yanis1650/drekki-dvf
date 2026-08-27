@@ -63,7 +63,7 @@ const fmt = (v) =>
 <style scoped>
 .stat-card {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(168, 85, 247, 0.06));
-  border-radius: 12px;
+  border-radius: var(--fe-radius);
   padding: 14px 10px;
   text-align: center;
   border: 1px solid rgba(99, 102, 241, 0.12);
@@ -73,13 +73,12 @@ const fmt = (v) =>
 .stat-card:hover {
   transform: translateY(-2px);
   border-color: rgba(99, 102, 241, 0.25);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
 }
 
 .stat-label {
   display: block;
   font-size: 10px;
-  color: #64748b;
+  color: var(--fe-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
@@ -89,17 +88,17 @@ const fmt = (v) =>
 .stat-value {
   display: block;
   font-size: 17px;
-  font-weight: 700;
-  color: #6366f1;
+  font-weight: 600;
+  color: var(--fe-accent);
 }
 
 .stat-muted {
-  color: #94a3b8;
+  color: var(--fe-ink-3);
   font-size: 14px;
 }
 
 .stat-teal {
-  color: #1D9E75;
+  color: var(--fe-ramp-5);
 }
 
 .stat-sm {
@@ -109,10 +108,10 @@ const fmt = (v) =>
 .no-tx-note {
   margin-top: 10px;
   font-size: 11px;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  color: var(--fe-ink-3);
+  background: var(--fe-surface-2);
+  border: 1px solid var(--fe-rule);
+  border-radius: var(--fe-radius);
   padding: 8px 10px;
   line-height: 1.5;
 }

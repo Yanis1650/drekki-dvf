@@ -1,213 +1,134 @@
 <script setup>
 import { computed } from 'vue';
-import { ChartBarIcon } from '@heroicons/vue/24/solid';
 import apexchart from 'vue3-apexcharts';
+import { token } from '../styles/tokens';
 
+/**
+ * Évolution du marché : prix médian au m² et volume de ventes.
+ *
+ * Les deux séries étaient superposées sur deux axes verticaux distincts. Un
+ * double axe laisse choisir arbitrairement l'échelle de chacun, donc la forme
+ * de leur croisement : on peut lui faire dire à peu près n'importe quoi. Elles
+ * sont désormais empilées sur un axe des années commun — la comparaison reste
+ * immédiate, sans que le graphique n'affirme de corrélation.
+ *
+ * Référence : docs/CHARTE_GRAPHIQUE.md §6.4
+ */
 const props = defineProps({
-  trends: {
-    type: Array,
-    required: true
-  },
-  loading: {
-    type: Boolean,
-    default: false
-  }
+  trends: { type: Array, required: true },
+  loading: { type: Boolean, default: false },
 });
 
-// Prepare chart data
 const chartData = computed(() => {
   if (!props.trends || props.trends.length === 0) {
     return { years: [], prices: [], volumes: [] };
   }
-
   return {
-    years: props.trends.map(t => t.year),
-    prices: props.trends.map(t => parseFloat(t.avg_price_m2)),
-    volumes: props.trends.map(t => t.transaction_volume)
+    years: props.trends.map((t) => t.year),
+    prices: props.trends.map((t) => parseFloat(t.avg_price_m2)),
+    volumes: props.trends.map((t) => t.transaction_volume),
   };
 });
 
-// Line + Bar chart configuration (ApexCharts)
-const chartOptions = computed(() => ({
+/** Effectif total : une série agrégée ne se présente jamais sans son effectif. */
+const totalVentes = computed(() =>
+  chartData.value.volumes.reduce((sum, v) => sum + (Number(v) || 0), 0),
+);
+
+const axeX = () => ({
+  categories: chartData.value.years,
+  labels: { style: { colors: token('--fe-ink-3'), fontSize: '11px' } },
+  axisBorder: { show: false },
+  axisTicks: { show: false },
+});
+
+const grille = () => ({
+  borderColor: token('--fe-rule'),
+  strokeDashArray: 0,
+  xaxis: { lines: { show: false } },
+  yaxis: { lines: { show: true } },
+});
+
+const prixOptions = computed(() => ({
   chart: {
-    type: 'line',
-    height: 350,
-    toolbar: {
-      show: false
-    },
-    animations: {
-      enabled: true,
-      easing: 'easeinout',
-      speed: 800,
-      animateGradually: {
-        enabled: true,
-        delay: 150
-      }
-    },
+    type: 'area',
+    height: 220,
+    toolbar: { show: false },
+    animations: { enabled: true, easing: 'easeout', speed: 300 },
     background: 'transparent',
-    fontFamily: 'Inter, sans-serif'
+    fontFamily: 'IBM Plex Sans, sans-serif',
   },
-  stroke: {
-    width: [3, 0],
-    curve: 'smooth'
-  },
-  colors: ['#6366f1', '#06b6d4'],
-  fill: {
-    type: ['gradient', 'solid'],
-    gradient: {
-      shade: 'dark',
-      type: 'vertical',
-      shadeIntensity: 0.5,
-      gradientToColors: ['#8b5cf6', '#0891b2'],
-      inverseColors: false,
-      opacityFrom: 0.7,
-      opacityTo: 0.3,
-      stops: [0, 100]
-    }
-  },
-  dataLabels: {
-    enabled: false
-  },
-  xaxis: {
-    categories: chartData.value.years,
+  colors: [token('--fe-ramp-4')],
+  stroke: { width: 2, curve: 'straight' },
+  fill: { type: 'solid', opacity: 0.14 },
+  markers: { size: 3, strokeWidth: 0, hover: { size: 5 } },
+  dataLabels: { enabled: false },
+  xaxis: axeX(),
+  yaxis: {
     labels: {
-      style: {
-        colors: '#64748b',
-        fontSize: '12px'
-      }
+      style: { colors: token('--fe-ink-3'), fontSize: '11px' },
+      formatter: (v) => (v ? `${Math.round(v).toLocaleString('fr-FR')} €` : '—'),
     },
-    axisBorder: {
-      show: false
-    },
-    axisTicks: {
-      show: false
-    }
   },
-  yaxis: [
-    {
-      title: {
-        text: 'Prix/m² (€)',
-        style: {
-          color: '#6366f1',
-          fontSize: '12px',
-          fontWeight: 600
-        }
-      },
-      labels: {
-        style: {
-          colors: '#64748b',
-          fontSize: '11px'
-        },
-        formatter: (value) => {
-          return value ? `${Math.round(value)}€` : '0€';
-        }
-      }
-    },
-    {
-      opposite: true,
-      title: {
-        text: 'Volume de ventes',
-        style: {
-          color: '#06b6d4',
-          fontSize: '12px',
-          fontWeight: 600
-        }
-      },
-      labels: {
-        style: {
-          colors: '#64748b',
-          fontSize: '11px'
-        }
-      }
-    }
-  ],
+  grid: grille(),
   tooltip: {
-    shared: true,
-    intersect: false,
-    theme: 'dark',
-    style: {
-      fontSize: '12px'
-    },
-    y: [
-      {
-        formatter: (value) => `${Math.round(value)}€/m²`
-      },
-      {
-        formatter: (value) => `${value} ventes`
-      }
-    ]
+    theme: 'light',
+    y: { formatter: (v) => `${Math.round(v).toLocaleString('fr-FR')} €/m²` },
   },
-  legend: {
-    show: true,
-    position: 'top',
-    horizontalAlign: 'left',
-    labels: {
-      colors: '#64748b'
-    },
-    markers: {
-      width: 10,
-      height: 10,
-      radius: 3
-    }
-  },
-  grid: {
-    borderColor: '#e2e8f0',
-    strokeDashArray: 4,
-    xaxis: {
-      lines: {
-        show: false
-      }
-    },
-    yaxis: {
-      lines: {
-        show: true
-      }
-    }
-  }
+  legend: { show: false },
 }));
 
-const series = computed(() => [
-  {
-    name: 'Prix/m²',
-    type: 'area',
-    data: chartData.value.prices
+const volumeOptions = computed(() => ({
+  chart: {
+    type: 'bar',
+    height: 130,
+    toolbar: { show: false },
+    animations: { enabled: true, easing: 'easeout', speed: 300 },
+    background: 'transparent',
+    fontFamily: 'IBM Plex Sans, sans-serif',
   },
-  {
-    name: 'Volume',
-    type: 'column',
-    data: chartData.value.volumes
-  }
-]);
+  colors: [token('--fe-ramp-2')],
+  plotOptions: { bar: { columnWidth: '45%', borderRadius: 2, borderRadiusApplication: 'end' } },
+  dataLabels: { enabled: false },
+  xaxis: axeX(),
+  yaxis: {
+    labels: { style: { colors: token('--fe-ink-3'), fontSize: '11px' } },
+    tickAmount: 3,
+  },
+  grid: grille(),
+  tooltip: { theme: 'light', y: { formatter: (v) => `${v} ventes` } },
+  legend: { show: false },
+}));
+
+const prixSeries = computed(() => [{ name: 'Prix médian/m²', data: chartData.value.prices }]);
+const volumeSeries = computed(() => [{ name: 'Ventes', data: chartData.value.volumes }]);
 </script>
 
 <template>
-  <div class="market-trends-chart">
-    <!-- Loading State -->
+  <div class="w-full">
     <div v-if="loading" class="flex items-center justify-center h-80">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-sage-600"></div>
+      <div class="w-8 h-8 rounded-full border-2 border-rule border-t-accent animate-spin"></div>
     </div>
 
-    <!-- Chart -->
-    <div v-else-if="trends && trends.length > 0">
-      <apexchart
-        type="line"
-        height="350"
-        :options="chartOptions"
-        :series="series"
-      />
+    <div v-else-if="trends && trends.length > 0" class="flex flex-col gap-4">
+      <div>
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="fe-label">Prix médian au m²</span>
+          <span class="fe-meta tabular-nums">n = {{ totalVentes.toLocaleString('fr-FR') }} ventes</span>
+        </div>
+        <apexchart type="area" height="220" :options="prixOptions" :series="prixSeries" />
+      </div>
+
+      <div>
+        <span class="fe-label">Volume de ventes</span>
+        <apexchart type="bar" height="130" :options="volumeOptions" :series="volumeSeries" />
+      </div>
     </div>
 
-    <!-- Empty State -->
-    <div v-else class="flex flex-col items-center justify-center h-80 text-slate-400">
-      <ChartBarIcon class="h-16 w-16 mb-3 opacity-50" />
-      <p class="text-sm">Aucune donnée historique disponible</p>
+    <!-- Absence de donnée : nommée, jamais remplacée par un graphique à zéro. -->
+    <div v-else class="flex flex-col items-center justify-center h-80 gap-2">
+      <span class="absent">NON RELEVÉ</span>
+      <p class="fe-meta">Aucune série historique pour ce secteur</p>
     </div>
   </div>
 </template>
-
-<style scoped>
-.market-trends-chart {
-  width: 100%;
-  min-height: 350px;
-}
-</style>

@@ -50,11 +50,10 @@ const onTransactionClick = (feature) => {
           class="absolute inset-0 flex items-center justify-center z-20 pointer-events-none"
         >
           <div
-            class="flex items-center gap-3 bg-white/95 backdrop-blur-lg
-                   rounded-full px-6 py-3 shadow-lg border border-white/50"
+            class="flex items-center gap-3 bg-surface rounded-full px-6 py-3 border border-rule-strong"
           >
-            <div class="w-4 h-4 border-2 border-sage-500 border-t-transparent rounded-full animate-spin"></div>
-            <span class="text-sm font-medium text-slate-700">Chargement des données…</span>
+            <div class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-body font-medium text-ink-2">Chargement des données…</span>
           </div>
         </div>
       </Transition>

@@ -98,10 +98,10 @@ const potentialGain = computed(() => {
 const qualityScores = computed(() => {
   const e = fiche.value?.enrichment || {};
   return [
-    { id: 'transport', label: 'Transports & Mobilité',  score: e.transport || 0, icon: TruckIcon,       gradient: 'from-blue-500 to-cyan-400'    },
-    { id: 'education', label: 'Éducation & Services',   score: e.education || 0, icon: AcademicCapIcon, gradient: 'from-sage-500 to-sage-400'    },
-    { id: 'commerce',  label: 'Commerces & Vie locale', score: e.commerce  || 0, icon: ShoppingBagIcon, gradient: 'from-pink-500 to-rose-400'    },
-    { id: 'calme',     label: 'Calme & Environnement',  score: e.calme     || 0, icon: HeartIcon,       gradient: 'from-emerald-500 to-teal-400' },
+    { id: 'transport', label: 'Transports & Mobilité',  score: e.transport ?? null, icon: TruckIcon       },
+    { id: 'education', label: 'Éducation & Services',   score: e.education ?? null, icon: AcademicCapIcon },
+    { id: 'commerce',  label: 'Commerces & Vie locale', score: e.commerce  ?? null, icon: ShoppingBagIcon },
+    { id: 'calme',     label: 'Calme & Environnement',  score: e.calme     ?? null, icon: HeartIcon       },
   ];
 });
 
@@ -196,22 +196,21 @@ watch(
     <!-- Resize handle (left edge) -->
     <div
       class="w-3 flex-shrink-0 flex items-center justify-center cursor-col-resize
-             hover:bg-sage-50 transition-colors group"
+       hover:bg-accent-soft transition-colors group"
       @mousedown="startResize"
     >
       <div
-        class="w-0.5 h-10 bg-slate-200 rounded-full
-               group-hover:bg-sage-400 transition-colors"
+        class="w-0.5 h-10 bg-surface-2 rounded-full
+         group-hover:bg-accent transition-colors"
       ></div>
     </div>
 
     <!-- Panel body -->
     <div
-      class="flex-1 min-w-0 flex flex-col bg-white overflow-hidden
-             shadow-[-8px_0_40px_rgba(0,0,0,0.08),_-1px_0_0_rgba(226,232,240,0.6)]"
+      class="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden"
     >
       <!-- ── Header ── -->
-      <div class="flex-shrink-0 px-5 pt-4 border-b border-slate-100">
+      <div class="flex-shrink-0 px-5 pt-4 border-b border-rule">
         <div class="flex items-start justify-between gap-3 mb-3">
           <ParcelHeader
             :parcel-id="parcelId"
@@ -220,10 +219,10 @@ watch(
           />
           <button
             @click="$emit('close')"
-            class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex-shrink-0
-                   flex items-center justify-center transition-colors mt-0.5"
+            class="w-7 h-7 rounded bg-surface-2 hover:bg-surface-2 flex-shrink-0
+             flex items-center justify-center transition-colors mt-0.5"
           >
-            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="w-3.5 h-3.5 text-ink-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -235,11 +234,11 @@ watch(
             v-for="tab in TABS"
             :key="tab.id"
             @click="activeTab = tab.id"
-            class="flex-shrink-0 px-4 py-2.5 text-xs font-semibold
-                   whitespace-nowrap transition-colors border-b-2"
+            class="flex-shrink-0 px-4 py-2.5 text-meta font-semibold
+             whitespace-nowrap transition-colors border-b-2"
             :class="activeTab === tab.id
-              ? 'border-sage-500 text-sage-700'
-              : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-200'"
+             ? 'border-accent text-accent'
+             : 'border-transparent text-ink-3 hover:text-ink-2 hover:border-rule'"
           >
             {{ tab.label }}
           </button>
@@ -251,13 +250,13 @@ watch(
 
         <!-- Loading -->
         <div v-if="loading" class="flex flex-col items-center justify-center h-52 gap-3">
-          <div class="w-9 h-9 border-[3px] border-slate-100 border-t-sage-500 rounded-full animate-spin"></div>
-          <p class="text-sm text-slate-400">Chargement…</p>
+          <div class="w-9 h-9 border-[3px] border-rule border-t-sage-500 rounded-full animate-spin"></div>
+          <p class="text-body text-ink-3">Chargement…</p>
         </div>
 
         <!-- Error -->
         <div v-else-if="error" class="flex items-center justify-center h-52 px-6 text-center">
-          <p class="text-sm text-red-500">{{ error }}</p>
+          <p class="text-body text-alert">{{ error }}</p>
         </div>
 
         <!-- ── Résumé ── -->
@@ -266,14 +265,13 @@ watch(
           <!-- Potentiel brut -->
           <div
             v-if="densification && avgPriceM2 > 0"
-            class="rounded-2xl p-4 bg-gradient-to-br from-amber-50 to-yellow-100
-                   border border-amber-200/80"
+            class="rounded p-4 bg-warn-soft border border-warn/40"
           >
-            <p class="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">
+            <p class="text-label font-semibold uppercase tracking-widest text-warn mb-1">
               Potentiel brut estimé
             </p>
-            <p class="text-3xl font-black text-amber-900 tabular-nums">{{ fmt(potentialGain) }}</p>
-            <p class="text-[11px] text-amber-700 mt-1.5 font-mono">
+            <p class="text-figure font-semibold text-warn tabular-nums">{{ fmt(potentialGain) }}</p>
+            <p class="text-label text-warn mt-1.5 font-mono">
               {{ densification.surface_constructible_restante.toFixed(0) }} m²
               × {{ avgPriceM2.toFixed(0) }} €/m²
             </p>
@@ -303,7 +301,7 @@ watch(
           <!-- Fiche unavailable -->
           <div
             v-if="!fiche && !loading"
-            class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700"
+            class="p-3 rounded bg-warn-soft border border-warn text-meta text-warn"
           >
             ℹ️ Données d'expertise non disponibles pour cette parcelle.
           </div>
@@ -317,14 +315,14 @@ watch(
           />
           <div
             v-else
-            class="flex items-center justify-center h-32 text-slate-400 text-sm"
+            class="flex items-center justify-center h-32 text-ink-3 text-body"
           >
             Aucune transaction disponible
           </div>
 
           <!-- Quality scores -->
           <div v-if="fiche" class="space-y-3">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Qualité de vie</p>
+            <p class="text-label font-semibold uppercase tracking-wider text-ink-3">Qualité de vie</p>
             <ScoreBar
               v-for="s in qualityScores"
               :key="s.id"
@@ -350,7 +348,7 @@ watch(
           />
           <div
             v-else
-            class="flex items-center justify-center h-32 text-slate-400 text-sm"
+            class="flex items-center justify-center h-32 text-ink-3 text-body"
           >
             Score de densification non disponible
           </div>
@@ -364,7 +362,7 @@ watch(
           />
           <div
             v-else
-            class="flex items-center justify-center h-32 text-slate-400 text-sm"
+            class="flex items-center justify-center h-32 text-ink-3 text-body"
           >
             Aucun historique disponible
           </div>
@@ -383,21 +381,12 @@ watch(
       <!-- ── Footer: Report button ── -->
       <div
         v-if="parcelId"
-        class="flex-shrink-0 px-5 py-4 bg-white border-t border-slate-100"
+        class="flex-shrink-0 px-5 py-4 bg-surface border-t border-rule"
       >
         <button
           @click="generateReport"
           :disabled="generatingReport"
-          class="w-full flex items-center justify-center gap-2.5 py-3 px-5
-                 bg-gradient-to-r from-sage-500 to-sage-600
-                 hover:from-sage-600 hover:to-sage-700
-                 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed
-                 text-white text-sm font-semibold rounded-xl
-                 shadow-[0_4px_14px_rgba(82,127,140,0.35)]
-                 hover:shadow-[0_6px_20px_rgba(82,127,140,0.45)]
-                 hover:-translate-y-0.5 active:translate-y-0
-                 disabled:shadow-none disabled:translate-y-0
-                 transition-all duration-200"
+          class="btn btn--primary w-full py-3"
         >
           <svg
             v-if="!generatingReport"
@@ -415,10 +404,10 @@ watch(
           </svg>
           <div
             v-else
-            class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+            class="w-4 h-4 border-2 border-accent-ink/30 border-t-accent-ink rounded-full animate-spin"
           ></div>
           <span>{{ generatingReport ? 'Génération…' : 'Rapport Expert PDF' }}</span>
-          <span class="ml-auto px-2 py-0.5 bg-white/20 rounded-lg text-xs font-bold">
+          <span class="ml-auto px-2 py-0.5 bg-accent-ink/15 rounded text-meta font-semibold">
             Gratuit
           </span>
         </button>

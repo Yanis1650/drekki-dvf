@@ -96,7 +96,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col overflow-hidden bg-slate-100">
+  <div class="h-screen flex flex-col overflow-hidden bg-surface-2">
 
     <!-- Offline banner -->
     <Transition
@@ -107,11 +107,11 @@ onMounted(() => {
     >
       <div
         v-if="backendOffline"
-        class="flex-shrink-0 bg-amber-400 text-slate-900 px-4 py-2
-               text-center text-xs font-semibold z-50"
+        class="flex-shrink-0 bg-warn text-ink px-4 py-2
+         text-center text-meta font-semibold z-50"
       >
         ⚠️ API backend inaccessible —
-        <code class="bg-black/10 px-1.5 py-0.5 rounded text-[11px]">
+        <code class="bg-ink/10 px-1.5 py-0.5 rounded text-label">
           uvicorn app.main:app --reload --port 8000
         </code>
       </div>

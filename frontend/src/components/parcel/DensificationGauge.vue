@@ -28,16 +28,18 @@ const props = defineProps({
   }
 });
 
-const sourceConfig = computed(() => {
-  const map = {
-    'bdnb_emprise': { label: 'BDNB', color: '#6366f1', bg: '#eef2ff' },
-    'bdtopo': { label: 'BD TOPO IGN', color: '#0ea5e9', bg: '#f0f9ff' },
-    'plu_gpu': { label: 'PLU (GPU)', color: '#10b981', bg: '#f0fdf4' },
-    'rnu_proximite': { label: 'RNU', color: '#f59e0b', bg: '#fffbeb' },
-    'bdnb_usage_only': { label: 'BDNB (usage)', color: '#8b5cf6', bg: '#f5f3ff' },
-  };
-  return map[props.sourceCes] || null;
-});
+// Les sources ne sont pas ordonnees entre elles : leur nom suffit a les
+// distinguer. Leur donner chacune une couleur reviendrait a coder une
+// information qui n'existe pas.
+const SOURCE_LABELS = {
+  bdnb_emprise: 'BDNB',
+  bdtopo: 'BD TOPO IGN',
+  plu_gpu: 'PLU (GPU)',
+  rnu_proximite: 'RNU',
+  bdnb_usage_only: 'BDNB (usage)',
+};
+
+const sourceLabel = computed(() => SOURCE_LABELS[props.sourceCes] || null);
 
 // Calculate gauge arc (180 degree arc)
 const cesPercent = computed(() => Math.round(props.cesActuel * 100));
@@ -79,22 +81,23 @@ const pluLabelPos  = computed(() => polarToCartesian(100, 100, 92, pluAngle.valu
 const isOverCapacity = computed(() => props.cesActuel > props.cesPlu && props.cesPlu > 0);
 
 // Color based on categorie
-const gaugeColor = computed(() => {
-  const colors = {
-    'FORT': '#10b981',
-    'MOYEN': '#eab308',
-    'FAIBLE': '#f97316',
-    'SATURE': '#ef4444'
-  };
-  return colors[props.categorie] || '#527f8c';
-});
+// Le potentiel de densification est une quantite ORDONNEE : il passe par la
+// rampe unique, du palier le plus foncé (fort potentiel) au plus clair (sature).
+// Le vert-jaune-orange-rouge d'origine affirmait qu'un fort potentiel est un
+// bien et une parcelle saturee un mal — ce que la donnee ne dit pas.
+const CATEGORIE_PALIER = { FORT: 5, MOYEN: 4, FAIBLE: 3, SATURE: 2 };
+
+const categoriePalier = computed(() => CATEGORIE_PALIER[props.categorie] || null);
+
+const gaugeColor = computed(() =>
+  categoriePalier.value ? `var(--fe-ramp-${categoriePalier.value})` : 'var(--fe-rule-strong)');
 
 const categoryConfig = computed(() => ({
-  'FORT': { icon: '🟢', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-  'MOYEN': { icon: '🟡', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)' },
-  'FAIBLE': { icon: '🟠', color: '#f97316', bg: 'rgba(249, 115, 22, 0.1)' },
-  'SATURE': { icon: '🔴', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' }
-}[props.categorie] || { icon: '⚪', color: '#527f8c', bg: 'rgba(82, 127, 140, 0.1)' }));
+  color: gaugeColor.value,
+  // L'encre est celle que la charte associe au palier : elle reste lisible
+  // quel que soit le fond.
+  ink: categoriePalier.value ? `var(--fe-ramp-${categoriePalier.value}-ink)` : 'var(--fe-ink-2)',
+}));
 </script>
 
 <template>
@@ -108,7 +111,7 @@ const categoryConfig = computed(() => ({
         <path
           :d="backgroundArc"
           fill="none"
-          stroke="#e2e8f0"
+          stroke="var(--fe-rule)"
           stroke-width="14"
           stroke-linecap="round"
         />
@@ -128,7 +131,7 @@ const categoryConfig = computed(() => ({
           :y1="pluTickOuter.y"
           :x2="pluTickInner.x"
           :y2="pluTickInner.y"
-          stroke="#EF9F27"
+          stroke="var(--fe-warn)"
           stroke-width="2.5"
           stroke-linecap="round"
         />
@@ -140,7 +143,7 @@ const categoryConfig = computed(() => ({
           text-anchor="middle"
           dominant-baseline="middle"
           font-size="9"
-          fill="#EF9F27"
+          fill="var(--fe-warn)"
           font-weight="600"
         >{{ Math.round(cesPlu * 100) }}%</text>
       </svg>
@@ -158,30 +161,24 @@ const categoryConfig = computed(() => ({
       <span class="plu-value">{{ Math.round(cesActuel * 100) }}%</span>
       <span class="plu-sep">·</span>
       <span class="plu-label">PLU autorisé</span>
-      <span class="plu-value" style="color: #EF9F27;">{{ Math.round(cesPlu * 100) }}%</span>
+      <span class="plu-value" style="color: var(--fe-warn);">{{ Math.round(cesPlu * 100) }}%</span>
     </div>
 
     <!-- Category Badge -->
     <div
       class="category-badge"
       :style="{
-        backgroundColor: categoryConfig.bg,
-        borderColor: categoryConfig.color,
-        color: categoryConfig.color
+        backgroundColor: categoryConfig.color,
+        borderColor: 'transparent',
+        color: categoryConfig.ink
       }"
     >
-      <span class="badge-icon">{{ categoryConfig.icon }}</span>
       <span class="badge-text">{{ categorie }}<template v-if="isOverCapacity"> · droits acquis</template></span>
     </div>
     
     <!-- Source ZAN tag -->
-    <div v-if="sourceConfig" class="source-row">
-      <span 
-        class="source-chip"
-        :style="{ backgroundColor: sourceConfig.bg, color: sourceConfig.color, borderColor: sourceConfig.color + '40' }"
-      >
-        {{ sourceConfig.label }}
-      </span>
+    <div v-if="sourceLabel" class="source-row">
+      <span class="source-chip">{{ sourceLabel }}</span>
       <span v-if="libelleZone" class="zone-label">{{ libelleZone }}</span>
     </div>
 
@@ -209,15 +206,15 @@ const categoryConfig = computed(() => ({
 
 <style scoped>
 .densification-section {
-  background: #f8fafc;
-  border-radius: 16px;
+  background: var(--fe-surface-2);
+  border-radius: var(--fe-radius);
   padding: 20px;
 }
 
 .section-title {
   font-size: 15px;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--fe-ink);
   margin: 0 0 20px 0;
 }
 
@@ -256,14 +253,14 @@ const categoryConfig = computed(() => ({
 .gauge-value {
   display: block;
   font-size: 28px;
-  font-weight: 800;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--fe-ink);
   line-height: 1;
 }
 
 .gauge-label {
   font-size: 11px;
-  color: #64748b;
+  color: var(--fe-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -278,16 +275,16 @@ const categoryConfig = computed(() => ({
 }
 
 .plu-label {
-  color: #64748b;
+  color: var(--fe-ink-3);
 }
 
 .plu-value {
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 600;
+  color: var(--fe-ink);
 }
 
 .plu-sep {
-  color: #cbd5e1;
+  color: var(--fe-rule-strong);
   margin: 0 2px;
 }
 
@@ -296,17 +293,13 @@ const categoryConfig = computed(() => ({
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  border-radius: 12px;
-  font-weight: 700;
+  border-radius: var(--fe-radius);
+  font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border: 2px solid;
   margin-top: 16px;
-}
-
-.badge-icon {
-  font-size: 16px;
 }
 
 .source-row {
@@ -321,25 +314,27 @@ const categoryConfig = computed(() => ({
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--fe-radius-sm);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.03em;
-  border: 1px solid;
+  background: var(--fe-surface-2);
+  color: var(--fe-ink-2);
+  border: 1px solid var(--fe-rule);
 }
 
 .zone-label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--fe-ink-3);
   font-weight: 500;
 }
 
 .ces-alert {
   display: flex;
   gap: 12px;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  border-radius: 12px;
+  background: var(--fe-warn-soft);
+  border: 1px solid var(--fe-warn);
+  border-radius: var(--fe-radius);
   padding: 14px 16px;
   margin-top: 16px;
 }
@@ -356,24 +351,24 @@ const categoryConfig = computed(() => ({
 
 .ces-alert-title {
   font-size: 13px;
-  font-weight: 700;
-  color: #92400e;
+  font-weight: 600;
+  color: var(--fe-warn);
   margin: 0 0 4px 0;
 }
 
 .ces-alert-text {
   font-size: 12px;
-  color: #78350f;
+  color: var(--fe-warn);
   margin: 0;
   line-height: 1.5;
 }
 
 .surface-card {
   background: white;
-  border-radius: 12px;
+  border-radius: var(--fe-radius);
   padding: 16px;
   margin-top: 16px;
-  border: 2px solid #527f8c;
+  border: 2px solid var(--fe-accent);
   text-align: center;
 }
 
@@ -381,7 +376,7 @@ const categoryConfig = computed(() => ({
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--fe-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
@@ -389,7 +384,7 @@ const categoryConfig = computed(() => ({
 
 .surface-value {
   font-size: 24px;
-  font-weight: 800;
-  color: #527f8c;
+  font-weight: 600;
+  color: var(--fe-accent);
 }
 </style>
