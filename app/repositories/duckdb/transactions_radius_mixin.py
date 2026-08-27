@@ -5,7 +5,7 @@ from decimal import Decimal
 from math import cos, radians
 
 from app.domain.models import MutationAggregate, NatureMutation
-from app.infrastructure.data_availability import column_exists
+from app.infrastructure.data_availability import column_exists, table_exists
 
 
 def _parse_mutation_date(val) -> date:
@@ -77,14 +77,35 @@ class DuckDBTransactionsRadiusMixin:
         has_type_local = column_exists(conn, "mutations_aggregated", "type_local")
         type_local_select = "type_local" if has_type_local else "NULL AS type_local"
 
+        # `is_outlier` est calcule par l'ETL dans france_foncier_test, pas dans
+        # mutations_aggregated. Sans cette jointure, MutationAggregate.is_outlier
+        # gardait sa valeur par defaut (False) pour *toutes* les mutations : le
+        # prix moyen « hors aberrantes » n'excluait donc rien, et le compteur
+        # d'aberrantes de la carte affichait 0 en permanence.
+        has_outlier = table_exists(conn, "france_foncier_test") and column_exists(
+            conn, "france_foncier_test", "is_outlier"
+        )
+        if has_outlier:
+            outlier_select = "COALESCE(o.is_outlier, FALSE) AS is_outlier"
+            outlier_join = """
+                LEFT JOIN (
+                    SELECT DISTINCT id_mutation, is_outlier
+                    FROM france_foncier_test
+                ) o ON o.id_mutation = m.id_mutation
+            """
+        else:
+            outlier_select = "FALSE AS is_outlier"
+            outlier_join = ""
+
         query = f"""
             WITH bbox_filtered AS (
-                SELECT *
-                FROM mutations_aggregated
-                WHERE longitude IS NOT NULL
-                  AND latitude IS NOT NULL
-                  AND longitude BETWEEN ? AND ?
-                  AND latitude BETWEEN ? AND ?
+                SELECT m.*, {outlier_select}
+                FROM mutations_aggregated m
+                {outlier_join}
+                WHERE m.longitude IS NOT NULL
+                  AND m.latitude IS NOT NULL
+                  AND m.longitude BETWEEN ? AND ?
+                  AND m.latitude BETWEEN ? AND ?
             ),
             with_distance AS (
                 SELECT *,
@@ -100,7 +121,8 @@ class DuckDBTransactionsRadiusMixin:
             SELECT
                 id_mutation, date_mutation, nature_mutation, valeur_fonciere,
                 code_commune, parcelles, surface_habitable_totale, nombre_locaux,
-                prix_m2, longitude, latitude, distance_meters, {type_local_select}
+                prix_m2, longitude, latitude, distance_meters, {type_local_select},
+                is_outlier
             FROM with_distance
             WHERE distance_meters <= ?
         """
@@ -139,6 +161,7 @@ class DuckDBTransactionsRadiusMixin:
                 longitude=r[9],
                 latitude=r[10],
                 type_local=r[12] if len(r) > 12 else None,
+                is_outlier=bool(r[13]) if len(r) > 13 and r[13] is not None else False,
             )
             for r in results
         ]

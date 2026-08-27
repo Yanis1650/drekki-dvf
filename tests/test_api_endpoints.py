@@ -52,7 +52,7 @@ def _build_db(path) -> None:
          'C', 1985, 6.0, 2, 'residentiel', 1, FALSE),
         ('MUT002', '2023-06-20', 'Vente', 180000.0, '{COMMUNE}', '{PARCELLE}',
          60.0, 1, 3000.0, -1.6790, 48.1180, '{PARCELLE}',
-         'D', 1970, 6.0, 2, 'residentiel', 1, FALSE)
+         'D', 1970, 6.0, 2, 'residentiel', 1, TRUE)
     """)
     conn.execute("""
         CREATE TABLE densification_scores (
@@ -106,10 +106,19 @@ def _build_db(path) -> None:
             section VARCHAR, numero VARCHAR, surface_m2 DOUBLE, geometry GEOMETRY
         )
     """)
+    # Deux vraies parcelles, plus deux lignes sans section ni numero : ces
+    # dernieres sont des polygones de section/commune, pas des parcelles. Elles
+    # representent 44 % de la table reelle et doivent etre exclues du GeoJSON.
     conn.execute(f"""
         INSERT INTO parcelles VALUES
         ('{PARCELLE}', '{COMMUNE}', '000', 'AB', '0297', 1000.0,
-         ST_GeomFromText('POLYGON((352100 6789900, 352200 6789900, 352200 6790000, 352100 6790000, 352100 6789900))'))
+         ST_GeomFromText('POLYGON((352100 6789900, 352190 6789900, 352190 6790000, 352100 6790000, 352100 6789900))')),
+        ('35238000AB0298', '{COMMUNE}', '000', 'AB', '0298', 900.0,
+         ST_GeomFromText('POLYGON((352200 6789900, 352290 6789900, 352290 6790000, 352200 6790000, 352200 6789900))')),
+        (NULL, '{COMMUNE}', NULL, NULL, NULL, 900.0,
+         ST_GeomFromText('POLYGON((352300 6789900, 352390 6789900, 352390 6790000, 352300 6790000, 352300 6789900))')),
+        (NULL, '{COMMUNE}', NULL, NULL, NULL, 900.0,
+         ST_GeomFromText('POLYGON((352400 6789900, 352490 6789900, 352490 6790000, 352400 6790000, 352400 6789900))'))
     """)
     conn.close()
 
@@ -228,6 +237,29 @@ class TestRechercheEnrichie:
         assert body["mutations"], "les mutations doivent bien remonter"
         assert all(m["enrichment"] is None for m in body["mutations"])
 
+    def test_is_outlier_remonte_depuis_france_foncier_test(self, client):
+        """`is_outlier` vit dans france_foncier_test, pas mutations_aggregated.
+
+        Sans la jointure, MutationAggregate.is_outlier gardait sa valeur par
+        defaut (False) pour toutes les mutations : le prix moyen « hors
+        aberrantes » n'excluait rien et le compteur de la carte affichait 0.
+        """
+        body = client.get(
+            "/api/v1/land/search/enriched",
+            params={"lat": 48.1173, "lon": -1.6778, "radius": 2000, "limit": 10},
+        ).json()
+        flags = {m["mutation"]["id_mutation"]: m["mutation"]["is_outlier"]
+                 for m in body["mutations"]}
+        assert flags == {"MUT001": False, "MUT002": True}, flags
+
+    def test_prix_moyen_exclut_les_aberrantes(self, client):
+        body = client.get(
+            "/api/v1/land/search/enriched",
+            params={"lat": 48.1173, "lon": -1.6778, "radius": 2000, "limit": 10},
+        ).json()
+        # MUT002 (3000 €/m²) est aberrante : seule MUT001 (2500) doit compter.
+        assert float(body["avg_price_m2"]) == pytest.approx(2500.0)
+
     def test_les_mutations_restent_servies(self, client):
         body = client.get(
             "/api/v1/land/search/enriched",
@@ -257,6 +289,20 @@ class TestGeojson:
         r = client.get("/api/v1/land/parcelles", params={"bbox": "-1.7,48.1,-1.6,48.2"})
         assert r.status_code == 200, r.text
         assert r.json()["type"] == "FeatureCollection"
+
+    def test_parcelles_exclut_les_polygones_sans_section(self, client):
+        """Les lignes sans section/numero ne sont pas des parcelles.
+
+        Leur identifiant reconstruit par CONCAT est identique pour toute une
+        commune : elles se dedupliquaient toutes en une seule feature et
+        consommaient le LIMIT avant la deduplication. La couche parcelles de
+        la carte en devenait quasiment vide — 1 feature au lieu de 1000.
+        """
+        body = client.get(
+            "/api/v1/land/parcelles", params={"bbox": "-1.7,48.1,-1.6,48.2"}
+        ).json()
+        ids = [f["properties"]["id_parcelle"] for f in body["features"]]
+        assert sorted(ids) == [PARCELLE, "35238000AB0298"], ids
 
     def test_filtre_invalide_renvoie_400(self, client):
         r = client.get(

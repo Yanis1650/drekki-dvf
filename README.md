@@ -43,6 +43,7 @@ et un score d'environnement non mesuré ne devient pas 5/10.
 |--------|-------------|
 | **Backend** | FastAPI, Polars, DuckDB (OLAP) |
 | **Frontend** | Vue.js 3 (Composition API), MapLibre GL JS, Tailwind CSS |
+| **Fond de carte** | IGN Géoplateforme (libre, sans clé d'API) |
 | **Data Pipeline** | Polars, DuckDB, OSMnx (enrichissement) |
 | **PDF** | Jinja2 + Playwright (HTML → PDF) |
 
@@ -107,21 +108,49 @@ alors par un `503 data_unavailable` plutôt que d'inventer une valeur.
 
 ### 6. Démarrage
 
+Deux terminaux, l'un pour l'API, l'autre pour l'interface.
+
+**Terminal 1 — backend** (port 8000) :
+
 ```bash
-# Backend (port 8000)
+# Linux / macOS
+source .venv/bin/activate
 uvicorn app.main:app --reload --port 8000
-
-# Frontend (port 5173, dans un autre terminal)
-cd frontend && npm run dev
 ```
-
-Ou avec le script PowerShell (Windows) :
 
 ```powershell
-.\start.ps1
+# Windows
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
 ```
 
-L'application sera accessible sur **http://localhost:5173** et la documentation API sur **http://localhost:8000/docs**.
+**Terminal 2 — frontend** (port 5173) :
+
+```bash
+cd frontend
+npm run dev
+```
+
+| Adresse | Contenu |
+|---------|---------|
+| http://localhost:5173 | Application |
+| http://localhost:8000/docs | Documentation interactive de l'API |
+| http://localhost:8000/health | Sonde de santé |
+
+Le frontend lit l'URL de l'API dans `frontend/.env` (`VITE_API_BASE_URL`).
+Sans ce fichier, il retombe sur `http://localhost:8000/api/v1`.
+
+Un bandeau orange s'affiche en haut de l'application si le backend ne répond
+pas — c'est le symptôme d'un `uvicorn` non démarré, pas d'une erreur de build.
+
+Sous Windows, `.\start.ps1` lance les deux processus et ouvre le navigateur.
+
+#### Vérifier en une commande
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok","database":"duckdb","version":"0.1.0"}
+```
 
 ## Architecture
 

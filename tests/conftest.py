@@ -148,7 +148,7 @@ def duckdb_conn_with_fixtures(duckdb_conn_inmemory):
     conn.execute("""
         INSERT INTO parcelles VALUES
         ('35238', '000', 'AB', '0297',
-         ST_GeomFromText('POLYGON((352100 6789900, 352200 6789900, 352200 6790000, 352100 6790000, 352100 6789900))'))
+         ST_GeomFromText('POLYGON((352100 6789900, 352190 6789900, 352190 6790000, 352100 6790000, 352100 6789900))'))
     """)
     yield conn
 

@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import RepositoryDep
+from app.infrastructure.unavailable import ResourceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,11 @@ async def get_transactions_geojson(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid bbox coordinates")
     except HTTPException:
+        raise
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
         raise
     except Exception:
         logger.exception("Transactions GeoJSON query failed for bbox=%s", bbox)
@@ -65,6 +71,11 @@ async def get_parcelles_geojson(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid bbox coordinates")
     except HTTPException:
+        raise
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
         raise
     except Exception:
         logger.exception("Parcelles GeoJSON query failed for bbox=%s", bbox)

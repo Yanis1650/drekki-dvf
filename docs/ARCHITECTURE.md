@@ -75,6 +75,29 @@ C'est délibéré : un `except` qui renvoie une liste vide transforme « je n'ai
 la donnée » en « il n'y a pas de donnée », et l'API se met à affirmer du faux.
 Voir `app/infrastructure/data_availability.py`.
 
+Les deux exceptions dérivent de `ResourceUnavailableError`
+(`app/infrastructure/unavailable.py`). Chaque endpoint la ré-émet **avant** son
+`except Exception` générique :
+
+```python
+    except ResourceUnavailableError:
+        raise                      # -> 503 explicite
+    except Exception:
+        raise HTTPException(500, "...")
+```
+
+Sans cette reprise, le filet générique convertissait une indisponibilité
+légitime en « erreur serveur » — la carte a ainsi renvoyé un 500 à son premier
+chargement, le temps que l'extension spatiale se charge.
+
+### Extension spatiale
+
+`ensure_spatial()` ne tente le chargement qu'une fois par connexion, sous
+verrou. FastAPI sert les endpoints synchrones depuis un pool de threads qui
+partagent la connexion : sans ce verrou, deux requêtes simultanées lançaient
+chacune `INSTALL spatial` et l'une des deux échouait — un défaut intermittent,
+invisible en test séquentiel.
+
 ## Pipeline ETL
 
 ```

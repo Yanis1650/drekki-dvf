@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import DvfAnalyzerDep, EnrichmentDep, RepositoryDep
+from app.infrastructure.unavailable import ResourceUnavailableError
 from app.schemas import (
     EnrichedMutationResponse,
     EnrichedSearchResultResponse,
@@ -67,6 +68,11 @@ async def search_transactions(
             avg_price_m2=total_price / price_count if price_count > 0 else None,
             mutations=response_mutations,
         )
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Search failed for lat=%s lon=%s radius=%s", lat, lon, radius)
         raise HTTPException(status_code=500, detail="Search failed")
@@ -160,6 +166,11 @@ async def search_transactions_enriched(
             ),
             mutations=enriched_mutations,
         )
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Enriched search failed for lat=%s lon=%s", lat, lon)
         raise HTTPException(status_code=500, detail="Enriched search failed")
@@ -188,6 +199,11 @@ async def get_commune_stats(
             avg_price_m2=stats.get("avg_price_m2", Decimal("0")),
             mutations_count=len(mutations),
         )
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Stats query failed for commune %s", code_commune)
         raise HTTPException(status_code=500, detail="Stats query failed")
@@ -218,6 +234,11 @@ async def get_commune_mutations(
                 is_outlier=m.is_outlier,
             )
         return [to_resp(m) for m in mutations[:limit]]
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Commune mutations query failed for %s", code_commune)
         raise HTTPException(status_code=500, detail="Query failed")

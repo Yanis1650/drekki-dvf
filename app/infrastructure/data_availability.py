@@ -19,13 +19,15 @@ import logging
 import threading
 from typing import Any
 
+from app.infrastructure.unavailable import ResourceUnavailableError
+
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _cache: dict[tuple[int, str], bool] = {}
 
 
-class DataUnavailableError(RuntimeError):
+class DataUnavailableError(ResourceUnavailableError):
     """Un jeu de données requis n'a pas été chargé dans cette base.
 
     À distinguer d'un résultat vide : ici la question n'a pas de réponse,

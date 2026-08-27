@@ -86,6 +86,15 @@ def build_parcelles_geojson(
 
     dept_clause = "AND p.code_commune LIKE ?" if dept_prefix else ""
 
+    # 44 % des lignes de `parcelles` n'ont ni section ni numero : ce sont des
+    # polygones de section ou de commune, pas des parcelles. Leur identifiant
+    # reconstruit par CONCAT est identique pour toute une commune, si bien
+    # qu'elles se dedupliquaient toutes en une seule feature — et consommaient
+    # au passage le LIMIT, applique en SQL avant la deduplication Python.
+    # Resultat : la couche parcelles de la carte etait quasiment vide.
+    # `golden_join` applique deja ce meme filtre.
+    leaf_clause = "AND p.section IS NOT NULL AND p.numero IS NOT NULL"
+
     filter_clause = ""
     parcelle_id_expr = (
         "CONCAT(COALESCE(p.code_commune,''), COALESCE(p.prefixe,'000'), "
@@ -113,6 +122,7 @@ def build_parcelles_geojson(
         FROM parcelles p
         WHERE ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
           {dept_clause}
+          {leaf_clause}
           AND ST_Area(p.geometry) < 10000 AND ST_Area(p.geometry) > 10
         {filter_clause}
         LIMIT ?
@@ -144,6 +154,7 @@ def build_parcelles_geojson(
             FROM parcelles p
             WHERE ST_Intersects(p.geometry, ST_MakeEnvelope(?, ?, ?, ?))
               {dept_clause}
+              {leaf_clause}
               AND ST_Area(p.geometry) < 10000 AND ST_Area(p.geometry) > 10
             LIMIT ?
         )

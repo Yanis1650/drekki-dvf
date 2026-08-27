@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 
 from app.api.deps import Settings, get_settings
 from app.domain.filiation_models import FiliationNode
-from app.infrastructure.data_availability import DataUnavailableError
+from app.infrastructure.unavailable import ResourceUnavailableError
 from app.schemas.filiation import (
     AncestorInfo,
     FiliationNodeResponse,
@@ -144,14 +144,14 @@ async def get_parcel_filiation(
             tree=_node_to_response(node),
         )
 
-    except DataUnavailableError:
-        # Laisse remonter : le gestionnaire global repond 503 « donnee non
-        # chargee ». L'avaler ici en 500 masquerait la difference entre une
-        # panne et un jeu de donnees jamais construit.
-        raise
     except ValueError as e:
         logger.error(f"Invalid parcel ID format: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid parcel ID format: {e}")
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception as e:
         logger.error(f"Error fetching filiation for {id_parcelle}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

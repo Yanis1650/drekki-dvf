@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from app.api.deps import ReportDep
+from app.infrastructure.unavailable import ResourceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,11 @@ async def generate_mutation_report(
         )
     except ValueError:
         raise HTTPException(status_code=404, detail="Mutation not found")
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Report generation failed for mutation %s", id_mutation)
         raise HTTPException(status_code=500, detail="Report generation failed")

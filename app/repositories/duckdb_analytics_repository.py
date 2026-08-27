@@ -4,6 +4,7 @@ Dedicated repository for market trends and analytics queries.
 Separated from main repository to maintain 400-line limit (SRP).
 """
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 from math import cos, radians
@@ -14,6 +15,8 @@ import duckdb
 from app.domain.analytics_models import YearlyTrend
 from app.infrastructure.duckdb_pool import DuckDBPool
 from app.infrastructure.duckdb_spatial import ensure_spatial
+
+logger = logging.getLogger(__name__)
 
 
 class DuckDBAnalyticsRepository:
@@ -123,7 +126,7 @@ class DuckDBAnalyticsRepository:
             data_table = "mutations_aggregated"
             extra_filter = ""  # No is_outlier column in mutations_aggregated
         else:
-            print(f"ERROR: Neither france_foncier_test nor mutations_aggregated found in {self._db_path}")
+            logger.error("Ni france_foncier_test ni mutations_aggregated dans %s", self._db_path)
             return []
 
         query = f"""
@@ -166,7 +169,7 @@ class DuckDBAnalyticsRepository:
         try:
             results = conn.execute(query).fetchall()
         except Exception as e:
-            print(f"ERROR: get_market_trends query failed (table={data_table}): {e}")
+            logger.exception("get_market_trends a echoue (table=%s): %s", data_table, e)
             return []
 
         # Convert to domain models and calculate YoY changes
@@ -211,8 +214,7 @@ class DuckDBAnalyticsRepository:
         """
         conn = self._get_dept_connection(parcel_id)
 
-        print(f"🔍 [REPO] get_parcel_history called with parcel_id: '{parcel_id}'")
-        print(f"🔍 [REPO] parcel_id length: {len(parcel_id)}")
+        logger.debug("get_parcel_history: parcel_id=%s (len=%d)", parcel_id, len(parcel_id))
 
         tables = self._available_tables(conn)
 
@@ -223,7 +225,7 @@ class DuckDBAnalyticsRepository:
             numero_stripped = numero_padded.lstrip('0') or '0'  # Remove leading zeros
             alt_id_short = base_id + numero_stripped
 
-            print(f"🔍 [REPO] Searching for exact IDs: '{parcel_id}' OR '{alt_id_short}'")
+            logger.debug("Recherche des identifiants %s ou %s", parcel_id, alt_id_short)
 
             if "france_foncier_test" in tables:
                 query = """
@@ -261,10 +263,10 @@ class DuckDBAnalyticsRepository:
                 """
                 params = [parcel_id, limit]
             else:
-                print("🔍 [REPO] No suitable table found in connection")
+                logger.warning("Aucune table de transactions dans cette base")
                 return []
         else:
-            print(f"🔍 [REPO] Searching for exact ID only: '{parcel_id}'")
+            logger.debug("Recherche de l'identifiant exact %s", parcel_id)
 
             if "france_foncier_test" in tables:
                 query = """
@@ -284,17 +286,14 @@ class DuckDBAnalyticsRepository:
                 """
                 params = [parcel_id, limit]
             else:
-                print("🔍 [REPO] No suitable table found in connection")
+                logger.warning("Aucune table de transactions dans cette base")
                 return []
 
         try:
             results = conn.execute(query, params).fetchall()
-            print(f"🔍 [REPO] Found {len(results)} transactions")
-            if results:
-                unique_ids = set(r[4] for r in results if r[4])
-                print(f"🔍 [REPO] Unique cadastre_parcelle_ids in results: {unique_ids}")
+            logger.debug("%d transactions trouvees", len(results))
         except Exception as e:
-            print(f"ERROR: get_parcel_history failed: {e}")
+            logger.exception("get_parcel_history a echoue pour %s: %s", parcel_id, e)
             return []
 
         history = []

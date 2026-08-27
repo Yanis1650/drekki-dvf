@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.api.deps import RepositoryDep, SettingsDep
+from app.infrastructure.unavailable import ResourceUnavailableError
 from app.services.parcel_report_service import ParcelReportService
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,11 @@ async def generate_parcel_pdf_report(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception as e:
         logger.exception("PDF generation failed for %s", parcel_id)
         detail = str(e)
@@ -90,6 +96,11 @@ async def generate_parcel_html_preview(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception as e:
         logger.error(f"HTML preview failed for {parcel_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")

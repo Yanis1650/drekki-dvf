@@ -3,6 +3,7 @@
 Segregated from enrichment for SOLID compliance.
 """
 
+import logging
 from datetime import date
 from decimal import Decimal
 from math import cos, radians
@@ -13,6 +14,8 @@ import duckdb
 from app.domain.models import MutationAggregate, NatureMutation, Transaction, TypeLocal
 from app.infrastructure.duckdb_spatial import ensure_spatial
 from app.repositories.interfaces import ITransactionRepository
+
+logger = logging.getLogger(__name__)
 
 
 class DvfRepository(ITransactionRepository):
@@ -346,7 +349,7 @@ class DvfRepository(ITransactionRepository):
             results = conn.execute(query, [min_x, max_x, min_y, max_y, limit]).fetchall()
         except Exception as e:
             # Fallback: use basic parcelles table if france_foncier_test fails
-            print(f"france_foncier_test query failed: {e}, falling back to parcelles")
+            logger.warning("Requete france_foncier_test echouee (%s) — repli sur parcelles", e)
             results = []
 
         features = []

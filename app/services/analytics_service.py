@@ -3,10 +3,14 @@
 Business logic layer for calculating trend slopes and confidence scores.
 """
 
+import logging
 from decimal import Decimal
 from statistics import linear_regression
 
 from app.domain.analytics_models import MarketTrends, YearlyTrend
+
+logger = logging.getLogger(__name__)
+
 
 
 class AnalyticsService:
@@ -41,7 +45,7 @@ class AnalyticsService:
                 annual_growth_pct = (slope / avg_price) * 100
                 return Decimal(str(round(annual_growth_pct, 2)))
         except Exception as e:
-            print(f"ERROR: Linear regression failed: {e}")
+            logger.warning("Regression lineaire impossible: %s", e)
 
         return Decimal("0")
 

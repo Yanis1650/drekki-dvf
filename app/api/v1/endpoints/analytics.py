@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import Settings, get_duckdb_pool, get_settings
 from app.infrastructure.duckdb_pool import DuckDBPool
+from app.infrastructure.unavailable import ResourceUnavailableError
 from app.repositories.duckdb_analytics_repository import DuckDBAnalyticsRepository
 from app.schemas import (
     MarketTrendsResponse,
@@ -126,6 +127,11 @@ async def get_market_trends(
 
     except HTTPException:
         raise
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception as e:
         logger.exception("Market trends analysis failed")
         raise HTTPException(
@@ -161,6 +167,11 @@ async def get_parcel_history(
             transactions=transactions,
         )
 
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception as e:
         logger.exception("Parcel history query failed for %s", parcel_id)
         raise HTTPException(

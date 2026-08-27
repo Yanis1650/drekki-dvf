@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from app.api.deps import RepositoryDep
+from app.infrastructure.unavailable import ResourceUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,11 @@ async def search_parcelles(
                 headers={"Content-Disposition": "attachment; filename=export_foncier.csv"},
             )
         return {"count": len(rows), "results": rows}
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Parcelles search failed")
         raise HTTPException(status_code=500, detail="Search failed")
@@ -65,6 +71,11 @@ async def get_parcel_fiche(id_parcelle: str, repository: RepositoryDep):
             raise HTTPException(status_code=404, detail=f"Parcelle {id_parcelle} not found")
         return fiche
     except HTTPException:
+        raise
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
         raise
     except Exception:
         logger.exception("Fiche query failed for parcelle %s", id_parcelle)
@@ -89,6 +100,11 @@ async def get_parcel_densification(id_parcelle: str, repository: RepositoryDep):
             "categorie": score.categorie,
         }
     except HTTPException:
+        raise
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
         raise
     except Exception:
         logger.exception("Densification query failed for parcelle %s", id_parcelle)
@@ -123,6 +139,11 @@ async def get_top_densification_opportunities(
                 for s in opportunities
             ],
         }
+    except ResourceUnavailableError:
+        # 503 explicite : donnee non chargee ou extension absente.
+        # Sans cette reprise, le `except Exception` ci-dessous la
+        # transformerait en 500 « erreur serveur ».
+        raise
     except Exception:
         logger.exception("Top densification failed for commune %s", code_commune)
         raise HTTPException(status_code=500, detail="Top opportunities query failed")

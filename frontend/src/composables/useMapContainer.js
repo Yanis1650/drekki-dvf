@@ -7,10 +7,16 @@ import client from '../api/client';
 import { mapColorSchemes } from './mapColorSchemes';
 import { addParcelleLayers, addTransactionLayers, setupMapEvents } from './mapLayerHelpers';
 
-const CARTO_TILES = [
-  'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-  'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-  'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
+// Fond de carte IGN (Géoplateforme) : libre, sans clé d'API, et servi par le
+// même hôte que le WFS d'urbanisme déjà utilisé par le pipeline.
+//
+// Remplace les tuiles CARTO `basemaps.cartocdn.com`, qui exigent désormais une
+// clé : elles continuent de se charger, mais estampillées « API KEY REQUIRED »
+// sur toute la carte.
+const IGN_TILES = [
+  'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0' +
+    '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM' +
+    '&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}'
 ];
 
 export function useMapContainer(props, emit) {
@@ -22,15 +28,15 @@ export function useMapContainer(props, emit) {
     return {
       version: 8,
       sources: {
-        carto: {
+        ign: {
           type: 'raster',
-          tiles: CARTO_TILES,
+          tiles: IGN_TILES,
           tileSize: 256,
-          attribution: '© CARTO © OSM',
-          maxzoom: 20
+          attribution: '© IGN — Géoplateforme',
+          maxzoom: 19
         }
       },
-      layers: [{ id: 'carto-base', type: 'raster', source: 'carto' }]
+      layers: [{ id: 'ign-base', type: 'raster', source: 'ign' }]
     };
   }
 

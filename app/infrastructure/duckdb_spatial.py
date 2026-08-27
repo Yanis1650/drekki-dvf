@@ -23,14 +23,17 @@ import threading
 
 import duckdb
 
+from app.infrastructure.unavailable import ResourceUnavailableError
+
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _checked: set[int] = set()
+_loaded: dict[int, bool] = {}
 _warned = False
 
 
-class SpatialUnavailableError(RuntimeError):
+class SpatialUnavailableError(ResourceUnavailableError):
     """L'extension spatiale DuckDB n'a pas pu être chargée."""
 
 
@@ -46,17 +49,22 @@ def ensure_spatial(conn: duckdb.DuckDBPyConnection) -> bool:
     global _warned
     key = id(conn)
 
+    # Le verrou couvre toute la tentative, pas seulement la mise en cache.
+    # FastAPI sert les endpoints synchrones depuis un pool de threads qui
+    # partagent la connexion : deux requêtes simultanées lançaient chacune
+    # `INSTALL spatial`, et l'une des deux échouait. La carte renvoyait alors
+    # une erreur au premier chargement, puis fonctionnait — un défaut
+    # intermittent, invisible en test séquentiel.
     with _lock:
         if key in _checked:
-            return _is_loaded(conn)
+            return _loaded.get(key, False)
 
-    try:
-        conn.execute("INSTALL spatial;")
-        conn.execute("LOAD spatial;")
-        loaded = True
-    except Exception as exc:
-        loaded = False
-        with _lock:
+        try:
+            conn.execute("INSTALL spatial;")
+            conn.execute("LOAD spatial;")
+            loaded = True
+        except Exception as exc:
+            loaded = False
             if not _warned:
                 _warned = True
                 logger.warning(
@@ -68,19 +76,10 @@ def ensure_spatial(conn: duckdb.DuckDBPyConnection) -> bool:
                     exc,
                 )
 
-    with _lock:
         _checked.add(key)
+        _loaded[key] = loaded
 
     return loaded
-
-
-def _is_loaded(conn: duckdb.DuckDBPyConnection) -> bool:
-    """Vérifie que les fonctions ST_* répondent sur cette connexion."""
-    try:
-        conn.execute("SELECT ST_Point(0, 0);")
-        return True
-    except Exception:
-        return False
 
 
 def require_spatial(conn: duckdb.DuckDBPyConnection) -> None:
@@ -103,4 +102,5 @@ def reset_cache() -> None:
     global _warned
     with _lock:
         _checked.clear()
+        _loaded.clear()
         _warned = False
