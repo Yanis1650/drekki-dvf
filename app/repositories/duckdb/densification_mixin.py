@@ -1,8 +1,11 @@
 """Mixin pour densification et search_parcelles."""
 
+import logging
 from decimal import Decimal
 
 from app.domain.models import DensificationScore
+
+logger = logging.getLogger(__name__)
 
 
 class DuckDBDensificationMixin:
@@ -64,6 +67,29 @@ class DuckDBDensificationMixin:
     ) -> list[DensificationScore]:
         """Retrieve top densification opportunities for a commune."""
         conn = self._get_connection(self._dept_from_commune(code_commune))
+        # Les bases buildees par une version anterieure du pipeline contiennent
+        # des id_parcelle non completes a 14 caracteres (numero sans zeros de
+        # tete). CodeParcelle les rejette : une seule ligne malformee faisait
+        # echouer tout l'endpoint. On les ecarte en SQL pour que LIMIT rende
+        # bien le nombre de resultats demande, et on logue ce qui est perdu.
+        malformed = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM densification_scores
+            WHERE code_commune = ?
+              AND categorie = 'FORT'
+              AND LENGTH(id_parcelle) <> 14
+            """,
+            [code_commune],
+        ).fetchone()[0]
+        if malformed:
+            logger.warning(
+                "%d parcelles ecartees sur la commune %s : id_parcelle malforme "
+                "(base a rebuilder via etl_build_dept.py)",
+                malformed,
+                code_commune,
+            )
+
         results = conn.execute(
             """
             SELECT id_parcelle, surface_parcelle_m2, surface_plancher_m2,
@@ -71,6 +97,7 @@ class DuckDBDensificationMixin:
             FROM densification_scores
             WHERE code_commune = ?
               AND categorie = 'FORT'
+              AND LENGTH(id_parcelle) = 14
             ORDER BY surface_constructible_restante DESC
             LIMIT ?
             """,

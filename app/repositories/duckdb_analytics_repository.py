@@ -13,6 +13,7 @@ from pathlib import Path
 import duckdb
 
 from app.domain.analytics_models import YearlyTrend
+from app.infrastructure.data_availability import column_exists
 from app.infrastructure.duckdb_pool import DuckDBPool
 from app.infrastructure.duckdb_spatial import ensure_spatial
 
@@ -218,6 +219,15 @@ class DuckDBAnalyticsRepository:
 
         tables = self._available_tables(conn)
 
+        # `type_local` a ete ajoute au pipeline apres coup : les bases buildees
+        # par une version anterieure ne l'ont pas, et le selectionner faisait
+        # echouer la requete entiere au binding (historique vide, sans erreur
+        # visible cote client).
+        def type_local_select(table: str) -> str:
+            if column_exists(conn, table, "type_local"):
+                return "type_local"
+            return "NULL AS type_local"
+
         if len(parcel_id) == 14:
             # Extract components
             base_id = parcel_id[:10]  # commune + prefixe + section
@@ -228,7 +238,7 @@ class DuckDBAnalyticsRepository:
             logger.debug("Recherche des identifiants %s ou %s", parcel_id, alt_id_short)
 
             if "france_foncier_test" in tables:
-                query = """
+                query = f"""
                     SELECT
                         date_mutation,
                         valeur_fonciere,
@@ -236,7 +246,7 @@ class DuckDBAnalyticsRepository:
                         surface_habitable_totale,
                         cadastre_parcelle_id,
                         COALESCE(is_outlier, FALSE) AS is_outlier,
-                        type_local
+                        {type_local_select("france_foncier_test")}
                     FROM france_foncier_test
                     WHERE cadastre_parcelle_id IN (?, ?)
                       AND valeur_fonciere > 0
@@ -246,7 +256,7 @@ class DuckDBAnalyticsRepository:
                 params = [parcel_id, alt_id_short, limit]
             elif "mutations_aggregated" in tables:
                 # Fallback: search by parcel in dvf_parcelles list
-                query = """
+                query = f"""
                     SELECT
                         date_mutation,
                         valeur_fonciere,
@@ -254,7 +264,7 @@ class DuckDBAnalyticsRepository:
                         surface_habitable_totale,
                         NULL AS cadastre_parcelle_id,
                         FALSE AS is_outlier,
-                        type_local
+                        {type_local_select("mutations_aggregated")}
                     FROM mutations_aggregated
                     WHERE list_contains(parcelles, ?)
                       AND valeur_fonciere > 0
@@ -269,7 +279,7 @@ class DuckDBAnalyticsRepository:
             logger.debug("Recherche de l'identifiant exact %s", parcel_id)
 
             if "france_foncier_test" in tables:
-                query = """
+                query = f"""
                     SELECT
                         date_mutation,
                         valeur_fonciere,
@@ -277,7 +287,7 @@ class DuckDBAnalyticsRepository:
                         surface_habitable_totale,
                         cadastre_parcelle_id,
                         COALESCE(is_outlier, FALSE) AS is_outlier,
-                        type_local
+                        {type_local_select("france_foncier_test")}
                     FROM france_foncier_test
                     WHERE cadastre_parcelle_id = ?
                       AND valeur_fonciere > 0
