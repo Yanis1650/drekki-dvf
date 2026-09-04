@@ -1,0 +1,56 @@
+name: DVF candidate release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publication DVF à traiter (ex. 2026-07-17)"
+        required: true
+        type: string
+      promote:
+        description: "Promouvoir la candidate validée vers la release immuable"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dvf-release
+  cancel-in-progress: false
+
+jobs:
+  build-candidate:
+    name: Build and quality gate
+    runs-on: [self-hosted, linux, dvf]
+    environment: dvf-production
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pipeline dependencies
+        run: python -m pip install --upgrade pip && python -m pip install .
+      - name: Ingest, transform and quality-check the DVF release
+        env:
+          DVF_RELEASE: ${{ inputs.release }}
+          PROMOTE: ${{ inputs.promote }}
+        run: |
+          if [ "$PROMOTE" = "true" ]; then
+            python data-pipeline/run_dvf_pipeline.py --release "$DVF_RELEASE" --promote
+          else
+            python data-pipeline/run_dvf_pipeline.py --release "$DVF_RELEASE"
+          fi
+      - name: Archive provenance and quality evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dvf-evidence-${{ inputs.release }}
+          path: |
+            data/candidates/*.quality.json
+            data/raw/dvf-geolocated/**/run_manifest.json
+            data/releases/*.release.json
+          if-no-files-found: warn
+          retention-days: 90

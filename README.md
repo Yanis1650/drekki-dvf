@@ -11,6 +11,7 @@
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-0.109+-009688.svg" alt="FastAPI"></a>
   <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue.js-3-4FC08D.svg" alt="Vue.js 3"></a>
   <a href="https://duckdb.org"><img src="https://img.shields.io/badge/DuckDB-OLAP-FFF000.svg" alt="DuckDB"></a>
+  <a href="https://github.com/Yanis1650/drekki-dvf/actions/workflows/ci.yml"><img src="https://github.com/Yanis1650/drekki-dvf/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI GitHub Actions"></a>
 </p>
 
 ---
@@ -227,6 +228,7 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques c
 - [Déploiement VPS](docs/DEPLOYMENT.md) — guide de mise en production (Docker, 35 Go / 11 GB RAM)
 - [Lexique Filiation](docs/LEXIQUE_FILIATION.md) — vocabulaire cadastral (arpentage, conservation, lotissement)
 - [Lexique Confiance](docs/LEXIQUE_CONFIANCE.md) — calcul du score de confiance multi-source
+- [Automatisation GitHub](docs/GITHUB_AUTOMATION.md) — CI, sécurité, surveillance DVF et release contrôlée
 
 ## Tests
 

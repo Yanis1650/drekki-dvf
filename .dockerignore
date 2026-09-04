@@ -1,0 +1,36 @@
+.git
+.github
+.agents
+.cursor
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Dépendances et builds locaux : les images les construisent pour Linux.
+node_modules
+frontend/node_modules
+frontend/dist
+.vite
+
+# Données lourdes et artefacts : montés à l'exécution, jamais intégrés à l'image.
+data
+cache
+data_backup
+output
+outputs
+results
+downloads
+*.duckdb
+*.parquet
+*.csv
+*.gpkg
+
+# Configuration locale et secrets.
+.env
+.env.*
+!.env.example
+!frontend/.env.example
