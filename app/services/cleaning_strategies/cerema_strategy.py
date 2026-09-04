@@ -10,6 +10,8 @@ TODO: Implement based on CEREMA documentation.
 
 import polars as pl
 
+from app.domain.dvf_methodology import MIN_TRANSACTION_VALUE_EUR
+
 from .base import ICleaningStrategy
 
 
@@ -32,7 +34,7 @@ class CeremaStrategy(ICleaningStrategy):
         """
         return df.filter(
             (pl.col("nature_mutation") == "Vente")
-            & (pl.col("valeur_fonciere") > 1000)
+            & (pl.col("valeur_fonciere") > float(MIN_TRANSACTION_VALUE_EUR))
             & (pl.col("type_local").is_in(["Maison", "Appartement"]))
         )
 

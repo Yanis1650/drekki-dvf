@@ -92,14 +92,56 @@ cp frontend/.env.example frontend/.env
 # Éditer les fichiers .env selon votre environnement
 ```
 
-### 5. Données DVF
+### 5. Données DVF et pipeline canonique
 
-Le pipeline ETL traite les données DVF open data. Consultez `data-pipeline/` pour les détails.
+Le pipeline DVF récupère les métadonnées des **DVF géolocalisées** depuis
+data.gouv.fr, archive chaque publication dans une couche brute versionnée, puis
+construit une base DuckDB *candidate*. Chaque run écrit un manifeste contenant
+les URL, hashes SHA-256, tailles, millésimes et statut des ressources : c'est la
+preuve de provenance des chiffres servis par l'API.
 
 ```bash
-# Exemple : construire la base pour un département
+# Récupération + manifeste + transformation DuckDB
+python data-pipeline/run_dvf_pipeline.py
+
+# Prévisualiser la publication courante sans télécharger
+python data-pipeline/run_dvf_ingestion.py --dry-run
+
+# Construire ensuite une base déployable pour un département
 python data-pipeline/etl_build_dept.py 35
 ```
+
+Les fichiers DVF sont révisés par publication : une correction peut toucher un
+millésime antérieur. Le pipeline ne présume donc pas que seule l'année courante
+change. La commande canonique écrit par défaut dans
+`data/candidates/foncier-<release>.duckdb` : elle ne remplace pas la base servie
+par l'API. Les artefacts bruts restent ignorés par Git dans `data/raw/` ; seul
+leur manifeste de provenance est exploité à l'exécution.
+
+`data-pipeline/run_etl.py` est le transformateur DVF de référence.
+`data-pipeline/etl_dvf.py` est conservé temporairement pour compatibilité et ne
+doit plus être utilisé pour une nouvelle base.
+
+À la fin d'un run, le pipeline produit également
+`foncier-<release>.quality.json`. Ses neuf contrôles bloquants vérifient le
+schéma canonique, la présence et l'unicité des mutations, les champs requis,
+les règles Mericskay (vente, valeur et surface), les dates et le prix au m².
+Une candidate en échec reste disponible pour diagnostic mais ne peut pas être
+promue.
+
+```bash
+# Après un rapport de qualité valide, archive une release immuable
+# et met à jour data/releases/current.json de manière atomique.
+python data-pipeline/run_dvf_pipeline.py --promote
+```
+
+La promotion copie la base, le rapport de qualité et le manifeste d'ingestion
+dans `data/releases/`. Une release existante n'est jamais écrasée si son hash
+diffère : il faut alors utiliser un nouvel identifiant de publication.
+
+Les filtres, limites d'interprétation et étapes encore nécessaires avant de
+servir une release sont détaillés dans
+[`docs/METHODOLOGIE_DVF.md`](docs/METHODOLOGIE_DVF.md).
 
 Le pipeline enchaîne 8 étapes (jointure DVF × cadastre × BDNB, densification,
 zonage PLU, BD TOPO, RNU, score de confiance, filiation DFI, optimisation).

@@ -6,6 +6,13 @@ Filtrage sémantique + regroupement par mutation + prix m² habitable.
 
 import polars as pl
 
+from app.domain.dvf_methodology import (
+    HABITABLE_LOCAL_TYPES,
+    MIN_HABITABLE_SURFACE_M2,
+    MIN_TRANSACTION_VALUE_EUR,
+    SALE_NATURE,
+)
+
 from .base import ICleaningStrategy
 
 
@@ -31,11 +38,11 @@ class MericskayStrategy(ICleaningStrategy):
     def filter_transactions(self, df: pl.LazyFrame) -> pl.LazyFrame:
         """Apply Mericskay semantic filters."""
         return df.filter(
-            (pl.col("nature_mutation") == "Vente")
-            & (pl.col("valeur_fonciere") > 1000)
+            (pl.col("nature_mutation") == SALE_NATURE)
+            & (pl.col("valeur_fonciere") > float(MIN_TRANSACTION_VALUE_EUR))
             & (
                 # Keep habitable locals (Type 1: Maison, Type 2: Appartement)
-                (pl.col("type_local").is_in(["Maison", "Appartement"]))
+                (pl.col("type_local").is_in(HABITABLE_LOCAL_TYPES))
                 | (pl.col("type_local").is_null())  # Keep for aggregation
             )
         )
@@ -50,7 +57,7 @@ class MericskayStrategy(ICleaningStrategy):
             pl.col("id_parcelle").unique().alias("parcelles"),
             # Sum only habitable surface (Type 1 & 2)
             pl.col("surface_reelle_bati")
-            .filter(pl.col("type_local").is_in(["Maison", "Appartement"]))
+            .filter(pl.col("type_local").is_in(HABITABLE_LOCAL_TYPES))
             .sum()
             .alias("surface_habitable_totale"),
             pl.len().alias("nombre_locaux"),
@@ -59,11 +66,11 @@ class MericskayStrategy(ICleaningStrategy):
     def calculate_price_per_m2(self, df: pl.LazyFrame) -> pl.LazyFrame:
         """Calculate price/m² using habitable surface only."""
         return df.with_columns(
-            pl.when(pl.col("surface_habitable_totale") > 9)
+            pl.when(pl.col("surface_habitable_totale") > float(MIN_HABITABLE_SURFACE_M2))
             .then(pl.col("valeur_fonciere") / pl.col("surface_habitable_totale"))
             .otherwise(None)
             .alias("prix_m2")
         ).filter(
             # Final filter: min surface 9m² per Mericskay
-            pl.col("surface_habitable_totale") > 9
+            pl.col("surface_habitable_totale") > float(MIN_HABITABLE_SURFACE_M2)
         )

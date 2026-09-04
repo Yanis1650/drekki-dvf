@@ -66,7 +66,7 @@ async def get_market_trends(
     - If using coordinates, specify `radius` for area analysis
 
     **Methodology:**
-    - Applies Mericskay filters (surface > 9m², price > 2000€)
+    - Applies Mericskay filters (surface > 9m², transaction value > 1,000€)
     - Uses linear regression for trend slope calculation
     - Confidence score based on data volume and consistency
     """
