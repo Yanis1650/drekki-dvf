@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from dvf_promotion import promote_release
@@ -11,6 +12,40 @@ from ingestion import DataGouvDvfClient, DvfIngestionService
 from run_etl import run_dvf_etl
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_baseline_quality_report(
+    explicit_path: Path | None, releases_root: Path
+) -> Path | None:
+    """Trouve le rapport de la release courante, sauf reference explicite.
+
+    Une premiere publication n'a pas de baseline. Pour les suivantes, le
+    pointeur immuable ``current.json`` et son manifeste evitent a l'operateur
+    de recopier a la main le nom du rapport precedent.
+    """
+    if explicit_path is not None:
+        return Path(explicit_path)
+
+    root = Path(releases_root)
+    pointer_path = root / "current.json"
+    if not pointer_path.is_file():
+        return None
+    try:
+        pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        manifest_name = pointer["manifest"]
+        manifest = json.loads((root / manifest_name).read_text(encoding="utf-8"))
+        quality_name = manifest["quality_report"]
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+        raise ValueError("Pointeur de release courant invalide : baseline impossible") from error
+
+    quality_report = (root / quality_name).resolve()
+    try:
+        quality_report.relative_to(root.resolve())
+    except ValueError as error:
+        raise ValueError("Rapport qualite de baseline hors du repertoire des releases") from error
+    if not quality_report.is_file():
+        raise ValueError(f"Rapport qualite de baseline introuvable : {quality_report}")
+    return quality_report
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +61,14 @@ def parse_args() -> argparse.Namespace:
         "--quality-report",
         type=Path,
         help="Rapport JSON. Par défaut : voisin de la candidate avec suffixe .quality.json",
+    )
+    parser.add_argument(
+        "--baseline-quality-report",
+        type=Path,
+        help=(
+            "Rapport JSON de la derniere release approuvee. Active le controle "
+            "de regression de volume ; sans option, current.json est utilise."
+        ),
     )
     parser.add_argument(
         "--promote",
@@ -54,10 +97,20 @@ def main() -> None:
         raise ValueError("La release téléchargée ne contient pas de CSV exploitable par le pipeline canonique")
     mutations = run_dvf_etl(input_files=supported, output_path=output)
     quality_report = args.quality_report or output.with_suffix(".quality.json")
-    quality = evaluate_dvf_quality(output, quality_report, ingestion.release)
+    baseline_quality_report = resolve_baseline_quality_report(
+        args.baseline_quality_report, args.releases_root
+    )
+    quality = evaluate_dvf_quality(
+        output,
+        quality_report,
+        ingestion.release,
+        baseline_report_path=baseline_quality_report,
+    )
     print(f"release={ingestion.release} mutations={mutations} output={output}")
     print(f"manifest={ingestion.manifest_path}")
     print(f"quality_report={quality_report} passed={quality['summary']['passed']}")
+    if baseline_quality_report:
+        print(f"baseline_quality_report={baseline_quality_report}")
     if not quality["summary"]["passed"]:
         raise SystemExit("Candidate DVF non promue : controles qualite en echec")
     if args.promote:

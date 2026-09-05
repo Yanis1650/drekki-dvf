@@ -169,6 +169,15 @@ class TestHealth:
         assert r.status_code == 200
         assert r.json()["database"] == "duckdb"
 
+    def test_readiness_confirms_the_application_dataset(self, client):
+        r = client.get("/health/ready")
+        assert r.status_code == 200, r.text
+        assert r.json() == {
+            "status": "ready",
+            "database": "duckdb",
+            "missing_tables": [],
+        }
+
 
 class TestFicheParcelle:
     """Non-régression : la fiche renvoyait 500 (colonne score_densification)."""

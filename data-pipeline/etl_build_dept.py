@@ -95,6 +95,11 @@ def parse_args():
         help="Chemin de sortie (defaut: data/dept{DEPT}.duckdb)",
     )
     parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Remplacer explicitement une base existante apres un build reussi",
+    )
+    parser.add_argument(
         "--gpkg",
         type=Path,
         default=None,
@@ -103,10 +108,29 @@ def parse_args():
     return parser.parse_args()
 
 
+def resolve_build_paths(output_path: Path, replace: bool) -> tuple[Path, Path]:
+    """Prepare un build atomique sans ecraser la base actuellement servie."""
+    output = Path(output_path)
+    working = output.with_name(f".{output.name}.building")
+    if output.exists() and not replace:
+        raise FileExistsError(
+            f"Base existante preservee : {output}. Relancer avec --replace pour la remplacer."
+        )
+    if working.exists():
+        raise FileExistsError(
+            f"Fichier de build deja present : {working}. Le verifier ou le supprimer explicitement."
+        )
+    return output, working
+
+
 def main():
     args = parse_args()
     dept = args.dept
     output_path = args.output or DATA_DIR / f"dept{dept}.duckdb"
+    try:
+        output_path, working_path = resolve_build_paths(output_path, args.replace)
+    except FileExistsError as error:
+        raise SystemExit(str(error)) from error
 
     print("=" * 60)
     print(f"  FONCIER EXPRESS - Build dept {dept}")
@@ -115,11 +139,8 @@ def main():
 
     global_start = time.time()
 
-    if output_path.exists():
-        output_path.unlink()
-        print(f"  Ancien fichier supprime: {output_path.name}")
-
-    conn = duckdb.connect(str(output_path))
+    print(f"  Build temporaire: {working_path.name}")
+    conn = duckdb.connect(str(working_path))
     conn.execute("INSTALL spatial; LOAD spatial;")
     conn.execute(f"ATTACH '{MAIN_DB.as_posix()}' AS main_db (READ_ONLY)")
 
@@ -127,7 +148,7 @@ def main():
     if not ok:
         print("\nAbandon: pas de donnees pour ce departement")
         conn.close()
-        output_path.unlink(missing_ok=True)
+        working_path.unlink(missing_ok=True)
         return
 
     try:
@@ -143,7 +164,7 @@ def main():
         # Validation non-bloquante : log si le seuil est dépassé, ne fait jamais échouer l'ETL.
         if _validate_plu is not None:
             try:
-                val = _validate_plu(output_path)
+                val = _validate_plu(working_path)
                 if not val["ok"]:
                     logger.warning(
                         "PLUi mapping degrade — commune %s: %.0f%% parcelles baties en rnu_proximite (seuil 15%%)",
@@ -167,6 +188,7 @@ def main():
 
     conn.close()
 
+    working_path.replace(output_path)
     size_mb = output_path.stat().st_size / 1e6
     elapsed = time.time() - global_start
     print(f"\n{'='*60}")

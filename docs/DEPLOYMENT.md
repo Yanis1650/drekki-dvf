@@ -51,7 +51,7 @@ sudo usermod -aG docker $USER
 ### 2. Cloner le projet
 
 ```bash
-git clone https://github.com/<votre-org>/foncier-express.git
+git clone https://github.com/Yanis1650/drekki-dvf.git foncier-express
 cd foncier-express
 ```
 
@@ -68,8 +68,8 @@ La seule variable qu'il est recommandé de renseigner en production restreint le
 origines autorisées :
 
 ```env
-# Domaines autorisés à appeler l'API (défaut : "*")
-CORS_ALLOW_ORIGINS=https://foncier.votredomaine.fr
+# Domaine public autorisé à appeler l'API
+CORS_ALLOW_ORIGINS=https://foncier-express.drekky.fr
 ```
 
 **Données DuckDB** : Le dossier `./data/` est monté dans le backend. Soit :
@@ -89,6 +89,17 @@ Vérifier les logs :
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
+Puis vérifier que la base réellement montée est prête à servir la carte et le
+marché (fichier lisible et tables cœur présentes) :
+
+```bash
+curl -fsS http://localhost/health/ready
+```
+
+La réponse attendue est `{"status":"ready","database":"duckdb","missing_tables":[]}`.
+Un code 503 liste les tables manquantes ; il faut alors corriger ou remplacer la
+base avant d'exposer une carte vide.
+
 ### 5. Données DuckDB — Deux options
 
 #### Option A : Build local + transfert (recommandé)
@@ -103,6 +114,14 @@ python data-pipeline/etl_build_dept.py 35
 > **Note** : Exécuter chaque commande sur une ligne séparée (ne pas tout coller en une fois).
 
 → Crée `data/dept35.duckdb` (~1-2 GB).
+
+Par sécurité, le build refuse désormais d'écraser une base existante. Pour
+renouveler explicitement une base après avoir vérifié l'espace disque et gardé
+une copie de secours, ajouter `--replace` :
+
+```powershell
+python data-pipeline/etl_build_dept.py 35 --replace
+```
 
 2. **Transférer vers le VPS** :
 
@@ -195,7 +214,8 @@ entière, ~69 Go) ne tient pas sur un VPS de 35 Go — déployer une base par
 département (`dept35.duckdb`, ~1,5 Go).
 
 **Pas de données sur la carte :** la base DuckDB est vide. Lancer l'ETL pour au
-moins un département.
+moins un département, puis consulter `/health/ready` : la réponse indique
+précisément quelles tables cœur manquent.
 
 **Une section reste vide (filiation, environnement) :** c'est voulu. Le jeu de
 données correspondant n'a pas été construit, et l'API répond `503

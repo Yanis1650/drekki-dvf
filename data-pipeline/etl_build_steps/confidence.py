@@ -51,7 +51,8 @@ def step_confidence(conn, dept):
                     WHEN tx_count >= 1 THEN 0.50
                     ELSE 0.0
                 END, 2) AS score_dvf_precision,
-                -- Qualité source ZAN : découpée de BDNB, pénalité unique pour rnu_proximite.
+                -- Qualité de la source de densification : découpée de BDNB,
+                -- avec une pénalité unique pour rnu_proximite.
                 -- rnu_proximite + score_bdnb = 0 → 0.10  (absence totale de données bâtiment)
                 -- rnu_proximite + score_bdnb > 0 → 0.30  (BDNB présent, emprise seule inconnue)
                 ROUND(CASE
@@ -62,7 +63,7 @@ def step_confidence(conn, dept):
                     WHEN source_ces = 'rnu_proximite'                      THEN 0.10
                     WHEN source_ces = 'bdnb_usage_only'                    THEN 0.40
                     ELSE 0.10
-                END, 2) AS score_zan,
+                END, 2) AS score_densification,
                 -- Fraîcheur : récence dernière vente (non pertinent pour zones A/N)
                 ROUND(CASE
                     WHEN last_sale >= 2023 THEN 1.0
@@ -76,11 +77,11 @@ def step_confidence(conn, dept):
         weighted AS (
             SELECT *,
                 ROUND(CASE WHEN zone_non_mutable
-                    -- Zones A/N : fraîcheur ignorée → BDNB 40%, DVF fiabilité 25%, ZAN 35%
-                    THEN score_bdnb * 0.40 + score_dvf_fiabilite * 0.25 + score_zan * 0.35
-                    -- Zones U/AU : formule standard → BDNB 30%, DVF précision 25%, ZAN 25%, Fraîcheur 20%
+                    -- Zones A/N : fraîcheur ignorée → BDNB 40%, DVF fiabilité 25%, densification 35%
+                    THEN score_bdnb * 0.40 + score_dvf_fiabilite * 0.25 + score_densification * 0.35
+                    -- Zones U/AU : formule standard → BDNB 30%, DVF précision 25%, densification 25%, Fraîcheur 20%
                     ELSE score_bdnb * 0.30 + score_dvf_precision * 0.25
-                         + score_zan * 0.25 + score_fraicheur * 0.20
+                         + score_densification * 0.25 + score_fraicheur * 0.20
                 END, 2) AS confidence_global
             FROM raw_scores
         )
@@ -89,7 +90,7 @@ def step_confidence(conn, dept):
             score_bdnb,
             score_dvf_fiabilite,
             score_dvf_precision,
-            score_zan,
+            score_densification,
             score_fraicheur,
             CASE WHEN zone_non_mutable
                 THEN score_dvf_fiabilite

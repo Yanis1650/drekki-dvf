@@ -58,8 +58,8 @@ def conn():
 class TestDoublePenalite:
     """Problème 1 : rnu_proximite ne doit plus pénaliser BDNB et ZAN simultanément."""
 
-    def test_rnu_sans_bdnb_penalite_unique_zan_010(self, conn):
-        """rnu_proximite + aucune donnée BDNB → score_zan = 0.10 (pénalité unique consolidée)."""
+    def test_rnu_sans_bdnb_penalite_unique_densification_010(self, conn):
+        """rnu_proximite + aucune donnée BDNB → score de densification à 0.10."""
         _setup(conn)
         _add_parcel(conn, "P1", "rnu_proximite")
         # Aucune ligne dans france_foncier_test → score_bdnb = 0.0
@@ -67,14 +67,16 @@ class TestDoublePenalite:
         step_confidence(conn, "35")
 
         row = conn.execute(
-            "SELECT score_bdnb, score_zan FROM confidence_scores WHERE id_parcelle = 'P1'"
+            "SELECT score_bdnb, score_densification FROM confidence_scores WHERE id_parcelle = 'P1'"
         ).fetchone()
-        bdnb, zan = float(row[0]), float(row[1])
+        bdnb, densification = float(row[0]), float(row[1])
         assert bdnb == 0.0,  f"score_bdnb attendu 0.0, obtenu {bdnb}"
-        assert zan == 0.10,  f"score_zan attendu 0.10 (pénalité unique), obtenu {zan}"
+        assert densification == 0.10,  (
+            f"score_densification attendu 0.10 (pénalité unique), obtenu {densification}"
+        )
 
-    def test_rnu_avec_bdnb_score_zan_030(self, conn):
-        """rnu_proximite + BDNB complet → score_zan = 0.30 (emprise seule manquante)."""
+    def test_rnu_avec_bdnb_score_densification_030(self, conn):
+        """rnu_proximite + BDNB complet → score de densification à 0.30."""
         _setup(conn)
         _add_parcel(conn, "P2", "rnu_proximite")
         _add_tx(conn, "P2", year=2023, with_bdnb=True)
@@ -82,11 +84,13 @@ class TestDoublePenalite:
         step_confidence(conn, "35")
 
         row = conn.execute(
-            "SELECT score_bdnb, score_zan FROM confidence_scores WHERE id_parcelle = 'P2'"
+            "SELECT score_bdnb, score_densification FROM confidence_scores WHERE id_parcelle = 'P2'"
         ).fetchone()
-        bdnb, zan = float(row[0]), float(row[1])
+        bdnb, densification = float(row[0]), float(row[1])
         assert bdnb == 1.0,  f"score_bdnb attendu 1.0 (DPE+annee+hauteur), obtenu {bdnb}"
-        assert zan == 0.30,  f"score_zan attendu 0.30 (BDNB ok, emprise inconnue), obtenu {zan}"
+        assert densification == 0.30,  (
+            f"score_densification attendu 0.30 (BDNB ok, emprise inconnue), obtenu {densification}"
+        )
 
 
 class TestDVFBinaireZoneAgricole:
@@ -126,7 +130,7 @@ class TestPoidsZoneNonMutable:
     """Problème 3 : fraîcheur marché non pertinente pour zones A/N → poids redistribués."""
 
     def test_fraicheur_ignoree_formule_40_25_35(self, conn):
-        """Zone A/N : fraîcheur = 0 exclue de la formule → conf = bdnb*0.40 + dvf_f*0.25 + zan*0.35."""
+        """Zone A/N : fraîcheur = 0 exclue de la formule de confiance."""
         _setup(conn)
         _add_parcel(conn, "P5", "plu_gpu", zone_non_mutable=True)
         # last_sale=2010 < 2014 → score_fraicheur = 0.0
@@ -135,12 +139,12 @@ class TestPoidsZoneNonMutable:
         step_confidence(conn, "35")
 
         row = conn.execute(
-            "SELECT score_bdnb, score_dvf_fiabilite, score_zan, score_fraicheur, confidence_global "
+            "SELECT score_bdnb, score_dvf_fiabilite, score_densification, score_fraicheur, confidence_global "
             "FROM confidence_scores WHERE id_parcelle = 'P5'"
         ).fetchone()
-        bdnb, dvf_f, zan, fraich, global_ = (float(x) for x in row)
+        bdnb, dvf_f, densification, fraich, global_ = (float(x) for x in row)
         assert fraich == 0.0, f"score_fraicheur attendu 0.0 (vente 2010 < 2014), obtenu {fraich}"
-        expected = round(bdnb * 0.40 + dvf_f * 0.25 + zan * 0.35, 2)
+        expected = round(bdnb * 0.40 + dvf_f * 0.25 + densification * 0.35, 2)
         assert abs(global_ - expected) < 0.01, (
             f"Formule zone_non_mutable (40/25/35) : attendu {expected}, obtenu {global_}"
         )
@@ -154,12 +158,12 @@ class TestPoidsZoneNonMutable:
         step_confidence(conn, "35")
 
         row = conn.execute(
-            "SELECT score_bdnb, score_dvf_precision, score_zan, score_fraicheur, confidence_global "
+            "SELECT score_bdnb, score_dvf_precision, score_densification, score_fraicheur, confidence_global "
             "FROM confidence_scores WHERE id_parcelle = 'P6'"
         ).fetchone()
-        bdnb, dvf_p, zan, fraich, global_ = (float(x) for x in row)
+        bdnb, dvf_p, densification, fraich, global_ = (float(x) for x in row)
         assert fraich == 1.0, f"score_fraicheur attendu 1.0 (vente 2023), obtenu {fraich}"
-        expected = round(bdnb * 0.30 + dvf_p * 0.25 + zan * 0.25 + fraich * 0.20, 2)
+        expected = round(bdnb * 0.30 + dvf_p * 0.25 + densification * 0.25 + fraich * 0.20, 2)
         assert abs(global_ - expected) < 0.01, (
             f"Formule zone mutable (30/25/25/20) : attendu {expected}, obtenu {global_}"
         )
