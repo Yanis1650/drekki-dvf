@@ -3,6 +3,8 @@
 import logging
 from decimal import Decimal
 
+from app.infrastructure.data_availability import column_exists
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,8 +66,14 @@ class DuckDBFicheMixin:
     async def get_parcelle_fiche(self, id_parcelle: str) -> dict | None:
         """Fiche parcelle complète : DVF + BDNB + densification + confiance."""
         conn = self._get_connection(self._dept_from_parcelle(id_parcelle))
+        if column_exists(conn, "confidence_scores", "score_densification"):
+            densification_score = "c.score_densification"
+        elif column_exists(conn, "confidence_scores", "score_zan"):
+            densification_score = "c.score_zan AS score_densification"
+        else:
+            densification_score = "NULL AS score_densification"
 
-        result = conn.execute("""
+        result = conn.execute(f"""
             WITH transactions AS (
                 SELECT
                     cadastre_parcelle_id,
@@ -117,7 +125,7 @@ class DuckDBFicheMixin:
                 c.confidence_label,
                 c.score_bdnb,
                 c.score_dvf,
-                c.score_densification,
+                {densification_score},
                 c.score_fraicheur
             FROM transactions t
             LEFT JOIN densification_scores d
