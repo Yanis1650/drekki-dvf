@@ -6,6 +6,7 @@ import duckdb
 import pytest
 from dvf_promotion import promote_release
 from dvf_quality import evaluate_dvf_quality
+from run_dvf_pipeline import resolve_baseline_quality_report
 
 
 def _create_candidate(path, *, duplicate=False, invalid=False):
@@ -43,9 +44,12 @@ def test_quality_report_accepts_a_valid_candidate_and_is_json(tmp_path):
 
     report = evaluate_dvf_quality(candidate, report_path, release="2026-04-20")
 
-    assert report["summary"] == {"passed": True, "total": 9, "failed": 0}
+    assert report["schema_version"] == 2
+    assert report["summary"] == {"passed": True, "total": 10, "failed": 0}
     assert report["metrics"]["mutation_count"] == 2
     assert report["metrics"]["date_range"] == {"min": "2024-06-20", "max": "2025-01-15"}
+    assert report["metrics"]["geolocation"]["rate"] == 1.0
+    assert report["metrics"]["parcel_links"]["rate"] == 1.0
     assert json.loads(report_path.read_text(encoding="utf-8")) == report
 
 
@@ -60,6 +64,56 @@ def test_quality_report_lists_dvf_anomalies_without_skipping_the_report(tmp_path
     failed = {check["name"] for check in report["checks"] if not check["passed"]}
     assert {"unique_mutation_ids", "valid_transaction_values"} <= failed
     assert json.loads(report_path.read_text(encoding="utf-8"))["summary"]["passed"] is False
+
+
+def test_quality_report_blocks_a_large_regression_against_an_approved_baseline(tmp_path):
+    baseline_candidate = tmp_path / "baseline.duckdb"
+    baseline_report = tmp_path / "baseline.quality.json"
+    candidate = tmp_path / "candidate.duckdb"
+    report_path = tmp_path / "candidate.quality.json"
+    _create_candidate(baseline_candidate)
+    baseline = evaluate_dvf_quality(baseline_candidate, baseline_report, release="2026-01-01")
+    assert baseline["summary"]["passed"] is True
+
+    _create_candidate(candidate)
+    conn = duckdb.connect(str(candidate))
+    conn.execute("DELETE FROM mutations_aggregated WHERE id_mutation = 'MUT002'")
+    conn.close()
+
+    report = evaluate_dvf_quality(
+        candidate,
+        report_path,
+        release="2026-02-01",
+        baseline_report_path=baseline_report,
+    )
+
+    assert report["summary"] == {"passed": False, "total": 11, "failed": 1}
+    assert report["comparison"] == {
+        "baseline_release": "2026-01-01",
+        "baseline_mutation_count": 2,
+        "mutation_count_ratio": 0.5,
+        "minimum_ratio": 0.75,
+    }
+    failed = {check["name"] for check in report["checks"] if not check["passed"]}
+    assert failed == {"previous_release_volume"}
+
+
+def test_pipeline_uses_the_current_immutable_quality_report_as_baseline(tmp_path):
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    report = releases / "foncier-2026-01-01.quality.json"
+    manifest = releases / "foncier-2026-01-01.release.json"
+    report.write_text('{"summary": {"passed": true}}\n', encoding="utf-8")
+    manifest.write_text(
+        '{"quality_report": "foncier-2026-01-01.quality.json"}\n', encoding="utf-8"
+    )
+    (releases / "current.json").write_text(
+        '{"manifest": "foncier-2026-01-01.release.json"}\n', encoding="utf-8"
+    )
+
+    baseline = resolve_baseline_quality_report(None, releases)
+
+    assert baseline == report.resolve()
 
 
 def test_promotion_keeps_an_immutable_release_and_current_pointer(tmp_path):

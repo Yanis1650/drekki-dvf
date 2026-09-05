@@ -3,8 +3,9 @@
 from fastapi import APIRouter
 
 from app.api.deps import get_settings
+from app.api.readiness import application_readiness
 from app.api.v1.endpoints import analytics, filiation, land, reports
-from app.schemas import HealthResponse
+from app.schemas import HealthResponse, ReadinessResponse
 
 router = APIRouter(prefix="/v1")
 
@@ -18,6 +19,12 @@ async def v1_health() -> HealthResponse:
         database="duckdb",
         version=settings.api_version,
     )
+
+
+@router.get("/health/ready", response_model=ReadinessResponse, tags=["health"])
+async def v1_readiness() -> ReadinessResponse:
+    """Sonde de disponibilite de la base departementale."""
+    return application_readiness()
 
 
 router.include_router(analytics.router)

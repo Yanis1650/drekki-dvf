@@ -17,8 +17,8 @@ services:
       DUCKDB_PATH: /app/data/dept35.duckdb
       DATA_DIR: /app/data
       MULTI_DEPT: "false"
-      # Restreindre aux origines réelles en production, ex. https://mondomaine.fr
-      CORS_ALLOW_ORIGINS: "*"
+      # Restriction par défaut au domaine public ; surchargeable via .env.
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-https://foncier-express.drekky.fr}
     volumes:
       - ./data:/app/data:ro
     restart: unless-stopped

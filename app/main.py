@@ -11,10 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.deps import get_settings
+from app.api.readiness import application_readiness
 from app.api.v1.router import router as v1_router
 from app.infrastructure.data_availability import DataUnavailableError
 from app.infrastructure.duckdb_spatial import SpatialUnavailableError
-from app.schemas import HealthResponse
+from app.schemas import HealthResponse, ReadinessResponse
 
 logger = logging.getLogger(__name__)
 
@@ -89,3 +90,9 @@ async def health() -> HealthResponse:
         database="duckdb",
         version=settings.api_version,
     )
+
+
+@app.get("/health/ready", response_model=ReadinessResponse, tags=["health"])
+async def readiness() -> ReadinessResponse:
+    """Sonde de disponibilite : fichier DuckDB lisible et tables coeur presentes."""
+    return application_readiness()

@@ -32,16 +32,40 @@ par l'API : le cadastre, la BDNB, le PLU, la densification et la filiation
 doivent y avoir été intégrés. La promotion applicative ne doit donc intervenir
 qu'après les contrôles de cette base finale.
 
-## Contrôles actuels
+## Contrôles et rapport de qualité
 
 Le rapport JSON bloque la promotion si la candidate est absente, illisible,
 sans table `mutations_aggregated`, sans colonne canonique, vide, dupliquée ou
-invalide sur les champs, dates, valeurs, surfaces et prix au m².
+invalide sur les champs, dates, valeurs, surfaces, parcelles liées, coordonnées
+ou prix au m². Les coordonnées sont aussi contrôlées dans leurs bornes
+géographiques universelles.
 
-Ces contrôles sont structurels. Les contrôles statistiques à ajouter avant une
-promotion applicative sont : comparaison à la release précédente, volumes par
-année et commune, taux de géolocalisation, taux de jointure cadastrale et
-distribution des prix par type de local.
+Le rapport `schema_version: 2` rend également visibles, sans les confondre avec
+des règles métier bloquantes, le volume par année et commune, les taux de
+géolocalisation et de liaison aux parcelles ainsi que la médiane des prix au m²
+par type de local. Ces métriques permettent d'interpréter une release avant de
+la servir.
+
+À partir de la deuxième release, le pipeline lit automatiquement le rapport JSON
+immuable pointé par `data/releases/current.json` (ou un rapport fourni avec
+`--baseline-quality-report`). La candidate est alors bloquée si son volume passe
+sous 75 % de cette référence validée. Ce seuil est volontairement explicite et
+conservateur : une baisse peut être légitime après correction de source, mais
+elle doit être assumée et documentée au lieu d'être publiée silencieusement.
+
+La base départementale finale a son propre contrat : une sonde de disponibilité
+vérifie la présence de `mutations_aggregated`, `france_foncier_test`,
+`parcelles`, `densification_scores` et `confidence_scores`. Les données
+optionnelles (filiation, POI, risques) restent signalées séparément par l'API
+plutôt que d'empêcher la carte et le marché de fonctionner.
+
+## Contrat de score de confiance
+
+Les nouvelles bases départementales stockent la composante de confiance liée à
+la densification sous le nom canonique `score_densification`. Les bases déjà
+déployées avec l'ancien nom interne `score_zan` restent compatibles en lecture
+via l'API le temps de leur renouvellement. Cela évite une migration forcée sur
+le VPS tout en supprimant l'ambiguïté des prochains builds.
 
 ## Valeurs extrêmes
 

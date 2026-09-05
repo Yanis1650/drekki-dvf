@@ -127,3 +127,11 @@ class HealthResponse(BaseModel):
     database: str = "connected"
     version: str = "0.1.0"
 
+
+class ReadinessResponse(BaseModel):
+    """Etat des donnees coeur necessaires au service de l'application."""
+
+    status: str = "ready"
+    database: str = "duckdb"
+    missing_tables: list[str]
+

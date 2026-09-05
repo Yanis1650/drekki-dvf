@@ -4,6 +4,9 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from etl_build_dept import resolve_build_paths
+from etl_build_steps.confidence import step_confidence
+
 # Ajouter data-pipeline au path pour importer etl_build_steps
 from etl_build_steps.config import (
     BDNB_PARQUET,
@@ -79,3 +82,66 @@ class TestStepOptimize:
         step_optimize(duckdb_conn_densification, "35")
         tables = duckdb_conn_densification.execute("SHOW TABLES").fetchall()
         assert any(t[0] == "densification_scores" for t in tables)
+
+
+class TestStepConfidence:
+    def test_build_uses_the_canonical_densification_score_column(self, duckdb_conn_plain):
+        conn = duckdb_conn_plain
+        conn.execute("""
+            CREATE TABLE densification_scores (
+                id_parcelle VARCHAR,
+                source_ces VARCHAR,
+                zone_non_mutable BOOLEAN,
+                code_commune VARCHAR
+            )
+        """)
+        conn.execute("""
+            INSERT INTO densification_scores VALUES
+            ('35238000AB0297', 'plu_gpu', FALSE, '35238')
+        """)
+        conn.execute("""
+            CREATE TABLE france_foncier_test (
+                cadastre_parcelle_id VARCHAR,
+                date_mutation VARCHAR,
+                dpe_energie VARCHAR,
+                annee_construction INTEGER,
+                hauteur_moyenne DOUBLE
+            )
+        """)
+        conn.execute("""
+            INSERT INTO france_foncier_test VALUES
+            ('35238000AB0297', '2025-01-15', 'C', 1985, 6.0)
+        """)
+
+        step_confidence(conn, "35")
+
+        columns = {
+            row[0]
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'confidence_scores'"
+            ).fetchall()
+        }
+        assert "score_densification" in columns
+        assert "score_zan" not in columns
+
+
+class TestDepartmentBuildPaths:
+    def test_existing_target_is_preserved_without_replace_flag(self, tmp_path):
+        output = tmp_path / "dept35.duckdb"
+        output.write_text("existing database", encoding="utf-8")
+
+        try:
+            resolve_build_paths(output, replace=False)
+        except FileExistsError as error:
+            assert "--replace" in str(error)
+        else:
+            raise AssertionError("une base existante ne doit jamais etre ecrasee par defaut")
+
+        assert output.read_text(encoding="utf-8") == "existing database"
+
+    def test_build_uses_a_neighbouring_temporary_file(self, tmp_path):
+        output, working = resolve_build_paths(tmp_path / "dept35.duckdb", replace=False)
+
+        assert output.name == "dept35.duckdb"
+        assert working.name == ".dept35.duckdb.building"
