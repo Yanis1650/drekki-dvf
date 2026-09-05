@@ -1,8 +1,10 @@
 <script setup>
+import { ref } from 'vue';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapContainer } from '../composables/useMapContainer';
 
 const props = defineProps({
+  radius: { type: Number, default: 500 },
   center: { type: Array, default: () => [-1.6778, 48.1173] },
   transactions: { type: Object, default: () => ({ type: 'FeatureCollection', features: [] }) },
   mode: { type: String, default: 'prix' },
@@ -12,13 +14,18 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['map-loaded', 'transaction-click', 'parcel-click']);
-const { mapContainer, isLoading } = useMapContainer(props, emit);
+const contextError = ref('');
+const { mapContainer, isLoading } = useMapContainer(props, (event, value) => {
+  if (event === 'context-error') contextError.value = value;
+  else emit(event, value);
+});
 </script>
 
 <template>
   <div class="relative w-full h-full">
     <div ref="mapContainer" class="w-full h-full"></div>
 
+    <p v-if="contextError" role="status" class="absolute bottom-4 left-4 right-4 bg-surface fe-absent p-2 text-meta">{{ contextError }}</p>
     <!-- État de chargement. L'animation porte une information — quelque chose
          est en cours — et s'arrête dès que ce n'est plus vrai. -->
     <Transition

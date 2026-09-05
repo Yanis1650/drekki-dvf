@@ -46,12 +46,9 @@ export function useParcelSelection() {
     /**
      * Restore selection from URL on component mount
      */
-    onMounted(() => {
-        const parcelleFromUrl = route.query.parcelle;
-        if (parcelleFromUrl && typeof parcelleFromUrl === 'string') {
-            selectedParcelId.value = parcelleFromUrl;
-        }
-    });
+    watch(() => route.query.parcelle, (id) => {
+        selectedParcelId.value = typeof id === 'string' && id ? id : null;
+    }, { immediate: true });
 
     /**
      * Select a parcel

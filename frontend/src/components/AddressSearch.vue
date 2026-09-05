@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import axios from 'axios';
 import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/vue/24/solid';
 
@@ -10,37 +10,47 @@ const results = ref([]);
 const loading = ref(false);
 const isFocused = ref(false);
 let debounceTimeout = null;
+let version = 0, controller;
+let selectedLabel = '';
+const searchError = ref('');
+onUnmounted(() => { version++; clearTimeout(debounceTimeout); controller?.abort(); });
 
-const searchAddress = async (q) => {
+const searchAddress = async (q, request) => {
   if (q.length < 3) {
     results.value = [];
     return;
   }
   
   loading.value = true;
+  controller = new AbortController();
   try {
-    const res = await axios.get(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`);
-    results.value = res.data.features;
+    const res = await axios.get(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`, { signal: controller.signal, timeout: 10000 });
+    if (request === version) results.value = res.data.features;
   } catch (err) {
-    console.error("BAN API Error:", err);
-    results.value = [];
+    if (request === version) { results.value = []; searchError.value = 'Recherche d’adresse indisponible. Réessayez en modifiant le texte.'; }
   } finally {
-    loading.value = false;
+    if (request === version) loading.value = false;
   }
 };
 
 watch(query, (newVal) => {
+  const request = ++version;
   clearTimeout(debounceTimeout);
+  controller?.abort();
+  results.value = []; loading.value = false; searchError.value = '';
+  if (newVal === selectedLabel || newVal.length < 3) return;
   debounceTimeout = setTimeout(() => {
-    searchAddress(newVal);
+    searchAddress(newVal, request);
   }, 300);
 });
 
 const selectAddress = (feature) => {
-  query.value = feature.properties.label;
+  selectedLabel = feature.properties.label;
+  query.value = selectedLabel;
   results.value = [];
   emit('select', {
     label: feature.properties.label,
+    citycode: feature.properties.citycode,
     coordinates: feature.geometry.coordinates // [lon, lat]
   });
 };
@@ -63,6 +73,7 @@ const selectAddress = (feature) => {
         v-model="query"
         @focus="isFocused = true"
         @blur="isFocused = false" 
+        aria-label="Rechercher une adresse"
         type="text" 
         placeholder="Rechercher une adresse..." 
         class="w-full pl-12 pr-12 py-3.5 bg-surface rounded border-2 transition-all duration-200
@@ -82,6 +93,7 @@ const selectAddress = (feature) => {
       </div>
     </div>
 
+    <p v-if="searchError" role="status" class="absolute top-full bg-surface border border-rule p-2 text-meta">{{ searchError }}</p>
     <!-- Results Dropdown -->
     <Transition
       enter-active-class="transition-all duration-200 ease-out"
@@ -100,6 +112,9 @@ const selectAddress = (feature) => {
           v-for="(feature, index) in results" 
           :key="index"
           @click="selectAddress(feature)"
+          @keydown.enter="selectAddress(feature)"
+          @keydown.space.prevent="selectAddress(feature)"
+          tabindex="0" role="button"
           class="group flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors
            hover:bg-accent-soft border-b border-rule last:border-0"
         >

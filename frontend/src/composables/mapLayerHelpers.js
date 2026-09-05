@@ -86,7 +86,7 @@ export function addTransactionLayers(map, transactions, mode) {
     source: 'transactions',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-color': pointFill(mode),
+      'circle-color': pointFill('prix'),
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 15, 6],
       'circle-stroke-width': 0.75,
       'circle-stroke-color': token('--fe-ink'),
@@ -107,8 +107,8 @@ export function addTransactionLayers(map, transactions, mode) {
     layout: {
       'text-field': [
         'concat',
-        ['number-format', ['get', 'prix_m2'], { locale: 'fr-FR', 'max-fraction-digits': 0 }],
-        ' €',
+        ['case', ['>', ['coalesce', ['get', 'prix_m2'], 0], 0],
+          ['concat', ['number-format', ['get', 'prix_m2'], { locale: 'fr-FR', 'max-fraction-digits': 0 }], ' €'], 'NON RELEVÉ'],
       ],
       'text-font': FONT,
       'text-size': 12,
@@ -216,14 +216,14 @@ export function setupMapEvents(map, emit, fetchTransactions, fetchParcelles) {
     map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
   }
 
-  map.on('click', 'clusters', (e) => {
+  map.on('click', 'clusters', async (e) => {
     const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
     if (features.length === 0) return;
     const clusterId = features[0].properties.cluster_id;
-    map.getSource('transactions').getClusterExpansionZoom(clusterId, (err, zoom) => {
-      if (err) return;
+    try {
+      const zoom = await map.getSource('transactions').getClusterExpansionZoom(clusterId);
       map.easeTo({ center: features[0].geometry.coordinates, zoom });
-    });
+    } catch { /* Source may have changed while expanding. */ }
   });
 
   map.on('moveend', () => {

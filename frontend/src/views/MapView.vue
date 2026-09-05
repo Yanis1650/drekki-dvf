@@ -1,8 +1,11 @@
 <script setup>
+import MapLegend from '../components/MapLegend.vue';
 import MapContainer from '../components/MapContainer.vue';
 import MapFooterKpi from '../components/layout/MapFooterKpi.vue';
 
 const props = defineProps({
+  status: String,
+  radius: { type: Number, default: 500 },
   transactions: { type: Object,  default: () => ({ type: 'FeatureCollection', features: [] }) },
   center:        { type: Array,   default: () => [-1.6778, 48.1173] },
   mode:          { type: String,  default: 'prix' },
@@ -28,6 +31,7 @@ const onTransactionClick = (feature) => {
     <div class="flex-1 relative min-h-0">
       <MapContainer
         :center="center"
+        :radius="radius"
         :transactions="transactions"
         :mode="mode"
         :active-filter="activeFilter"
@@ -38,6 +42,7 @@ const onTransactionClick = (feature) => {
         @transaction-click="onTransactionClick"
       />
 
+      <MapLegend :mode="mode" />
       <!-- Loading overlay -->
       <Transition
         enter-active-class="transition-opacity duration-300"
@@ -59,7 +64,8 @@ const onTransactionClick = (feature) => {
       </Transition>
     </div>
 
+    <p class="bg-surface px-4 py-1 text-meta text-ink-2">Contour bleu : périmètre DVF · fonds parcellaires : contexte cadastral indépendant des dates de vente.</p>
     <!-- KPI footer bar -->
-    <MapFooterKpi :transactions="transactions" />
+    <MapFooterKpi v-if="status === 'ready' || status === 'empty'" :transactions="transactions" />
   </div>
 </template>

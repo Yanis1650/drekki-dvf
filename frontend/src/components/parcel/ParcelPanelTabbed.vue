@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted, onMounted } from 'vue';
 import client from '../../api/client';
 
 import ParcelHeader    from './ParcelHeader.vue';
@@ -23,6 +23,10 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'highlight-related']);
+const panelRoot = ref(null);
+let previousFocus;
+onMounted(() => { previousFocus = document.activeElement; panelRoot.value?.focus(); });
+onUnmounted(() => previousFocus?.focus?.());
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = [
@@ -77,23 +81,10 @@ const sortedTx = computed(() =>
 );
 
 const avgPriceM2 = computed(() => {
-  const arr = transactions.value;
-  if (!arr.length) return 0;
-  return arr.reduce((s, t) => s + (t.price_m2 || 0), 0) / arr.length;
+  const prices = transactions.value.filter(t => !t.is_outlier).map(t => Number(t.price_m2)).filter(p => Number.isFinite(p) && p > 0);
+  return prices.length ? prices.reduce((a,b) => a+b, 0) / prices.length : null;
 });
-
-const lastSaleDate = computed(() => {
-  if (!transactions.value.length) return 'N/A';
-  const d = transactions.value[0]?.date;
-  return d
-    ? new Date(d).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
-    : 'N/A';
-});
-
-const potentialGain = computed(() => {
-  if (!densification.value || avgPriceM2.value === 0) return 0;
-  return densification.value.surface_constructible_restante * avgPriceM2.value;
-});
+const lastSaleDate = computed(() => [...transactions.value].map(t => t.date).filter(Boolean).sort().at(-1) || 'NON RELEVÉ');
 
 const qualityScores = computed(() => {
   const e = fiche.value?.enrichment || {};
@@ -135,10 +126,14 @@ const generateReport = async () => {
   }
 };
 
+let requestVersion = 0;
+onUnmounted(() => { requestVersion++; onStop(); });
+
 // ─── Data fetch ──────────────────────────────────────────────────────────────
 watch(
   () => props.parcelId,
   async (id) => {
+    const request = ++requestVersion;
     if (!id) return;
     loading.value       = true;
     error.value         = null;
@@ -155,6 +150,9 @@ watch(
         client.get(`/land/parcelles/${id}/fiche`, { validateStatus: s => s < 500 }),
       ]);
 
+      if (request !== requestVersion) return;
+      if (histRes.status === 'rejected') error.value = 'Historique DVF NON RELEVÉ : le service n’a pas répondu.';
+
       if (histRes.status === 'fulfilled') {
         transactions.value = histRes.value.data.transactions || [];
         const first = transactions.value[0];
@@ -170,18 +168,17 @@ watch(
       ) {
         const f = ficheRes.value.data;
         fiche.value = f;
-        densification.value = {
-          ces_actuel:                    f.ces_actuel ?? 0,
-          ces_potentiel:                 f.ces_potentiel ?? 0,
+        densification.value = f.ces_actuel != null && f.ces_potentiel != null && f.surface_constructible_restante != null ? {
+          ces_actuel:                    Number(f.ces_actuel),
+          ces_potentiel:                 Number(f.ces_potentiel),
           categorie:                     f.categorie_densification ?? 'INCONNU',
-          surface_constructible_restante: f.surface_constructible_restante ?? 0,
-        };
+          surface_constructible_restante: Number(f.surface_constructible_restante),
+        } : null;
       }
     } catch (err) {
-      error.value = 'Erreur lors du chargement des données.';
+      if (request === requestVersion) error.value = 'Erreur lors du chargement des données.';
     } finally {
-      loading.value = false;
-      setTimeout(() => (showScores.value = true), 200);
+      if (request === requestVersion) { loading.value = false; showScores.value = true; }
     }
   },
   { immediate: true }
@@ -190,12 +187,14 @@ watch(
 
 <template>
   <div
-    class="fixed top-14 right-0 bottom-0 z-50 flex"
-    :style="{ width: panelWidth + 'px' }"
+    class="fixed top-0 right-0 bottom-0 z-50 flex border-l border-rule"
+    :style="{ width: panelWidth + 'px', maxWidth: '100vw' }"
+    @keydown.esc="$emit('close')"
+    ref="panelRoot" tabindex="-1" role="complementary" aria-label="Fiche parcelle"
   >
     <!-- Resize handle (left edge) -->
     <div
-      class="w-3 flex-shrink-0 flex items-center justify-center cursor-col-resize
+      class="hidden md:flex w-3 flex-shrink-0 items-center justify-center cursor-col-resize
        hover:bg-accent-soft transition-colors group"
       @mousedown="startResize"
     >
@@ -215,9 +214,9 @@ watch(
           <ParcelHeader
             :parcel-id="parcelId"
             :coordinates="parcelCoords"
-            @close="$emit('close')"
           />
           <button
+            aria-label="Fermer la fiche parcelle"
             @click="$emit('close')"
             class="w-7 h-7 rounded bg-surface-2 hover:bg-surface-2 flex-shrink-0
              flex items-center justify-center transition-colors mt-0.5"
@@ -255,31 +254,19 @@ watch(
         </div>
 
         <!-- Error -->
-        <div v-else-if="error" class="flex items-center justify-center h-52 px-6 text-center">
+        <div v-if="error" class="flex items-center justify-center h-52 px-6 text-center">
           <p class="text-body text-alert">{{ error }}</p>
         </div>
 
         <!-- ── Résumé ── -->
-        <div v-else-if="activeTab === 'resume'" class="p-5 space-y-4 animate-fade-in">
+        <div v-if="!loading && activeTab === 'resume'" class="p-5 space-y-4 animate-fade-in">
 
-          <!-- Potentiel brut -->
-          <div
-            v-if="densification && avgPriceM2 > 0"
-            class="rounded p-4 bg-warn-soft border border-warn/40"
-          >
-            <p class="text-label font-semibold uppercase tracking-widest text-warn mb-1">
-              Potentiel brut estimé
-            </p>
-            <p class="text-figure font-semibold text-warn tabular-nums">{{ fmt(potentialGain) }}</p>
-            <p class="text-label text-warn mt-1.5 font-mono">
-              {{ densification.surface_constructible_restante.toFixed(0) }} m²
-              × {{ avgPriceM2.toFixed(0) }} €/m²
-            </p>
-          </div>
+          <p class="fe-meta">Fiche parcellaire : historique complet, indépendant de la période du secteur. Source : DVF et enrichissements Foncier Express.</p>
+          <p v-if="densification" class="cartouche p-3 fe-estimated">Surface restante modélisée : {{ densification.surface_constructible_restante.toLocaleString('fr-FR') }} m². À vérifier au regard des règles d’urbanisme.</p>
 
           <!-- Confidence -->
           <ConfidenceBadge
-            v-if="fiche"
+            v-if="fiche?.confidence_global != null"
             :confidence-global="fiche.confidence_global"
             :confidence-label="fiche.confidence_label"
             :score-bdnb="fiche.score_bdnb"
@@ -290,9 +277,11 @@ watch(
             :warning="fiche.warning"
           />
 
+          <p v-if="fiche?.confidence_global == null" class="fe-absent p-3 text-meta">Indice de confiance : NON RELEVÉ.</p>
           <!-- Stats -->
           <ParcelStats
             :transaction-count="transactions.length"
+            :history-available="!error"
             :avg-price-m2="avgPriceM2"
             :last-sale-date="lastSaleDate"
             :sector-avg-price-m2="sectorAvgPriceM2"
@@ -308,7 +297,7 @@ watch(
         </div>
 
         <!-- ── Marché ── -->
-        <div v-else-if="activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
+        <div v-else-if="!loading && activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
           <ParcelPriceChart
             v-if="sortedTx.length > 0"
             :transactions="sortedTx"

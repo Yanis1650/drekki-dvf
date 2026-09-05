@@ -15,6 +15,7 @@
  */
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import maplibregl from 'maplibre-gl';
+import { studyBoundary } from '../domain/studyGeometry.js';
 import client from '../api/client';
 import { token } from '../styles/tokens';
 import {
@@ -52,6 +53,8 @@ export function useMapContainer(props, emit) {
   const mapContainer = ref(null);
   const isLoading = ref(true);
   let map = null;
+  let parcelRequest = 0;
+  let parcelController;
 
   function createMapStyle() {
     return {
@@ -80,20 +83,11 @@ export function useMapContainer(props, emit) {
     };
   }
 
-  async function fetchTransactions() {
-    if (!map?.getSource('transactions')) return;
-    const b = map.getBounds();
-    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
-    try {
-      const res = await client.get(`/land/geojson?bbox=${bbox}`);
-      map.getSource('transactions').setData(res.data);
-    } catch (err) {
-      console.error('Transactions fetch error:', err);
-    }
-  }
-
   async function fetchParcelles() {
     if (!map?.getSource('parcelles')) return;
+    const request = ++parcelRequest;
+    parcelController?.abort();
+    parcelController = new AbortController();
     if (map.getZoom() < 13) {
       map.getSource('parcelles').setData({ type: 'FeatureCollection', features: [] });
       return;
@@ -102,10 +96,14 @@ export function useMapContainer(props, emit) {
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
     const filterParam = props.activeFilter ? `&filter=${props.activeFilter}` : '';
     try {
-      const res = await client.get(`/land/parcelles?bbox=${bbox}${filterParam}`);
+      const res = await client.get(`/land/parcelles?bbox=${bbox}${filterParam}`, { signal: parcelController.signal });
+      if (request !== parcelRequest || !map) return;
       map.getSource('parcelles').setData(res.data);
+      emit('context-error', '');
     } catch (err) {
-      console.error('Parcelles fetch error:', err);
+      if (request !== parcelRequest || !map) return;
+      map.getSource('parcelles').setData({ type: 'FeatureCollection', features: [] });
+      emit('context-error', 'Cadastre et données parcellaires NON RELEVÉS pour cette vue.');
     }
   }
 
@@ -156,7 +154,7 @@ export function useMapContainer(props, emit) {
         mode === 'urbanisme' ? 'visible' : 'none');
     }
     if (map.getLayer('unclustered-point')) {
-      map.setPaintProperty('unclustered-point', 'circle-color', pointFill(mode));
+      map.setPaintProperty('unclustered-point', 'circle-color', pointFill('prix'));
     }
   }
 
@@ -177,15 +175,19 @@ export function useMapContainer(props, emit) {
       registerHatchImages(map);
       addTransactionLayers(map, props.transactions, props.mode);
       addParcelleLayers(map, props.mode);
-      setupMapEvents(map, emit, fetchTransactions, fetchParcelles);
-      fetchTransactions();
+      map.addSource('study-area', { type: 'geojson', data: studyBoundary(props.center, props.radius) });
+      map.addLayer({ id: 'study-boundary', type: 'line', source: 'study-area', paint: { 'line-color': token('--fe-accent'), 'line-width': 2, 'line-dasharray': [3, 2] } });
+      setupMapEvents(map, emit, () => {}, fetchParcelles);
       if (map.getZoom() >= 13) fetchParcelles();
       emit('map-loaded');
     });
   });
 
+  watch([() => props.center, () => props.radius], () => {
+    map?.getSource('study-area')?.setData(studyBoundary(props.center, props.radius));
+  });
   watch(() => props.center, (newCenter) => {
-    if (map) map.flyTo({ center: newCenter, essential: true, zoom: 16, duration: 800 });
+    if (map) map.flyTo({ center: newCenter, zoom: 14, duration: 300 });
   });
   watch(() => props.activeFilter, () => {
     if (map?.getSource('parcelles') && map.getZoom() >= 13) fetchParcelles();
@@ -198,7 +200,10 @@ export function useMapContainer(props, emit) {
   });
 
   onUnmounted(() => {
+    parcelRequest++;
+    parcelController?.abort();
     if (map) map.remove();
+    map = null;
   });
 
   return { mapContainer, isLoading };

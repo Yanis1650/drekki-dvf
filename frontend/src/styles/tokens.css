@@ -220,7 +220,7 @@ input[type="number"] {
 /* Absence de donnée. Ne jamais substituer 0, un tiret seul, ni une valeur par
    défaut : le pipeline répond 503 data_unavailable, l'interface le montre. */
 .fe-absent {
-  color: var(--fe-absent-ink);
+  color: var(--fe-ink-2);
   background-image: repeating-linear-gradient(45deg,
       transparent 0 3px,
       color-mix(in srgb, var(--fe-absent-ink) 22%, transparent) 3px 4px);

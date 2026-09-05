@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue';
 import AppTopbar          from './components/layout/AppTopbar.vue';
 import AppSidebar         from './components/layout/AppSidebar.vue';
+import StudyStatus from './components/StudyStatus.vue';
+import { useStudyArea } from './composables/useStudyArea.js';
 import client             from './api/client';
 import { useParcelSelection } from './composables/useParcelSelection';
 
@@ -14,74 +16,28 @@ const ParcelPanelTabbed = defineAsyncComponent(
 const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParcelSelection();
 
 // ─── Global state ─────────────────────────────────────────────────────────────
-const mapCenter      = ref([-1.6778, 48.1173]); // Rennes default
-const transactions   = ref({ type: 'FeatureCollection', features: [] });
-const loading        = ref(false);
-const mapMode        = ref('prix');
-const activeFilter   = ref(null);
+const study = useStudyArea(client);
+const { center: mapCenter, transactions, radius, recent, label, commune, status, error, capped, stats, enrichmentAvailable, refresh } = study;
+const loading = computed(() => status.value === 'loading');
+const mapMode = ref('prix');
 const relatedParcels = ref([]);
-const backendOffline = ref(false);
-
-const sectorAvgPriceM2 = computed(() => {
-  const features = transactions.value?.features || [];
-  const valid = features.filter(f => f.properties.prix_m2 && !f.properties.is_outlier);
-  if (!valid.length) return 0;
-  return valid.reduce((s, f) => s + f.properties.prix_m2, 0) / valid.length;
-});
-
-const isNetworkError = (err) =>
-  err?.code === 'ERR_NETWORK' || err?.message?.includes('Network Error');
-
-// ─── API ──────────────────────────────────────────────────────────────────────
-// L'API est libre et sans compte : le seul appel au démarrage sert à savoir
-// si le backend répond, pour afficher le bandeau hors-ligne.
-const pingBackend = async () => {
-  try {
-    await client.get('/health');
-    backendOffline.value = false;
-  } catch (err) {
-    if (isNetworkError(err)) backendOffline.value = true;
-  }
-};
-
-const fetchTransactionsInRadius = async (lon, lat) => {
-  loading.value = true;
-  try {
-    const res = await client.get('/land/search/enriched', {
-      params: { lat, lon, radius: 500, limit: 200 },
-    });
-    transactions.value = {
-      type: 'FeatureCollection',
-      features: res.data.mutations.map((m) => ({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [m.mutation.longitude, m.mutation.latitude],
-        },
-        properties: {
-          ...m.mutation,
-          prix_m2: parseFloat(m.mutation.prix_m2) || 0,
-          valeur_fonciere: parseFloat(m.mutation.valeur_fonciere) || 0,
-          scores: m.enrichment,
-        },
-      })),
-    };
-  } catch (err) {
-    if (isNetworkError(err)) backendOffline.value = true;
-    console.error('Search error:', err);
-  } finally {
-    loading.value = false;
-  }
-};
+const sectorAvgPriceM2 = computed(() => stats.value.avgPrice);
+watch([radius, recent], refresh);
+watch(selectedParcelId, () => { relatedParcels.value = []; });
+onUnmounted(study.dispose);
 
 // ─── Event handlers ───────────────────────────────────────────────────────────
 const onAddressSelect = (data) => {
   mapCenter.value = data.coordinates;
-  fetchTransactionsInRadius(data.coordinates[0], data.coordinates[1]);
+  label.value = data.label;
+  commune.value = data.citycode || '';
+  clearSelection();
+  relatedParcels.value = [];
+  refresh();
 };
 
 const onParcelClick = (feature) => {
-  selectParcel(feature.properties.id_parcelle, feature.properties);
+  if (feature?.properties?.id_parcelle) selectParcel(feature.properties.id_parcelle, feature.properties);
 };
 
 const onHighlightRelated = (parcelIds) => {
@@ -89,44 +45,27 @@ const onHighlightRelated = (parcelIds) => {
 };
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-onMounted(() => {
-  pingBackend();
-  fetchTransactionsInRadius(mapCenter.value[0], mapCenter.value[1]);
-});
+onMounted(refresh);
 </script>
 
 <template>
   <div class="h-screen flex flex-col overflow-hidden bg-surface-2">
 
-    <!-- Offline banner -->
-    <Transition
-      enter-active-class="transition-all duration-300"
-      leave-active-class="transition-all duration-300"
-      enter-from-class="opacity-0 -translate-y-full"
-      leave-to-class="opacity-0 -translate-y-full"
-    >
-      <div
-        v-if="backendOffline"
-        class="flex-shrink-0 bg-warn text-ink px-4 py-2
-         text-center text-meta font-semibold z-50"
-      >
-        ⚠️ API backend inaccessible —
-        <code class="bg-ink/10 px-1.5 py-0.5 rounded text-label">
-          uvicorn app.main:app --reload --port 8000
-        </code>
-      </div>
-    </Transition>
-
     <!-- Topbar -->
     <AppTopbar
-      :active-filter="activeFilter"
       :map-mode="mapMode"
       :loading="loading"
       @search-select="onAddressSelect"
-      @update:active-filter="activeFilter = $event"
       @update:map-mode="mapMode = $event"
     />
 
+    <div class="flex flex-wrap items-center gap-3 px-4 py-2 bg-surface border-b border-rule text-body">
+      <strong class="text-ink">{{ label }}</strong>
+      <label>Rayon <select v-model.number="radius" class="bg-surface-2 border border-rule rounded px-2 py-1"><option :value="500">500 m</option><option :value="1000">1 km</option><option :value="5000">5 km</option></select></label>
+      <label><input v-model="recent" type="checkbox"> Deux dernières années</label>
+      <span class="text-meta text-ink-3">Carte, KPI et Marché : même recherche. Déplacer la carte conserve ce périmètre.</span>
+    </div>
+    <StudyStatus :status="status" :error="error" :capped="capped" :stats="stats" :enrichment-available="enrichmentAvailable" @retry="refresh" />
     <!-- Content: sidebar + main -->
     <div class="flex-1 flex min-h-0">
       <AppSidebar />
@@ -137,8 +76,11 @@ onMounted(() => {
             :is="Component"
             :transactions="transactions"
             :center="mapCenter"
+            :radius="radius"
+            :commune="commune"
+            :status="status"
             :mode="mapMode"
-            :active-filter="activeFilter"
+            :active-filter="null"
             :selected-parcel="selectedParcelId"
             :related-parcels="relatedParcels"
             :loading="loading"

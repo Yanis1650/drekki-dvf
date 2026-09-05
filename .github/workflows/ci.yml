@@ -47,6 +47,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Frontend tests
+        run: npm test
       - name: Check visual charter
         run: npm run check:charte
       - name: Build

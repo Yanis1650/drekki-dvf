@@ -4,7 +4,7 @@ import apexchart from 'vue3-apexcharts';
 import { token } from '../styles/tokens';
 
 /**
- * Évolution du marché : prix médian au m² et volume de ventes.
+ * Évolution du marché : prix moyen au m² et volume de ventes.
  *
  * Les deux séries étaient superposées sur deux axes verticaux distincts. Un
  * double axe laisse choisir arbitrairement l'échelle de chacun, donc la forme
@@ -25,7 +25,7 @@ const chartData = computed(() => {
   }
   return {
     years: props.trends.map((t) => t.year),
-    prices: props.trends.map((t) => parseFloat(t.avg_price_m2)),
+    prices: props.trends.map((t) => t.avg_price_m2 == null ? null : Number(t.avg_price_m2)),
     volumes: props.trends.map((t) => t.transaction_volume),
   };
 });
@@ -100,7 +100,7 @@ const volumeOptions = computed(() => ({
   legend: { show: false },
 }));
 
-const prixSeries = computed(() => [{ name: 'Prix médian/m²', data: chartData.value.prices }]);
+const prixSeries = computed(() => [{ name: 'Prix moyen/m²', data: chartData.value.prices }]);
 const volumeSeries = computed(() => [{ name: 'Ventes', data: chartData.value.volumes }]);
 </script>
 
@@ -113,8 +113,8 @@ const volumeSeries = computed(() => [{ name: 'Ventes', data: chartData.value.vol
     <div v-else-if="trends && trends.length > 0" class="flex flex-col gap-4">
       <div>
         <div class="flex items-baseline justify-between mb-1">
-          <span class="fe-label">Prix médian au m²</span>
-          <span class="fe-meta tabular-nums">n = {{ totalVentes.toLocaleString('fr-FR') }} ventes</span>
+          <span class="fe-label">Prix moyen au m²</span>
+          <span class="fe-meta tabular-nums">{{ totalVentes.toLocaleString('fr-FR') }} mutations · {{ trends.reduce((sum, t) => sum + (t.priced_count || 0), 0) }} prix exploitables</span>
         </div>
         <apexchart type="area" height="220" :options="prixOptions" :series="prixSeries" />
       </div>
