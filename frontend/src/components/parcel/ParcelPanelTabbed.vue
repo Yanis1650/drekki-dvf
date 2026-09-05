@@ -2,6 +2,7 @@
 import { ref, computed, watch, onUnmounted, onMounted } from 'vue';
 import client from '../../api/client';
 
+import DecisionDossier from './DecisionDossier.vue';
 import ParcelHeader    from './ParcelHeader.vue';
 import ParcelStats     from './ParcelStats.vue';
 import ParcelPriceChart from './ParcelPriceChart.vue';
@@ -30,16 +31,16 @@ onUnmounted(() => previousFocus?.focus?.());
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'resume',        label: 'Résumé'    },
-  { id: 'marche',        label: 'Marché'    },
-  { id: 'densification', label: 'ZAN'       },
-  { id: 'historique',    label: 'Hist.'     },
-  { id: 'filiation',     label: 'Filiation' },
+  { id: 'resume',        label: 'Dossier'    },
+  { id: 'marche',        label: 'Prix'    },
+  { id: 'densification', label: 'Potentiel'       },
+  { id: 'historique',    label: 'Ventes'     },
+  { id: 'filiation',     label: 'Parcelles' },
 ];
 const activeTab = ref('resume');
 
 // ─── Panel resize ────────────────────────────────────────────────────────────
-const panelWidth  = ref(440);
+const panelWidth  = ref(500);
 const MIN_WIDTH   = 360;
 const MAX_WIDTH   = 720;
 let rStartX = 0;
@@ -145,9 +146,10 @@ watch(
     showScores.value    = false;
 
     try {
-      const [histRes, ficheRes] = await Promise.allSettled([
+      const [histRes, ficheRes, densRes] = await Promise.allSettled([
         client.get(`/analytics/parcel/${id}/history`),
         client.get(`/land/parcelles/${id}/fiche`, { validateStatus: s => s < 500 }),
+        client.get(`/land/parcelles/${id}/densification`),
       ]);
 
       if (request !== requestVersion) return;
@@ -175,6 +177,7 @@ watch(
           surface_constructible_restante: Number(f.surface_constructible_restante),
         } : null;
       }
+      if (!densification.value && densRes.status === 'fulfilled') densification.value = densRes.value.data;
     } catch (err) {
       if (request === requestVersion) error.value = 'Erreur lors du chargement des données.';
     } finally {
@@ -249,18 +252,21 @@ watch(
 
         <!-- Loading -->
         <div v-if="loading" class="flex flex-col items-center justify-center h-52 gap-3">
-          <div class="w-9 h-9 border-[3px] border-rule border-t-sage-500 rounded-full animate-spin"></div>
+          <div class="w-9 h-9 border-[3px] border-rule border-t-accent rounded-full animate-spin"></div>
           <p class="text-body text-ink-3">Chargement…</p>
         </div>
 
         <!-- Error -->
-        <div v-if="error" class="flex items-center justify-center h-52 px-6 text-center">
+        <div v-if="error" role="status" class="p-4 text-center">
           <p class="text-body text-alert">{{ error }}</p>
         </div>
 
         <!-- ── Résumé ── -->
         <div v-if="!loading && activeTab === 'resume'" class="p-5 space-y-4 animate-fade-in">
 
+          <DecisionDossier :key="parcelId" :parcel-id="parcelId" :fiche="fiche" :densification="densification" :transactions="transactions" :history-available="!error" />
+          <details><summary class="text-accent text-body cursor-pointer">Voir les indicateurs techniques de la parcelle</summary>
+          <div class="space-y-4 mt-4">
           <p class="fe-meta">Fiche parcellaire : historique complet, indépendant de la période du secteur. Source : DVF et enrichissements Foncier Express.</p>
           <p v-if="densification" class="cartouche p-3 fe-estimated">Surface restante modélisée : {{ densification.surface_constructible_restante.toLocaleString('fr-FR') }} m². À vérifier au regard des règles d’urbanisme.</p>
 
@@ -294,6 +300,7 @@ watch(
           >
             ℹ️ Données d'expertise non disponibles pour cette parcelle.
           </div>
+          </div></details>
         </div>
 
         <!-- ── Marché ── -->
@@ -395,7 +402,7 @@ watch(
             v-else
             class="w-4 h-4 border-2 border-accent-ink/30 border-t-accent-ink rounded-full animate-spin"
           ></div>
-          <span>{{ generatingReport ? 'Génération…' : 'Rapport Expert PDF' }}</span>
+          <span>{{ generatingReport ? 'Génération…' : 'Rapport technique PDF' }}</span>
           <span class="ml-auto px-2 py-0.5 bg-accent-ink/15 rounded text-meta font-semibold">
             Gratuit
           </span>

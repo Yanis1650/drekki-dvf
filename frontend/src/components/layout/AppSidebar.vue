@@ -1,6 +1,6 @@
 <script setup>
-import { MapIcon, ChartBarSquareIcon } from '@heroicons/vue/24/outline';
-const items = [{ path: '/', label: 'Carte', icon: MapIcon }, { path: '/marche', label: 'Marché', icon: ChartBarSquareIcon }];
+import { MapIcon, ChartBarSquareIcon, FolderIcon } from '@heroicons/vue/24/outline';
+const items = [{ path: '/', label: 'Carte', icon: MapIcon }, { path: '/marche', label: 'Marché', icon: ChartBarSquareIcon }, { path: '/dossiers', label: 'Dossiers', icon: FolderIcon }];
 </script>
 <template>
   <nav aria-label="Navigation principale" class="w-14 md:w-28 flex-shrink-0 bg-surface border-r border-rule p-2 space-y-2">

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
+  { path: '/dossiers', name: 'dossiers', component: () => import('./views/DossiersView.vue') },
   {
     path: '/',
     name: 'map',

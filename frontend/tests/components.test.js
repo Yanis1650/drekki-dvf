@@ -40,3 +40,11 @@ test('parcel never substitutes sector price for unavailable parcel price', async
   assert.match(html, /Prix moyen parcelle \/ m²<\/dt><dd class="fe-estimated">NON RELEVÉ/);
   assert.match(html, /Prix moyen secteur/);
 });
+test('shared dossier presents objectives, traceable questions and local storage limits', async () => {
+  const html = await render('../src/components/parcel/DecisionDossier.vue', { parcelId: '35238000AB0001', transactions: [], historyAvailable: false });
+  assert.match(html, /Étudier le potentiel/);
+  assert.match(html, /Préparer une visite/);
+  assert.match(html, /Pourquoi cette question/);
+  assert.match(html, /sans compte ni synchronisation/);
+  assert.match(html, /ne permettent pas de conclure/);
+});

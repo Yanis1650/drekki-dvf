@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, provide, defineAsyncComponent } from 'vue';
 import AppTopbar          from './components/layout/AppTopbar.vue';
 import AppSidebar         from './components/layout/AppSidebar.vue';
 import StudyStatus from './components/StudyStatus.vue';
 import { useStudyArea } from './composables/useStudyArea.js';
+import { createDossierStore, DOSSIERS_KEY } from './composables/useDossiers.js';
 import client             from './api/client';
 import { useParcelSelection } from './composables/useParcelSelection';
 
@@ -12,6 +13,10 @@ import { useParcelSelection } from './composables/useParcelSelection';
 const ParcelPanelTabbed = defineAsyncComponent(
   () => import('./components/parcel/ParcelPanelTabbed.vue'),
 );
+
+let dossierStorage;
+try { dossierStorage = window.localStorage; } catch { /* Browser privacy settings can disable storage. */ }
+provide(DOSSIERS_KEY, createDossierStore(dossierStorage));
 
 const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParcelSelection();
 
