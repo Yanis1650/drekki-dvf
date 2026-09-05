@@ -10,6 +10,9 @@ permissions:
 jobs:
   dependency-review:
     name: New vulnerable dependencies
+    # GitHub rend cette action disponible sans GHAS pour les dépôts publics.
+    # Un dépôt privé sans GHAS ne peut pas l'exécuter ; le job est donc ignoré.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
