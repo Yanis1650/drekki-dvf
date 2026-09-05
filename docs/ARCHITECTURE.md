@@ -119,7 +119,7 @@ data-pipeline/
 
 Basée sur les travaux de Boris Mericskay (Université Rennes 2) :
 
-- Filtrage : `nature_mutation = 'Vente'`, exclusion < 2000 EUR, surface > 9m²
+- Filtrage : `nature_mutation = 'Vente'`, exclusion ≤ 1 000 EUR, surface > 9m²
 - Agrégation par `id_mutation` pour lier bâtis et parcelles
 - Enrichissement qualitatif via OSM (proximité transports, éducation, commerces)
 

@@ -1,10 +1,12 @@
-"""DVF ETL Pipeline.
+"""Adaptateur historique du pipeline DVF.
 
-Lazy Polars pipeline to clean and aggregate DVF data into DuckDB.
-Runs separately from the API to avoid heavy processing at runtime.
+Le point d'entrée de référence est désormais ``run_dvf_pipeline.py`` puis
+``run_etl.py``. Cette classe est conservée temporairement pour les imports
+existants, mais ne doit plus être utilisée pour créer une nouvelle base.
 """
 
 import logging
+import warnings
 from pathlib import Path
 
 import duckdb
@@ -123,7 +125,12 @@ class DvfEtlPipeline:
         Returns:
             Number of mutations processed
         """
-        logger.info(f"Starting DVF ETL pipeline with strategy: {self._strategy.name}")
+        warnings.warn(
+            "DvfEtlPipeline est déprécié ; utilisez python data-pipeline/run_dvf_pipeline.py",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.info(f"Starting legacy DVF ETL pipeline with strategy: {self._strategy.name}")
 
         df = self.extract(dvf_path)
         df = self.transform(df)

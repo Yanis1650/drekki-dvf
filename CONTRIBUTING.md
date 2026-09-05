@@ -14,7 +14,7 @@ En participant, vous acceptez le [Code de conduite](CODE_OF_CONDUCT.md).
 
 ```bash
 pip install -e ".[dev]"
-cd frontend && npm install
+cd frontend && npm ci
 ```
 
 4. Copiez les fichiers d'environnement :
@@ -31,6 +31,11 @@ cp frontend/.env.example frontend/.env
 1. Commitez vos changements avec des messages clairs (voir format ci-dessous)
 2. Pushez votre branche : `git push origin feature/ma-fonctionnalite`
 3. Ouvrez une **Pull Request** vers `main`
+
+Les statuts GitHub Actions doivent être verts avant revue : tests et Ruff du
+backend, charte et build du frontend, builds Docker et revue des dépendances.
+La configuration et les contrôles exécutés sont détaillés dans
+[`docs/GITHUB_AUTOMATION.md`](docs/GITHUB_AUTOMATION.md).
 
 ### Format des commits
 

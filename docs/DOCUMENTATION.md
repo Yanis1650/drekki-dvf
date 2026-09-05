@@ -167,7 +167,7 @@ Données fiscales de toutes les transactions immobilières françaises publiées
 
 **Filtres de nettoyage appliqués (méthode Mericskay) :**
 - `nature_mutation = 'Vente'` uniquement (exclusion adjudications, échanges, expropriations)
-- `valeur_fonciere >= 1000 €` (exclusion des transferts symboliques)
+- `valeur_fonciere > 1000 €` (exclusion des transferts symboliques)
 - `surface_reelle_bati > 9 m²` (exclusion des locaux non habitables)
 - Types Maison + Appartement uniquement pour le calcul du prix/m²
 
@@ -350,7 +350,7 @@ LEFT JOIN bdnb_stats bdnb ON cadastre.id_parcelle = bdnb.cadastre_parcelle_id
 
 **Filtres DVF appliqués (méthode Mericskay) :**
 - `nature_mutation IN ('Vente')` uniquement
-- `valeur_fonciere >= 1000`
+- `valeur_fonciere > 1000`
 - `surface_reelle_bati > 9` pour les biens bâtis
 - Types `Maison` et `Appartement` uniquement pour les calculs de prix/m²
 - Agrégation par `id_mutation` (1 vente peut inclure maison + dépendances → ne somme que le bâti principal)
@@ -693,7 +693,7 @@ la cardinalité 1-N des mutations DVF (une vente = maison + dépendances multipl
 # 1. Filtrage des mutations
 mutations = dvf.filter(
     nature == 'Vente',
-    valeur >= 1000,
+    valeur > 1000,
     type_local IN ['Maison', 'Appartement'],
     surface_reelle_bati > 9
 )

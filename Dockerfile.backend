@@ -12,18 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set work directory
 WORKDIR /app
 
-# Copy dependency files
+# Copier le package avant son installation : l'image est réellement buildable
+# en CI comme en production, au lieu de tenter d'installer un projet vide.
 COPY pyproject.toml README.md ./
+COPY app/ ./app/
+COPY data-pipeline/ ./data-pipeline/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir . && \
     playwright install-deps && \
     playwright install chromium
-
-# Copy application code
-COPY app/ ./app/
-COPY data-pipeline/ ./data-pipeline/
 
 # Create data directory
 RUN mkdir -p /app/data

@@ -6,21 +6,19 @@ Separated from main repository to maintain 400-line limit (SRP).
 
 import logging
 from datetime import datetime
-from decimal import Decimal
-from math import cos, radians
 from pathlib import Path
 
 import duckdb
 
-from app.domain.analytics_models import YearlyTrend
 from app.infrastructure.data_availability import column_exists
 from app.infrastructure.duckdb_pool import DuckDBPool
 from app.infrastructure.duckdb_spatial import ensure_spatial
+from app.repositories.duckdb.analytics_trends_mixin import AnalyticsTrendsMixin
 
 logger = logging.getLogger(__name__)
 
 
-class DuckDBAnalyticsRepository:
+class DuckDBAnalyticsRepository(AnalyticsTrendsMixin):
     """Analytics repository for market trends analysis.
 
     Handles complex temporal and spatial aggregations for market insights.
@@ -45,8 +43,8 @@ class DuckDBAnalyticsRepository:
         if self._pool is not None:
             try:
                 return self._pool.get_for_parcelle(parcel_id)
-            except Exception:
-                pass
+            except Exception as error:
+                logger.debug("Routage departemental indisponible pour %s: %s", parcel_id, error)
         return self._get_main_connection()
 
     def _available_tables(self, conn: duckdb.DuckDBPyConnection) -> list[str]:
@@ -55,146 +53,6 @@ class DuckDBAnalyticsRepository:
             return [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
         except Exception:
             return []
-
-    async def get_market_trends(
-        self,
-        code_commune: str | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        radius_meters: int = 1000,
-        years: int = 10,
-    ) -> list[YearlyTrend]:
-        """Get market trends over time for a location.
-
-        Strategy:
-        1. Filter by commune OR radius around coordinates
-        2. Apply Mericskay methodology filters
-        3. Group by year and calculate metrics
-        4. Calculate YoY percentage changes
-
-        Table detection:
-        - Tries france_foncier_test first (has is_outlier flag, most accurate)
-        - Falls back to mutations_aggregated if france_foncier_test not available
-
-        Args:
-            code_commune: INSEE commune code (e.g., "35238" for Rennes)
-            lat: Latitude for radius search (WGS84)
-            lon: Longitude for radius search (WGS84)
-            radius_meters: Search radius in meters
-            years: Number of years to analyze (from current year backwards)
-
-        Returns:
-            List of YearlyTrend objects ordered by year ascending
-        """
-        conn = self._get_main_connection()
-
-        # Determine current year and start year
-        current_year = datetime.now().year
-        start_year = current_year - years
-
-        # Build WHERE clause based on location type
-        if code_commune:
-            location_filter = f"code_commune = '{code_commune}'"
-        elif lat is not None and lon is not None:
-            # Calculate bounding box for performance
-            lat_delta = radius_meters / 111000
-            lon_delta = radius_meters / (111000 * abs(cos(radians(lat))))
-
-            location_filter = f"""
-                longitude BETWEEN {lon - lon_delta} AND {lon + lon_delta}
-                AND latitude BETWEEN {lat - lat_delta} AND {lat + lat_delta}
-                AND (
-                    6371000 * ACOS(
-                        LEAST(1.0, GREATEST(-1.0,
-                            COS(RADIANS({lat})) * COS(RADIANS(latitude)) *
-                            COS(RADIANS(longitude) - RADIANS({lon})) +
-                            SIN(RADIANS({lat})) * SIN(RADIANS(latitude))
-                        ))
-                    ) <= {radius_meters}
-                )
-            """
-        else:
-            raise ValueError("Must provide either code_commune or (lat, lon)")
-
-        tables = self._available_tables(conn)
-        use_fft = "france_foncier_test" in tables
-
-        if use_fft:
-            # france_foncier_test has outlier flag and pre-computed prix_m2
-            data_table = "france_foncier_test"
-            extra_filter = "AND COALESCE(is_outlier, FALSE) = FALSE"
-        elif "mutations_aggregated" in tables:
-            data_table = "mutations_aggregated"
-            extra_filter = ""  # No is_outlier column in mutations_aggregated
-        else:
-            logger.error("Ni france_foncier_test ni mutations_aggregated dans %s", self._db_path)
-            return []
-
-        query = f"""
-            WITH filtered_data AS (
-                SELECT
-                    YEAR(TRY_CAST(date_mutation AS DATE)) as year,
-                    prix_m2,
-                    valeur_fonciere,
-                    surface_habitable_totale
-                FROM {data_table}
-                WHERE {location_filter}
-                  AND TRY_CAST(date_mutation AS DATE) >= DATE '{start_year}-01-01'
-                  AND TRY_CAST(date_mutation AS DATE) <= DATE '{current_year}-12-31'
-                  AND nature_mutation = 'Vente'
-                  AND surface_habitable_totale > 9
-                  AND valeur_fonciere > 2000
-                  AND prix_m2 IS NOT NULL
-                  AND prix_m2 > 0
-                  {extra_filter}
-            ),
-            yearly_stats AS (
-                SELECT
-                    year,
-                    AVG(prix_m2) as avg_price_m2,
-                    COUNT(*) as transaction_volume
-                FROM filtered_data
-                WHERE year IS NOT NULL
-                GROUP BY year
-                ORDER BY year ASC
-            )
-            SELECT
-                year,
-                avg_price_m2,
-                transaction_volume,
-                LAG(avg_price_m2) OVER (ORDER BY year) as prev_year_price
-            FROM yearly_stats
-            ORDER BY year ASC
-        """
-
-        try:
-            results = conn.execute(query).fetchall()
-        except Exception as e:
-            logger.exception("get_market_trends a echoue (table=%s): %s", data_table, e)
-            return []
-
-        # Convert to domain models and calculate YoY changes
-        trends = []
-        for r in results:
-            year = r[0]
-            avg_price = Decimal(str(r[1]))
-            volume = r[2]
-            prev_price = r[3]
-
-            # Calculate YoY percentage change
-            yoy_change = None
-            if prev_price is not None and prev_price > 0:
-                prev_price_decimal = Decimal(str(prev_price))
-                yoy_change = ((avg_price - prev_price_decimal) / prev_price_decimal) * 100
-
-            trends.append(YearlyTrend(
-                year=year,
-                avg_price_m2=avg_price,
-                transaction_volume=volume,
-                yoy_change_pct=yoy_change,
-            ))
-
-        return trends
 
     async def get_parcel_history(
         self,

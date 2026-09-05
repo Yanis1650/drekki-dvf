@@ -83,6 +83,7 @@ ehthumbs.db
 .cursor/
 .cursorrules
 .agent/
+.agents/
 .agent-transcripts/
 
 # ============ Personal notes & AI artifacts ============
