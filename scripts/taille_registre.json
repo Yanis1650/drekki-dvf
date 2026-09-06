@@ -6,7 +6,6 @@
     "app/repositories/duckdb/transactions_mixin.py": 218,
     "app/repositories/poi_repository.py": 231,
     "app/services/parcel_report_service.py": 283,
-    "app/services/report_generator.py": 325,
     "data-pipeline/etl_densification.py": 272,
     "data-pipeline/etl_join_test_dept.py": 206,
     "data-pipeline/etl_osm_enrichment.py": 273,
