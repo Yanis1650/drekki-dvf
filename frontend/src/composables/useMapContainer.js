@@ -14,7 +14,9 @@
  * Référence : docs/CHARTE_GRAPHIQUE.md
  */
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import maplibregl from 'maplibre-gl';
+// MapLibre 6 a retire son export par defaut : seuls les exports nommes
+// subsistent. On n'importe donc que les deux symboles reellement utilises.
+import { Map as MaplibreMap, NavigationControl } from 'maplibre-gl';
 import { studyBoundary } from '../domain/studyGeometry.js';
 import client from '../api/client';
 import { token } from '../styles/tokens';
@@ -161,7 +163,7 @@ export function useMapContainer(props, emit) {
 
   onMounted(() => {
     if (!mapContainer.value) return;
-    map = new maplibregl.Map({
+    map = new MaplibreMap({
       container: mapContainer.value,
       style: createMapStyle(),
       center: props.center,
@@ -170,7 +172,7 @@ export function useMapContainer(props, emit) {
       bearing: 0,
       antialias: true
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
     resizeObserver = new ResizeObserver(() => map?.resize());
     resizeObserver.observe(mapContainer.value);
     map.on('load', () => {
