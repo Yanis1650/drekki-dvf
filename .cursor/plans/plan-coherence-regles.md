@@ -1,5 +1,12 @@
 # Plan de cohérence — Règles vs existant
 
+> **Document périmé, conservé pour mémoire.** L'inventaire ci-dessous date de
+> février 2025 et n'a pas été tenu à jour : plusieurs fichiers cités ont depuis
+> été scindés ou supprimés. La limite de 200 lignes est désormais **outillée** —
+> `python scripts/check_taille.py`, registre dans `scripts/taille_registre.json`,
+> décision dans `docs/adr/0007-limite-de-taille-des-fichiers.md`. C'est le
+> registre qui fait foi sur l'état de la dette, pas cette page.
+
 **Date :** 23 février 2025  
 **Règles cibles :** limite 200 lignes, architecture SOLID, pas de dépendances circulaires
 

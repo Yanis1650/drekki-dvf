@@ -139,33 +139,40 @@ l'API et omis par l'interface, conformément à la règle du projet.
 
 ## Statut des autres scripts
 
-Le répertoire porte son historique. Deux implémentations des mêmes étapes y
-cohabitent : les modules de `etl_build_steps/` (ceux réellement exécutés, et
+Le répertoire portait son historique : deux implémentations des mêmes étapes y
+cohabitaient — les modules de `etl_build_steps/` (ceux réellement exécutés, et
 couverts par `tests/test_etl_build_steps.py`) et des scripts autonomes plus
-anciens qui font le même travail. **Les modules d'étape ne les importent pas :
-ce sont des réimplémentations, pas des enveloppes.**
+anciens qui refaisaient le même travail sans que rien ne les importe. Ces huit
+scripts ont été supprimés. Ce qui reste à la racine de `data-pipeline/` est
+soit exécuté, soit importé.
 
 | Script | Statut |
 |---|---|
 | `etl_dvf.py` | **Adaptateur historique**, conservé pour les imports existants. Ne pas l'utiliser pour une nouvelle base — `run_etl.py` est la référence. |
 | `etl_densification.py` | Variante autonome de `etl_build_steps/densification.py`. Encore appelée par `run_etl_densification.ps1`. |
-| `etl_confidence_score.py` | Variante autonome de `etl_build_steps/confidence.py`. Plus référencée nulle part. |
-| `etl_gpu_integration.py` | Variante autonome de `etl_build_steps/gpu.py`. Plus référencée nulle part. |
-| `etl_rnu_classification.py` | Variante autonome de `etl_build_steps/rnu.py`. Plus référencée nulle part. |
-| `etl_bdtopo_bati.py` | Variante autonome de `etl_build_steps/bdtopo.py`. Plus référencée nulle part. |
-| `etl_join_golden.py` | Variante autonome de `etl_build_steps/golden_join.py`. Plus référencée nulle part. |
 | `etl_join_test_dept.py` | Jointure « golden » restreinte au département 35, datant de la mise au point. |
-| `create_parcelles_enriched.py` | Table `parcelles_enriched` d'une méthodologie antérieure. Plus aucune référence. |
-| `enrich_dvf_parcelles.py` | Liaison DVF vers parcelles antérieure au golden join. Plus aucune référence. |
-| `optimize_analytics.py` | Index sur `date_mutation`, absorbé par l'étape `optimize`. Plus aucune référence. |
 | `etl_enrichment.py` | `EnrichmentEtlPipeline`, exporté par `data-pipeline/__init__.py`. |
 
-Les sept lignes marquées « plus référencée nulle part » sont des candidates à la
-suppression : aucun script, test, workflow ou document du dépôt ne les appelle.
-Elles sont conservées tant qu'une reprise manuelle d'une étape isolée reste
-possible sur le serveur. Le jour où `etl_build_steps/` est jugé stable, les
-supprimer retire la moitié du répertoire et lève l'ambiguïté sur ce qu'il faut
-lancer.
+### Scripts supprimés
+
+Huit réimplémentations autonomes — 1 685 lignes — qu'aucun script, test,
+workflow ni document du dépôt n'appelait plus. Leur remplaçant dans
+`etl_build_steps/` est couvert par `tests/test_etl_build_steps.py`.
+
+| Script retiré | Remplacé par |
+|---|---|
+| `etl_confidence_score.py` | `etl_build_steps/confidence.py` |
+| `etl_gpu_integration.py` | `etl_build_steps/gpu.py` |
+| `etl_rnu_classification.py` | `etl_build_steps/rnu.py` |
+| `etl_bdtopo_bati.py` | `etl_build_steps/bdtopo.py` |
+| `etl_join_golden.py` | `etl_build_steps/golden_join.py` |
+| `optimize_analytics.py` | l'étape `optimize` (`etl_build_steps/optimize.py`) |
+| `enrich_dvf_parcelles.py` | le golden join |
+| `create_parcelles_enriched.py` | méthodologie antérieure, sans successeur |
+
+La reprise manuelle d'une étape isolée passe désormais par le module
+correspondant de `etl_build_steps/`. `git log -- data-pipeline/<nom>` restitue
+les scripts retirés si le besoin s'en faisait sentir.
 
 ---
 
