@@ -20,6 +20,8 @@ Ce module sépare les deux cas :
 
 import logging
 import threading
+import weakref
+from typing import Any
 
 import duckdb
 
@@ -28,8 +30,15 @@ from app.infrastructure.unavailable import ResourceUnavailableError
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_checked: set[int] = set()
-_loaded: dict[int, bool] = {}
+
+# Le cache est indexe par la connexion elle-meme, via des references faibles.
+# Il l'etait auparavant par `id(conn)` dans un dict jamais purge : deux defauts
+# a la fois. Il grossissait sans fin, et surtout CPython recycle les `id()`
+# apres collecte — une connexion neuve pouvait heriter de l'entree d'une
+# connexion morte, donc se voir refuser le spatial (503 fantome) ou le croire
+# charge alors qu'il ne l'etait pas (500 sur le premier ST_*). Une cle faible
+# disparait avec sa connexion : le cache ne peut plus se tromper de proprietaire.
+_loaded: "weakref.WeakKeyDictionary[Any, bool]" = weakref.WeakKeyDictionary()
 _warned = False
 
 
@@ -47,7 +56,6 @@ def ensure_spatial(conn: duckdb.DuckDBPyConnection) -> bool:
         True si les fonctions ST_* sont utilisables sur cette connexion.
     """
     global _warned
-    key = id(conn)
 
     # Le verrou couvre toute la tentative, pas seulement la mise en cache.
     # FastAPI sert les endpoints synchrones depuis un pool de threads qui
@@ -56,8 +64,9 @@ def ensure_spatial(conn: duckdb.DuckDBPyConnection) -> bool:
     # une erreur au premier chargement, puis fonctionnait — un défaut
     # intermittent, invisible en test séquentiel.
     with _lock:
-        if key in _checked:
-            return _loaded.get(key, False)
+        cached: bool | None = _loaded.get(conn)
+        if cached is not None:
+            return cached
 
         try:
             conn.execute("INSTALL spatial;")
@@ -76,8 +85,7 @@ def ensure_spatial(conn: duckdb.DuckDBPyConnection) -> bool:
                     exc,
                 )
 
-        _checked.add(key)
-        _loaded[key] = loaded
+        _loaded[conn] = loaded
 
     return loaded
 
@@ -101,6 +109,5 @@ def reset_cache() -> None:
     """Vide le cache de détection (tests uniquement)."""
     global _warned
     with _lock:
-        _checked.clear()
         _loaded.clear()
         _warned = False

@@ -10,6 +10,7 @@ from pathlib import Path
 import duckdb
 
 from app.domain.models import EnrichmentScore
+from app.infrastructure.duckdb_pool import close_shared_connection, get_shared_connection
 from app.repositories.interfaces import IEnrichmentRepository
 
 
@@ -26,7 +27,7 @@ class PoiRepository(IEnrichmentRepository):
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Lazy connection initialization."""
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
+            self._conn = get_shared_connection(self._db_path)
         return self._conn
 
     async def get_enrichment_by_parcelle(self, id_parcelle: str) -> EnrichmentScore | None:
@@ -225,7 +226,6 @@ class PoiRepository(IEnrichmentRepository):
         ]
 
     def close(self) -> None:
-        """Close the database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagee de ce fichier."""
+        close_shared_connection(self._db_path)
+        self._conn = None
