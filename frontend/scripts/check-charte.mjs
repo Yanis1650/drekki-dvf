@@ -43,6 +43,18 @@ const RULES = [
     re: new RegExp(`\\b(?:${UTILITY_PREFIXES})-(?:white|black)(?:\\/\\d{1,3})?\\b`, 'g'),
   },
   {
+    id: 'blanc-noir-css',
+    why: 'utiliser surface / ink : white en CSS brut ignore le theme sombre',
+    // Cote valeur d'une declaration, jamais cote propriete : `white-space`
+    // reste licite. Les classes Tailwind sont couvertes par la regle ci-dessus.
+    re: /:\s*[^;]*\b(?:white|black)\b/g,
+  },
+  {
+    id: 'fonction-couleur-css',
+    why: 'rgb() et hsl() court-circuitent les jetons --fe-*',
+    re: /\b(?:rgba?|hsla?)\s*\(/g,
+  },
+  {
     id: 'hexadecimal-en-dur',
     why: 'toute couleur vient d\'un jeton --fe-*',
     re: /#[0-9a-fA-F]{3,8}\b/g,

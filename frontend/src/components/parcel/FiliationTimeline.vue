@@ -255,11 +255,11 @@ const getOperationTooltip = (nature) => {
 }
 
 .summary-card {
-  background: linear-gradient(135deg, rgba(82, 127, 140, 0.08), rgba(63, 103, 117, 0.08));
+  background: var(--fe-accent-soft);
   border-radius: var(--fe-radius);
   padding: 14px;
   margin-bottom: 16px;
-  border: 1px solid rgba(82, 127, 140, 0.15);
+  border: 1px solid var(--fe-rule);
 }
 
 .summary-text {
@@ -272,7 +272,7 @@ const getOperationTooltip = (nature) => {
 .depth-badge {
   display: inline-block;
   background: var(--fe-accent);
-  color: white;
+  color: var(--fe-accent-ink);
   padding: 4px 12px;
   border-radius: var(--fe-radius);
   font-size: 11px;
@@ -314,7 +314,7 @@ const getOperationTooltip = (nature) => {
 }
 
 .timeline-content {
-  background: white;
+  background: var(--fe-surface);
   border-radius: var(--fe-radius);
   padding: 12px 14px;
   border: 1px solid var(--fe-rule);
@@ -343,7 +343,7 @@ const getOperationTooltip = (nature) => {
 .operation-badge {
   font-size: 10px;
   color: var(--fe-accent);
-  background: rgba(82, 127, 140, 0.1);
+  background: var(--fe-accent-soft);
   padding: 3px 8px;
   border-radius: var(--fe-radius-sm);
   font-weight: 500;
@@ -369,7 +369,7 @@ const getOperationTooltip = (nature) => {
 }
 .lexique-trigger:hover {
   color: var(--fe-accent);
-  background: rgba(82, 127, 140, 0.1);
+  background: var(--fe-accent-soft);
 }
 .lexique-trigger svg {
   width: 18px;
@@ -377,8 +377,8 @@ const getOperationTooltip = (nature) => {
 }
 
 .lexique-note {
-  background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(63, 103, 117, 0.06));
-  border: 1px solid rgba(82, 127, 140, 0.2);
+  background: var(--fe-accent-soft);
+  border: 1px solid var(--fe-rule);
   border-radius: var(--fe-radius);
   padding: 14px 16px;
   margin-bottom: 16px;

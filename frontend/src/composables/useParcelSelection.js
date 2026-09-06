@@ -1,5 +1,6 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { token } from '../styles/tokens.js';
 
 /**
  * Composable for managing parcel selection state with URL synchronization
@@ -74,7 +75,10 @@ export function useParcelSelection() {
      * @param {string} selectedColor - Color for selected parcel
      * @returns {Array} MapLibre style expression
      */
-    const getHighlightExpression = (defaultColor = 'rgba(0, 0, 255, 0.2)', selectedColor = 'rgba(239, 68, 68, 0.6)') => {
+    const getHighlightExpression = (
+        defaultColor = token('--fe-accent-soft'),
+        selectedColor = token('--fe-accent'),
+    ) => {
         if (!selectedParcelId.value) {
             return defaultColor;
         }

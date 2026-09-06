@@ -298,6 +298,13 @@ palettes hors charte, les hexadécimaux en dur, les tailles de texte hors échel
 les rayons non prévus, les ombres décoratives, les dégradés, le verre dépoli et
 les animations sans information. Il tourne en CI avant le build.
 
+**Le CSS brut compte autant que les classes.** `background: white` ou
+`rgba(16, 185, 129, .08)` dans un bloc `<style scoped>` sont refusés au même
+titre que `bg-white` ou `bg-emerald-500`. C'est le trou par lequel la charte
+avait recommencé à fondre : les premières règles ne lisaient que la syntaxe
+Tailwind. Pour MapLibre et ApexCharts, qui exigent des couleurs littérales,
+passer par `token('--fe-…')` de `styles/tokens.js`.
+
 Une exception justifiée se déclare sur la ligne concernée par le commentaire
 `charte-ignore`. Deux fichiers sont exemptés d'office : `styles/tokens.css` et
 `styles/tokens.js`, qui sont précisément l'endroit où vivent les valeurs.

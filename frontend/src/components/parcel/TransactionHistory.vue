@@ -119,7 +119,7 @@ const typeLabel = (typeLocal) => {
 .count {
   font-size: 11px;
   font-weight: 600;
-  color: white;
+  color: var(--fe-accent-ink);
   background: var(--fe-accent);
   padding: 2px 9px;
   border-radius: var(--fe-radius);
