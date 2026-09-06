@@ -6,7 +6,6 @@
     "app/infrastructure/osm_client.py": 305,
     "app/repositories/duckdb/transactions_mixin.py": 218,
     "app/repositories/duckdb_geojson.py": 207,
-    "app/repositories/filiation_repository.py": 367,
     "app/repositories/poi_repository.py": 231,
     "app/services/parcel_report_service.py": 283,
     "app/services/report_generator.py": 325,
