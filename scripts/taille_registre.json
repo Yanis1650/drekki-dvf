@@ -2,7 +2,6 @@
   "_commentaire": "Dette de taille, pas dispense. Chaque entree est le plafond acquis d'un fichier deja au-dessus de 200 lignes quand la regle a ete outillee. Ces plafonds ne peuvent que descendre : `python scripts/check_taille.py --maj`. Une entree disparait quand le fichier repasse sous 200 lignes.",
   "limite": 200,
   "plafonds": {
-    "app/api/v1/endpoints/land_search.py": 283,
     "app/infrastructure/osm_client.py": 305,
     "app/repositories/duckdb/transactions_mixin.py": 218,
     "app/repositories/poi_repository.py": 231,
