@@ -99,7 +99,7 @@ class DuckDBPool:
             depts.append(code)
         return depts
 
-    def close_all(self):
+    def close_all(self) -> None:
         """Close all cached connections."""
         with self._lock:
             for dept, conn in self._connections.items():
@@ -108,6 +108,72 @@ class DuckDBPool:
                 except Exception as e:
                     logger.warning("Failed to close DuckDB connection for %s: %s", dept, e)
             self._connections.clear()
+
+
+# ---------------------------------------------------------------------------
+# Connexions partagees du mode base unique
+#
+# Repositories et services sont construits a chaque requete HTTP : les
+# dependances FastAPI ne sont pas des generateurs, donc rien ne les referme.
+# Chaque instance ouvrait donc sa propre connexion, rejouait `INSTALL spatial`
+# et la laissait au ramasse-miettes. Ce registre aligne le mode base unique sur
+# le mode multi-departements, ou le pool ci-dessus tient deja une connexion par
+# departement pour toute la duree du processus.
+#
+# La base est ouverte en lecture seule, et le partage entre threads est
+# exactement celui que le pool pratique deja.
+# ---------------------------------------------------------------------------
+
+_shared_lock = threading.Lock()
+_shared_connections: dict[str, duckdb.DuckDBPyConnection] = {}
+
+
+def _shared_key(db_path: Path | str) -> str:
+    """Cle de registre : le chemin resolu, pour que deux graphies s'unifient."""
+    return str(Path(db_path).resolve())
+
+
+def get_shared_connection(db_path: Path | str) -> duckdb.DuckDBPyConnection:
+    """Connexion partagee en lecture seule, une par fichier DuckDB."""
+    key = _shared_key(db_path)
+    with _shared_lock:
+        conn = _shared_connections.get(key)
+        if conn is None:
+            conn = duckdb.connect(key, read_only=True)
+            # Tentee une fois pour la connexion, jamais levee : les requetes
+            # purement tabulaires restent servies si l'extension manque.
+            ensure_spatial(conn)
+            _shared_connections[key] = conn
+        return conn
+
+
+def close_shared_connection(db_path: Path | str) -> None:
+    """Retire et ferme la connexion partagee d'un fichier, si elle existe.
+
+    Aucun endpoint n'appelle `close()` sur un repository — la connexion vit
+    autant que le processus. Cette fonction sert aux tests et aux scripts, qui
+    ouvrent une base temporaire et doivent pouvoir la relacher.
+    """
+    key = _shared_key(db_path)
+    with _shared_lock:
+        conn = _shared_connections.pop(key, None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception as e:
+            logger.warning("Failed to close shared DuckDB connection for %s: %s", key, e)
+
+
+def close_shared_connections() -> None:
+    """Ferme toutes les connexions partagees. Appelee a l'arret de l'application."""
+    with _shared_lock:
+        connections = list(_shared_connections.items())
+        _shared_connections.clear()
+    for key, conn in connections:
+        try:
+            conn.close()
+        except Exception as e:
+            logger.warning("Failed to close shared DuckDB connection for %s: %s", key, e)
 
 
 _pool: DuckDBPool | None = None
@@ -123,3 +189,11 @@ def get_pool(data_dir: str = "./data", legacy_path: str | None = None) -> DuckDB
             max_connections=10,
         )
     return _pool
+
+
+def close_pool() -> None:
+    """Ferme le pool s'il a ete cree. N'en cree jamais un pour le fermer."""
+    global _pool
+    if _pool is not None:
+        _pool.close_all()
+        _pool = None

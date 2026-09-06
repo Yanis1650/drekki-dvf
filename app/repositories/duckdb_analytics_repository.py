@@ -11,8 +11,11 @@ from pathlib import Path
 import duckdb
 
 from app.infrastructure.data_availability import column_exists
-from app.infrastructure.duckdb_pool import DuckDBPool
-from app.infrastructure.duckdb_spatial import ensure_spatial
+from app.infrastructure.duckdb_pool import (
+    DuckDBPool,
+    close_shared_connection,
+    get_shared_connection,
+)
 from app.repositories.duckdb.analytics_trends_mixin import AnalyticsTrendsMixin
 
 logger = logging.getLogger(__name__)
@@ -34,8 +37,7 @@ class DuckDBAnalyticsRepository(AnalyticsTrendsMixin):
     def _get_main_connection(self) -> duckdb.DuckDBPyConnection:
         """Lazy connection to main/legacy DB (for trends spanning many depts)."""
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            ensure_spatial(self._conn)
+            self._conn = get_shared_connection(self._db_path)
         return self._conn
 
     def _get_dept_connection(self, parcel_id: str) -> duckdb.DuckDBPyConnection:
@@ -182,7 +184,6 @@ class DuckDBAnalyticsRepository(AnalyticsTrendsMixin):
         return history
 
     def close(self) -> None:
-        """Close the main DB connection (pool connections managed by pool)."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagee (celles du pool restent au pool)."""
+        close_shared_connection(self._db_path)
+        self._conn = None

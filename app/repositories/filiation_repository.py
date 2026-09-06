@@ -20,6 +20,7 @@ import duckdb
 
 from app.domain.filiation_models import FiliationNode, ParcelFiliation
 from app.infrastructure.data_availability import require_table
+from app.infrastructure.duckdb_pool import close_shared_connection, get_shared_connection
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ class DuckDBFiliationRepository(IFiliationRepository):
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Lazy connection initialization."""
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
+            self._conn = get_shared_connection(self._db_path)
         return self._conn
 
     def _require_dfi(self, conn: duckdb.DuckDBPyConnection) -> None:
@@ -439,7 +440,6 @@ class DuckDBFiliationRepository(IFiliationRepository):
         return label
 
     def close(self) -> None:
-        """Close database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagee de ce fichier."""
+        close_shared_connection(self._db_path)
+        self._conn = None

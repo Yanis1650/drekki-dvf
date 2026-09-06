@@ -12,7 +12,7 @@ from pathlib import Path
 import duckdb
 
 from app.domain.models import MutationAggregate, NatureMutation, Transaction, TypeLocal
-from app.infrastructure.duckdb_spatial import ensure_spatial
+from app.infrastructure.duckdb_pool import close_shared_connection, get_shared_connection
 from app.repositories.interfaces import ITransactionRepository
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,7 @@ class DvfRepository(ITransactionRepository):
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Lazy connection initialization."""
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            ensure_spatial(self._conn)
+            self._conn = get_shared_connection(self._db_path)
         return self._conn
 
     async def get_transactions_by_commune(
@@ -385,8 +384,7 @@ class DvfRepository(ITransactionRepository):
         return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'
 
     def close(self) -> None:
-        """Close the database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagee de ce fichier."""
+        close_shared_connection(self._db_path)
+        self._conn = None
 

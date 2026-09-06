@@ -4,6 +4,7 @@ Pydantic models for market trends and analytics endpoints.
 """
 
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -42,6 +43,6 @@ class ParcelHistoryResponse(BaseModel):
     """Historical transaction data for a parcel."""
 
     parcel_id: str = Field(description="Cadastral parcel ID")
-    transactions: list[dict] = Field(
+    transactions: list[dict[str, Any]] = Field(
         description="List of historical transactions (date, price, price_m2)"
     )

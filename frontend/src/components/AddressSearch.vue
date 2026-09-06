@@ -1,7 +1,10 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import axios from 'axios';
-import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/vue/24/solid';
+import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/vue/24/outline';
+
+// Un identifiant par instance : l'étiquette doit désigner ce champ-ci.
+const fieldId = `adresse-${Math.random().toString(36).slice(2, 8)}`;
 
 const emit = defineEmits(['select']);
 
@@ -10,37 +13,47 @@ const results = ref([]);
 const loading = ref(false);
 const isFocused = ref(false);
 let debounceTimeout = null;
+let version = 0, controller;
+let selectedLabel = '';
+const searchError = ref('');
+onUnmounted(() => { version++; clearTimeout(debounceTimeout); controller?.abort(); });
 
-const searchAddress = async (q) => {
+const searchAddress = async (q, request) => {
   if (q.length < 3) {
     results.value = [];
     return;
   }
   
   loading.value = true;
+  controller = new AbortController();
   try {
-    const res = await axios.get(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`);
-    results.value = res.data.features;
+    const res = await axios.get(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`, { signal: controller.signal, timeout: 10000 });
+    if (request === version) results.value = res.data.features;
   } catch (err) {
-    console.error("BAN API Error:", err);
-    results.value = [];
+    if (request === version) { results.value = []; searchError.value = 'Recherche d’adresse indisponible. Réessayez en modifiant le texte.'; }
   } finally {
-    loading.value = false;
+    if (request === version) loading.value = false;
   }
 };
 
 watch(query, (newVal) => {
+  const request = ++version;
   clearTimeout(debounceTimeout);
+  controller?.abort();
+  results.value = []; loading.value = false; searchError.value = '';
+  if (newVal === selectedLabel || newVal.length < 3) return;
   debounceTimeout = setTimeout(() => {
-    searchAddress(newVal);
+    searchAddress(newVal, request);
   }, 300);
 });
 
 const selectAddress = (feature) => {
-  query.value = feature.properties.label;
+  selectedLabel = feature.properties.label;
+  query.value = selectedLabel;
   results.value = [];
   emit('select', {
     label: feature.properties.label,
+    citycode: feature.properties.citycode,
     coordinates: feature.geometry.coordinates // [lon, lat]
   });
 };
@@ -48,75 +61,61 @@ const selectAddress = (feature) => {
 
 <template>
   <div class="relative w-full">
-    <!-- Input Container -->
-    <div class="relative">
-      <!-- Search Icon -->
-      <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-        <MagnifyingGlassIcon 
-          class="h-5 w-5 transition-colors duration-200"
-          :class="isFocused ? 'text-accent' : 'text-ink-3'"
-        />
-      </div>
-      
-      <!-- Input Field -->
-      <input 
-        v-model="query"
-        @focus="isFocused = true"
-        @blur="isFocused = false" 
-        type="text" 
-        placeholder="Rechercher une adresse..." 
-        class="w-full pl-12 pr-12 py-3.5 bg-surface rounded border-2 transition-all duration-200
-         text-ink placeholder-ink-3 font-medium
-         focus:outline-none"
-        :class="isFocused
-         ? 'border-accent '
-         : 'border-rule hover:border-rule-strong '"
-      />
-      
-      <!-- Spinner -->
-      <div v-if="loading" class="absolute right-4 top-1/2 -translate-y-1/2">
-        <svg class="animate-spin h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      </div>
+    <!-- Le champ reprend le cartouche de la barre de contrôles : même hauteur,
+         même filet, même étiquette. Il n'a pas de chevron — ce n'est pas une
+         liste fermée, c'est une recherche. -->
+    <div
+      class="relative flex items-center gap-2 px-3 py-[5px] bg-surface border rounded transition-colors duration-ui"
+      :class="isFocused ? 'border-accent' : 'border-rule-strong hover:border-ink-3'"
+    >
+      <MapPinIcon class="w-4 h-4 shrink-0" :class="isFocused ? 'text-accent' : 'text-ink-3'" aria-hidden="true" />
+      <span class="min-w-0 flex-1">
+        <label :for="fieldId" class="block fe-label">Adresse</label>
+        <input
+          :id="fieldId"
+          v-model="query"
+          type="text"
+          autocomplete="off"
+          placeholder="Commune, rue, numéro…"
+          class="w-full bg-transparent border-0 p-0 text-body text-ink leading-tight placeholder-ink-3 focus:outline-none"
+          @focus="isFocused = true"
+          @blur="isFocused = false"
+        >
+      </span>
+      <MagnifyingGlassIcon v-if="!loading" class="w-4 h-4 shrink-0 text-ink-3" aria-hidden="true" />
+      <svg v-else class="w-4 h-4 shrink-0 text-accent animate-spin" viewBox="0 0 24 24" fill="none" role="status" aria-label="Recherche en cours">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
     </div>
 
-    <!-- Results Dropdown -->
+    <p v-if="searchError" role="status" class="absolute z-50 top-full left-0 right-0 mt-1 bg-surface border border-rule rounded p-2 fe-meta shadow-overlay">{{ searchError }}</p>
+
     <Transition
-      enter-active-class="transition-all duration-200 ease-out"
-      enter-from-class="opacity-0 -translate-y-2"
-      enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition-all duration-150 ease-in"
-      leave-from-class="opacity-100 translate-y-0"
-      leave-to-class="opacity-0 -translate-y-2"
+      enter-active-class="transition-opacity duration-ui"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-ui"
+      leave-to-class="opacity-0"
     >
-      <ul 
-        v-if="results.length > 0" 
-        class="absolute z-50 w-full mt-2 bg-surface rounded border border-rule
-         max-h-72 overflow-y-auto custom-scrollbar"
+      <ul
+        v-if="results.length > 0"
+        class="absolute z-50 left-0 right-0 mt-1 bg-surface rounded border border-rule-strong shadow-overlay max-h-72 overflow-y-auto custom-scrollbar"
       >
-        <li 
-          v-for="(feature, index) in results" 
+        <li
+          v-for="(feature, index) in results"
           :key="index"
+          tabindex="0"
+          role="button"
+          class="flex items-start gap-2 px-3 py-2 cursor-pointer border-b border-rule last:border-0 hover:bg-accent-soft"
           @click="selectAddress(feature)"
-          class="group flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors
-           hover:bg-accent-soft border-b border-rule last:border-0"
+          @keydown.enter="selectAddress(feature)"
+          @keydown.space.prevent="selectAddress(feature)"
         >
-          <!-- Pin Icon -->
-          <div class="w-8 h-8 rounded bg-surface-2 group-hover:bg-accent-soft flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors">
-            <MapPinIcon class="h-4 w-4 text-ink-3 group-hover:text-accent transition-colors" />
-          </div>
-          
-          <!-- Address Info -->
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-ink text-body leading-tight truncate group-hover:text-accent transition-colors">
-              {{ feature.properties.label }}
-            </p>
-            <p class="text-meta text-ink-3 mt-0.5 truncate">
-              {{ feature.properties.context }}
-            </p>
-          </div>
+          <MapPinIcon class="w-4 h-4 mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
+          <span class="min-w-0">
+            <span class="block text-body text-ink truncate">{{ feature.properties.label }}</span>
+            <span class="block fe-meta truncate">{{ feature.properties.context }}</span>
+          </span>
         </li>
       </ul>
     </Transition>

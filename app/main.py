@@ -5,6 +5,8 @@ Main entry point for the API.
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,12 +16,30 @@ from app.api.deps import get_settings
 from app.api.readiness import application_readiness
 from app.api.v1.router import router as v1_router
 from app.infrastructure.data_availability import DataUnavailableError
+from app.infrastructure.duckdb_pool import close_pool, close_shared_connections
 from app.infrastructure.duckdb_spatial import SpatialUnavailableError
 from app.schemas import HealthResponse, ReadinessResponse
+from app.services.parcel_report_service import cleanup_browser
 
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Liberation des ressources longues a l'arret du processus.
+
+    Trois choses survivaient a l'application : le Chromium de Playwright, les
+    connexions DuckDB partagees, et le pool departemental. `cleanup_browser`
+    existait deja mais n'etait branchee nulle part — un navigateur headless
+    restait donc en vie apres chaque arret, et le conteneur ne rendait la main
+    qu'au SIGKILL.
+    """
+    yield
+    await cleanup_browser()
+    close_shared_connections()
+    close_pool()
 
 
 app = FastAPI(
@@ -28,6 +48,7 @@ app = FastAPI(
     description="API d'analyse foncière DVF - Méthodologie Mericskay",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS : l'API est publique et sans authentification (pas de cookie ni de

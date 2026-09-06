@@ -11,6 +11,7 @@ from pathlib import Path
 import duckdb
 
 from app.infrastructure.data_availability import table_exists
+from app.infrastructure.duckdb_pool import close_shared_connection, get_shared_connection
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class ProximityScorer:
         requête. Une seule connexion suffit, DuckDB étant thread-safe en lecture.
         """
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._duckdb_path), read_only=True)
+            self._conn = get_shared_connection(self._duckdb_path)
         return self._conn
 
     @property
@@ -61,10 +62,9 @@ class ProximityScorer:
             return False
 
     def close(self) -> None:
-        """Ferme la connexion réutilisée."""
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagée de ce fichier."""
+        close_shared_connection(self._duckdb_path)
+        self._conn = None
 
     def calculate_proximity(
         self,

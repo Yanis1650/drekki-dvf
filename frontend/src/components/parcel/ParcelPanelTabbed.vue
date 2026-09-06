@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted, onMounted } from 'vue';
 import client from '../../api/client';
 
+import DecisionDossier from './DecisionDossier.vue';
 import ParcelHeader    from './ParcelHeader.vue';
 import ParcelStats     from './ParcelStats.vue';
 import ParcelPriceChart from './ParcelPriceChart.vue';
@@ -23,19 +24,23 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'highlight-related']);
+const panelRoot = ref(null);
+let previousFocus;
+onMounted(() => { previousFocus = document.activeElement; panelRoot.value?.focus(); });
+onUnmounted(() => previousFocus?.focus?.());
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'resume',        label: 'Résumé'    },
-  { id: 'marche',        label: 'Marché'    },
-  { id: 'densification', label: 'ZAN'       },
-  { id: 'historique',    label: 'Hist.'     },
-  { id: 'filiation',     label: 'Filiation' },
+  { id: 'resume',        label: 'Dossier'    },
+  { id: 'marche',        label: 'Prix'    },
+  { id: 'densification', label: 'Potentiel'       },
+  { id: 'historique',    label: 'Ventes'     },
+  { id: 'filiation',     label: 'Parcelles' },
 ];
 const activeTab = ref('resume');
 
 // ─── Panel resize ────────────────────────────────────────────────────────────
-const panelWidth  = ref(440);
+const panelWidth  = ref(460);
 const MIN_WIDTH   = 360;
 const MAX_WIDTH   = 720;
 let rStartX = 0;
@@ -77,23 +82,10 @@ const sortedTx = computed(() =>
 );
 
 const avgPriceM2 = computed(() => {
-  const arr = transactions.value;
-  if (!arr.length) return 0;
-  return arr.reduce((s, t) => s + (t.price_m2 || 0), 0) / arr.length;
+  const prices = transactions.value.filter(t => !t.is_outlier).map(t => Number(t.price_m2)).filter(p => Number.isFinite(p) && p > 0);
+  return prices.length ? prices.reduce((a,b) => a+b, 0) / prices.length : null;
 });
-
-const lastSaleDate = computed(() => {
-  if (!transactions.value.length) return 'N/A';
-  const d = transactions.value[0]?.date;
-  return d
-    ? new Date(d).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
-    : 'N/A';
-});
-
-const potentialGain = computed(() => {
-  if (!densification.value || avgPriceM2.value === 0) return 0;
-  return densification.value.surface_constructible_restante * avgPriceM2.value;
-});
+const lastSaleDate = computed(() => [...transactions.value].map(t => t.date).filter(Boolean).sort().at(-1) || 'NON RELEVÉ');
 
 const qualityScores = computed(() => {
   const e = fiche.value?.enrichment || {};
@@ -135,10 +127,14 @@ const generateReport = async () => {
   }
 };
 
+let requestVersion = 0;
+onUnmounted(() => { requestVersion++; onStop(); });
+
 // ─── Data fetch ──────────────────────────────────────────────────────────────
 watch(
   () => props.parcelId,
   async (id) => {
+    const request = ++requestVersion;
     if (!id) return;
     loading.value       = true;
     error.value         = null;
@@ -150,10 +146,14 @@ watch(
     showScores.value    = false;
 
     try {
-      const [histRes, ficheRes] = await Promise.allSettled([
+      const [histRes, ficheRes, densRes] = await Promise.allSettled([
         client.get(`/analytics/parcel/${id}/history`),
         client.get(`/land/parcelles/${id}/fiche`, { validateStatus: s => s < 500 }),
+        client.get(`/land/parcelles/${id}/densification`),
       ]);
+
+      if (request !== requestVersion) return;
+      if (histRes.status === 'rejected') error.value = 'Historique DVF NON RELEVÉ : le service n’a pas répondu.';
 
       if (histRes.status === 'fulfilled') {
         transactions.value = histRes.value.data.transactions || [];
@@ -170,18 +170,18 @@ watch(
       ) {
         const f = ficheRes.value.data;
         fiche.value = f;
-        densification.value = {
-          ces_actuel:                    f.ces_actuel ?? 0,
-          ces_potentiel:                 f.ces_potentiel ?? 0,
+        densification.value = f.ces_actuel != null && f.ces_potentiel != null && f.surface_constructible_restante != null ? {
+          ces_actuel:                    Number(f.ces_actuel),
+          ces_potentiel:                 Number(f.ces_potentiel),
           categorie:                     f.categorie_densification ?? 'INCONNU',
-          surface_constructible_restante: f.surface_constructible_restante ?? 0,
-        };
+          surface_constructible_restante: Number(f.surface_constructible_restante),
+        } : null;
       }
+      if (!densification.value && densRes.status === 'fulfilled') densification.value = densRes.value.data;
     } catch (err) {
-      error.value = 'Erreur lors du chargement des données.';
+      if (request === requestVersion) error.value = 'Erreur lors du chargement des données.';
     } finally {
-      loading.value = false;
-      setTimeout(() => (showScores.value = true), 200);
+      if (request === requestVersion) { loading.value = false; showScores.value = true; }
     }
   },
   { immediate: true }
@@ -190,12 +190,14 @@ watch(
 
 <template>
   <div
-    class="fixed top-14 right-0 bottom-0 z-50 flex"
-    :style="{ width: panelWidth + 'px' }"
+    class="parcel-inspector fixed top-0 right-0 bottom-0 lg:relative lg:inset-auto z-50 lg:z-30 flex shrink-0 border-l border-rule bg-surface"
+    :style="{ '--panel-width': panelWidth + 'px' }"
+    @keydown.esc="$emit('close')"
+    ref="panelRoot" tabindex="-1" role="complementary" aria-label="Fiche parcelle"
   >
     <!-- Resize handle (left edge) -->
     <div
-      class="w-3 flex-shrink-0 flex items-center justify-center cursor-col-resize
+      class="hidden lg:flex w-1 flex-shrink-0 items-center justify-center cursor-col-resize
        hover:bg-accent-soft transition-colors group"
       @mousedown="startResize"
     >
@@ -215,9 +217,9 @@ watch(
           <ParcelHeader
             :parcel-id="parcelId"
             :coordinates="parcelCoords"
-            @close="$emit('close')"
           />
           <button
+            aria-label="Fermer la fiche parcelle"
             @click="$emit('close')"
             class="w-7 h-7 rounded bg-surface-2 hover:bg-surface-2 flex-shrink-0
              flex items-center justify-center transition-colors mt-0.5"
@@ -250,36 +252,27 @@ watch(
 
         <!-- Loading -->
         <div v-if="loading" class="flex flex-col items-center justify-center h-52 gap-3">
-          <div class="w-9 h-9 border-[3px] border-rule border-t-sage-500 rounded-full animate-spin"></div>
+          <div class="w-9 h-9 border-[3px] border-rule border-t-accent rounded-full animate-spin"></div>
           <p class="text-body text-ink-3">Chargement…</p>
         </div>
 
         <!-- Error -->
-        <div v-else-if="error" class="flex items-center justify-center h-52 px-6 text-center">
+        <div v-if="error" role="status" class="p-4 text-center">
           <p class="text-body text-alert">{{ error }}</p>
         </div>
 
         <!-- ── Résumé ── -->
-        <div v-else-if="activeTab === 'resume'" class="p-5 space-y-4 animate-fade-in">
+        <div v-if="!loading" v-show="activeTab === 'resume'" class="p-5 space-y-4">
 
-          <!-- Potentiel brut -->
-          <div
-            v-if="densification && avgPriceM2 > 0"
-            class="rounded p-4 bg-warn-soft border border-warn/40"
-          >
-            <p class="text-label font-semibold uppercase tracking-widest text-warn mb-1">
-              Potentiel brut estimé
-            </p>
-            <p class="text-figure font-semibold text-warn tabular-nums">{{ fmt(potentialGain) }}</p>
-            <p class="text-label text-warn mt-1.5 font-mono">
-              {{ densification.surface_constructible_restante.toFixed(0) }} m²
-              × {{ avgPriceM2.toFixed(0) }} €/m²
-            </p>
-          </div>
+          <DecisionDossier :key="parcelId" :parcel-id="parcelId" :fiche="fiche" :densification="densification" :transactions="transactions" :history-available="!error" />
+          <details><summary class="text-accent text-body cursor-pointer">Voir les indicateurs techniques de la parcelle</summary>
+          <div class="space-y-4 mt-4">
+          <p class="fe-meta">Fiche parcellaire : historique complet, indépendant de la période du secteur. Source : DVF et enrichissements Foncier Express.</p>
+          <p v-if="densification" class="cartouche p-3 fe-estimated">Surface restante modélisée : {{ densification.surface_constructible_restante.toLocaleString('fr-FR') }} m². À vérifier au regard des règles d’urbanisme.</p>
 
           <!-- Confidence -->
           <ConfidenceBadge
-            v-if="fiche"
+            v-if="fiche?.confidence_global != null"
             :confidence-global="fiche.confidence_global"
             :confidence-label="fiche.confidence_label"
             :score-bdnb="fiche.score_bdnb"
@@ -290,9 +283,11 @@ watch(
             :warning="fiche.warning"
           />
 
+          <p v-if="fiche?.confidence_global == null" class="fe-absent p-3 text-meta">Indice de confiance : NON RELEVÉ.</p>
           <!-- Stats -->
           <ParcelStats
             :transaction-count="transactions.length"
+            :history-available="!error"
             :avg-price-m2="avgPriceM2"
             :last-sale-date="lastSaleDate"
             :sector-avg-price-m2="sectorAvgPriceM2"
@@ -305,10 +300,11 @@ watch(
           >
             ℹ️ Données d'expertise non disponibles pour cette parcelle.
           </div>
+          </div></details>
         </div>
 
         <!-- ── Marché ── -->
-        <div v-else-if="activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
+        <div v-if="!loading && activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
           <ParcelPriceChart
             v-if="sortedTx.length > 0"
             :transactions="sortedTx"
@@ -380,7 +376,7 @@ watch(
 
       <!-- ── Footer: Report button ── -->
       <div
-        v-if="parcelId"
+        v-if="parcelId && activeTab !== 'resume'"
         class="flex-shrink-0 px-5 py-4 bg-surface border-t border-rule"
       >
         <button
@@ -406,7 +402,7 @@ watch(
             v-else
             class="w-4 h-4 border-2 border-accent-ink/30 border-t-accent-ink rounded-full animate-spin"
           ></div>
-          <span>{{ generatingReport ? 'Génération…' : 'Rapport Expert PDF' }}</span>
+          <span>{{ generatingReport ? 'Génération…' : 'Rapport technique PDF' }}</span>
           <span class="ml-auto px-2 py-0.5 bg-accent-ink/15 rounded text-meta font-semibold">
             Gratuit
           </span>
@@ -417,6 +413,8 @@ watch(
 </template>
 
 <style scoped>
+.parcel-inspector { width: min(var(--panel-width), 100vw); }
+@media (min-width: 1024px) { .parcel-inspector { width: min(var(--panel-width), calc(100vw - 540px)); } }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

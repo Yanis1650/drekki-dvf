@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" role="img" aria-label="Foncier Express">
+  <!-- Le semis de points de la marque : le parcellaire vu de haut, dans le
+       bleu que la charte reserve a l'interface. Les valeurs sont figees ici,
+       hors du DOM applicatif : styles/tokens.css reste la source unique
+       (--fe-accent #1F5C8B, --fe-ground #F7F6F3). -->
+  <rect width="20" height="20" rx="2" fill="#F7F6F3"/>
+  <g fill="#1F5C8B">
+    <circle cx="3" cy="3" r="0.95"/><circle cx="7.6" cy="3" r="0.95"/><circle cx="12.2" cy="3" r="0.95"/><circle cx="16.8" cy="3" r="0.95"/>
+    <circle cx="3" cy="7.6" r="0.95"/><circle cx="7.6" cy="7.6" r="1.5"/><circle cx="12.2" cy="7.6" r="1.5"/><circle cx="16.8" cy="7.6" r="0.95"/>
+    <circle cx="3" cy="12.2" r="0.95"/><circle cx="7.6" cy="12.2" r="1.5"/><circle cx="12.2" cy="12.2" r="1.5"/><circle cx="16.8" cy="12.2" r="0.95"/>
+    <circle cx="3" cy="16.8" r="0.95"/><circle cx="7.6" cy="16.8" r="0.95"/><circle cx="12.2" cy="16.8" r="0.95"/><circle cx="16.8" cy="16.8" r="0.95"/>
+  </g>
+</svg>

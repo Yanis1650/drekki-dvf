@@ -1,118 +1,98 @@
 <script setup>
+/**
+ * Pied de carte — ce que contient le périmètre, en trois nombres.
+ *
+ * Trois cellules séparées par un filet : ce qui a été trouvé, le prix médian,
+ * et ce qui a été écarté du calcul. La troisième n'est pas une note de bas de
+ * page : un agrégat qui tait ses exclusions ne se vérifie pas.
+ */
 import { computed } from 'vue';
+import { BanknotesIcon, NoSymbolIcon, QueueListIcon } from '@heroicons/vue/24/outline';
+import { summarize, money } from '../../domain/market.js';
 
-const props = defineProps({
-  transactions: {
-    type: Object,
-    default: () => ({ type: 'FeatureCollection', features: [] }),
-  },
-});
-
-const features = computed(() => props.transactions?.features ?? []);
-
-const stats = computed(() => {
-  const all = features.value;
-  if (all.length === 0) return null;
-
-  // Prix moyen hors valeurs aberrantes, comme partout ailleurs dans l'appli.
-  const outliers = all.filter(f => f.properties.is_outlier).length;
-  const prices = all
-    .filter(f => !f.properties.is_outlier)
-    .map(f => f.properties.prix_m2)
-    .filter(p => p > 0);
-  const avgPrice = prices.length > 0
-    ? Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
-    : 0;
-
-  const dates = all
-    .map(f => f.properties.date_mutation)
-    .filter(Boolean)
-    .sort()
-    .reverse();
-  const lastDate = dates[0]
-    ? new Date(dates[0]).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
-    : 'N/A';
-
-  return { avgPrice, count: all.length, outliers, lastDate };
-});
-
-const fmt = (v) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(v);
+const props = defineProps({ transactions: Object });
+const stats = computed(() => summarize(props.transactions));
 </script>
 
 <template>
   <div
-    v-if="stats"
-    class="h-16 flex-shrink-0 flex items-center px-5 gap-5
-     bg-surface border-t border-rule"
+    class="grid grid-cols-1 sm:grid-cols-3 bg-surface border-t border-rule"
+    aria-label="Indicateurs du périmètre DVF"
   >
-    <!-- Prix m² moyen -->
-    <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 rounded bg-accent-soft flex items-center justify-center flex-shrink-0">
-        <svg class="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-[9px] font-semibold uppercase tracking-wider text-ink-3 leading-none mb-0.5">Prix m² moy.</p>
-        <p class="text-body font-semibold text-ink tabular-nums leading-none">{{ fmt(stats.avgPrice) }}</p>
-      </div>
+    <div class="kpi">
+      <QueueListIcon class="kpi__icon" aria-hidden="true" />
+      <p class="min-w-0">
+        <strong class="kpi__value">{{ stats.count }}</strong>
+        <span class="kpi__unit">mutations</span>
+        <span class="block fe-meta">DVF · échantillon chargé</span>
+      </p>
     </div>
 
-    <div class="w-px h-7 bg-surface-2"></div>
-
-    <!-- Nb transactions -->
-    <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 rounded bg-accent-soft flex items-center justify-center flex-shrink-0">
-        <svg class="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-[9px] font-semibold uppercase tracking-wider text-ink-3 leading-none mb-0.5">Transactions</p>
-        <p class="text-body font-semibold text-ink tabular-nums leading-none">{{ stats.count }}</p>
-      </div>
+    <div class="kpi kpi--ruled">
+      <BanknotesIcon class="kpi__icon" aria-hidden="true" />
+      <p class="min-w-0">
+        <strong class="kpi__value fe-estimated">{{ money(stats.median) }}</strong>
+        <span v-if="stats.median != null" class="kpi__unit">/m²</span>
+        <span class="block kpi__label">Prix médian au m²</span>
+        <span class="block fe-meta">
+          n = {{ stats.priced }}<template v-if="stats.q1 != null"> · quartiles {{ money(stats.q1) }}–{{ money(stats.q3) }}</template>
+        </span>
+        <span v-if="stats.priced < 5" class="block text-warn fe-meta">Échantillon de prix faible</span>
+      </p>
     </div>
 
-    <div class="w-px h-7 bg-surface-2"></div>
-
-    <!-- Valeurs aberrantes exclues du prix moyen -->
-    <div
-      class="flex items-center gap-2.5"
-      title="Transactions au prix/m² aberrant, exclues du prix moyen"
-    >
-      <div class="w-7 h-7 rounded bg-warn-soft flex items-center justify-center flex-shrink-0">
-        <svg class="w-3.5 h-3.5 text-warn" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-[9px] font-semibold uppercase tracking-wider text-ink-3 leading-none mb-0.5">Aberrantes</p>
-        <p class="text-body font-semibold text-ink tabular-nums leading-none">{{ stats.outliers }}</p>
-      </div>
-    </div>
-
-    <div class="w-px h-7 bg-surface-2"></div>
-
-    <!-- Dernière vente -->
-    <div class="flex items-center gap-2.5">
-      <div class="w-7 h-7 rounded bg-accent-soft flex items-center justify-center flex-shrink-0">
-        <svg class="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-      <div>
-        <p class="text-[9px] font-semibold uppercase tracking-wider text-ink-3 leading-none mb-0.5">Dernière vente</p>
-        <p class="text-body font-semibold text-ink leading-none">{{ stats.lastDate }}</p>
-      </div>
+    <div class="kpi kpi--ruled">
+      <NoSymbolIcon class="kpi__icon" aria-hidden="true" />
+      <p class="min-w-0">
+        <strong class="kpi__value">{{ stats.outliers }}</strong>
+        <span class="kpi__unit">valeurs exclues</span>
+        <span class="block fe-meta">Données atypiques, hors prix agrégés</span>
+      </p>
     </div>
   </div>
 </template>
+
+<style scoped>
+.kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--fe-space-3);
+  padding: var(--fe-space-3) var(--fe-space-4);
+  min-width: 0;
+}
+
+.kpi--ruled {
+  border-top: 1px solid var(--fe-rule);
+}
+
+@media (min-width: 640px) {
+  .kpi--ruled {
+    border-top: 0;
+    border-left: 1px solid var(--fe-rule);
+  }
+}
+
+.kpi__icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--fe-ink-3);
+}
+
+.kpi__value {
+  font-size: var(--fe-text-title);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fe-ink);
+}
+
+.kpi__unit {
+  margin-left: var(--fe-space-2);
+  color: var(--fe-ink-2);
+}
+
+.kpi__label {
+  color: var(--fe-ink-2);
+}
+</style>

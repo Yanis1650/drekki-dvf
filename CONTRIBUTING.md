@@ -62,7 +62,9 @@ docs(readme): ajouter section pipeline ETL
 ### Backend (Python)
 
 - **Linting** : `ruff check .`
-- **Typage** : MyPy en mode strict
+- **Typage** : MyPy en mode strict, sur le périmètre vérifié en CI
+  (`mypy app/domain app/infrastructure app/schemas`). Le reste du paquet ne le
+  passe pas encore ; élargir le périmètre fichier par fichier est bienvenu.
 - **Limite** : 200 lignes max par fichier (refactoriser si dépassement)
 - **Architecture** : Clean Architecture — flux `Endpoints → Services → Repositories`
 - **Tests** : TDD recommandé, couverture obligatoire pour services et repositories

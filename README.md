@@ -25,8 +25,16 @@ Foncier-Express transforme **11 ans de données DVF** (Demande de Valeurs Fonci�
 - **Indice de confiance** : scoring multi-source (BDNB, DVF, densification, fraîcheur)
 - **Rapports PDF** : fiche d'expertise foncière générée en < 5 secondes
 - **Enrichissement qualitatif** : proximité transports, éducation, commerces via OSM
+  — étape ETL optionnelle, **non chargée dans la base de démonstration** : l'API
+  répond alors `enrichment_available: false` et l'interface omet les scores au
+  lieu d'en inventer
 
 Le projet s'appuie sur la méthodologie de Boris Mericskay (Université Rennes 2) pour le nettoyage et l'agrégation des données DVF.
+
+**Démonstration en ligne :** <https://foncier-express.drekky.fr> — Ille-et-Vilaine,
+167 124 mutations DVF agrégées de 2014 à mi-2025 sur 333 communes, 2,4 millions de
+parcelles cadastrales. Le détail du contenu servi est dans
+[`docs/PIPELINE.md`](docs/PIPELINE.md).
 
 **Libre et sans compte.** Pas d'inscription, pas de crédits, pas de paiement :
 toutes les fonctionnalités, rapports PDF compris, sont accessibles sans
@@ -121,7 +129,10 @@ leur manifeste de provenance est exploité à l'exécution.
 
 `data-pipeline/run_etl.py` est le transformateur DVF de référence.
 `data-pipeline/etl_dvf.py` est conservé temporairement pour compatibilité et ne
-doit plus être utilisé pour une nouvelle base.
+doit plus être utilisé pour une nouvelle base. Le répertoire compte une
+trentaine de scripts dont trois seulement sont des points d'entrée :
+[`docs/PIPELINE.md`](docs/PIPELINE.md) dit lesquels, et ce que sont devenus les
+autres.
 
 À la fin d'un run, le pipeline produit également
 `foncier-<release>.quality.json`. Ses neuf contrôles bloquants vérifient le
@@ -147,7 +158,9 @@ servir une release sont détaillés dans
 Le pipeline enchaîne 8 étapes (jointure DVF × cadastre × BDNB, densification,
 zonage PLU, BD TOPO, RNU, score de confiance, filiation DFI, optimisation).
 Chaque source absente de `data/` fait sauter son étape : l'API le signalera
-alors par un `503 data_unavailable` plutôt que d'inventer une valeur.
+alors par un `503 data_unavailable` plutôt que d'inventer une valeur. Le
+diagramme des deux chaînes et le rôle de chaque script sont dans
+[`docs/PIPELINE.md`](docs/PIPELINE.md).
 
 ### 6. Démarrage
 
@@ -224,7 +237,11 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques c
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) — design technique, principes SOLID, pipeline ETL
+- [Décisions d'architecture](docs/adr/) — pourquoi DuckDB en lecture seule, pourquoi un `503` plutôt qu'une valeur par défaut, pourquoi une base par département
+- [Pipeline de données](docs/PIPELINE.md) — les deux chaînes, quel script lancer, contenu réel de la base servie
+- [Architecture](docs/ARCHITECTURE.md) — design technique, principes SOLID, couche de données
+- [Méthodologie DVF](docs/METHODOLOGIE_DVF.md) — filtres, agrégation et limites d'interprétation
+- [Charte graphique](docs/CHARTE_GRAPHIQUE.md) — couleur, typographie, absence de donnée, et son vérificateur
 - [Déploiement VPS](docs/DEPLOYMENT.md) — guide de mise en production (Docker, 35 Go / 11 GB RAM)
 - [Lexique Filiation](docs/LEXIQUE_FILIATION.md) — vocabulaire cadastral (arpentage, conservation, lotissement)
 - [Lexique Confiance](docs/LEXIQUE_CONFIANCE.md) — calcul du score de confiance multi-source
@@ -233,10 +250,22 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques c
 ## Tests
 
 ```bash
-pytest
+pytest                                              # 194 tests backend
+mypy app/domain app/infrastructure app/schemas      # périmètre strict
+ruff check app data-pipeline tests
+
+cd frontend
+npm test                                            # 36 tests
+npm run check:charte                                # conformité à la charte
 ```
 
-Le projet suit une approche TDD. Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les conventions de test.
+La CI exécute ces cinq contrôles, puis construit le frontend et les deux images
+Docker de production. Le périmètre de `mypy` est volontairement étroit : le
+reste du paquet ne passe pas encore le mode strict, et une configuration
+stricte qu'on n'exécute pas est un faux signal — voir la section `[tool.mypy]`
+de `pyproject.toml`.
+
+Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les conventions de test.
 
 ## Contribution
 

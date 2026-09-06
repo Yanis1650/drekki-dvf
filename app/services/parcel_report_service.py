@@ -30,8 +30,9 @@ _playwright = None
 class ParcelReportService:
     """Service for generating PDF reports for cadastral parcels.
 
-    Uses Playwright to render HTML templates with full CSS support,
-    enabling ApexCharts, Tailwind glassmorphism, and satellite imagery.
+    Uses Playwright to render HTML templates with full CSS support, so the
+    report carries the same charts and the same design tokens as the
+    application. See docs/CHARTE_GRAPHIQUE.md.
     """
 
     def __init__(

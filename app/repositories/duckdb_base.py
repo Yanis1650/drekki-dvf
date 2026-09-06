@@ -7,8 +7,11 @@ from pathlib import Path
 
 import duckdb
 
-from app.infrastructure.duckdb_pool import DuckDBPool
-from app.infrastructure.duckdb_spatial import ensure_spatial
+from app.infrastructure.duckdb_pool import (
+    DuckDBPool,
+    close_shared_connection,
+    get_shared_connection,
+)
 
 
 class DuckDBConnectionBase:
@@ -33,8 +36,7 @@ class DuckDBConnectionBase:
             return self._pool.get_connection(dept)
 
         if self._conn is None:
-            self._conn = duckdb.connect(str(self._db_path), read_only=True)
-            ensure_spatial(self._conn)
+            self._conn = get_shared_connection(self._db_path)
         return self._conn
 
     def _dept_from_parcelle(self, id_parcelle: str) -> str | None:
@@ -48,7 +50,12 @@ class DuckDBConnectionBase:
         return None
 
     def close(self) -> None:
-        """Close the database connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        """Relache la connexion partagee de ce fichier.
+
+        Aucun endpoint n'appelle cette methode : la connexion vit autant que le
+        processus, et la fermer sous une requete concurrente la couperait.
+        Elle reste utile aux tests et aux scripts, qui ouvrent une base
+        temporaire et doivent pouvoir la relacher.
+        """
+        close_shared_connection(self._db_path)
+        self._conn = None
