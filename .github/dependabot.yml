@@ -1,19 +1,70 @@
 version: 2
+
+# Huit pull requests ouvertes le meme jour, toutes majeures, dont la moitie en
+# echec : la configuration precedente n'avait ni groupe ni exclusion. Elle
+# demandait donc un arbitrage manuel par dependance et par semaine.
+#
+# Trois reglages y repondent :
+#   - les montees mineures et correctives sont groupees en une seule PR par
+#     ecosysteme, puisqu'elles se relisent ensemble ou pas du tout ;
+#   - les majeures restent individuelles : elles meritent chacune leur revue ;
+#   - une majeure qui est en realite une migration est ignoree, avec sa raison.
+
 updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      python-mineures:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: "/frontend"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      frontend-mineures:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Tailwind 4 n'est pas une montee de version : la configuration passe au
+      # CSS, `tailwind.config.js` n'est plus lu par defaut, et c'est la que
+      # vivent les palettes, l'echelle typographique et les rayons de la charte.
+      # Le verificateur ne rattraperait pas la regression — il lit les classes
+      # ecrites dans les sources, pas le theme reellement applique. La migration
+      # se fera par un chantier dedie, pas par une PR de dependance.
+      - dependency-name: "tailwindcss"
+        update-types:
+          - "version-update:semver-major"
+
+      # MapLibre 6 casse le rendu des couches en silence. Corriger l'import
+      # suffit a faire passer le build — la v6 a retire son export par defaut —
+      # mais la carte se charge alors vide : ni semis de mutations, ni cercle
+      # de perimetre, sans une seule erreur de console. Mesure sur la build de
+      # production : 1,75 % de pixels de donnee en v5, 0,04 % en v6. Ni le
+      # build, ni les tests, ni le verificateur de charte ne l'attrapent.
+      - dependency-name: "maplibre-gl"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # Les majeures des actions officielles sont presque toujours un simple
+      # changement de runtime Node : elles se relisent en bloc.
+      actions:
+        patterns:
+          - "*"
