@@ -1,5 +1,11 @@
 // Local UI verification only. Never imported by the application or Vite build.
+//
+// Deux usages : lance seul (`node tests/fixtures/server.mjs`) pour une
+// verification manuelle au navigateur, ou pilote par le test de rendu, qui doit
+// pouvoir le fermer — un serveur laisse ouvert garde la boucle d'evenements en
+// vie et fait pendre la suite.
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 const mutations = Array.from({ length: 12 }, (_, i) => ({ mutation: {
   id_mutation: `demo-${i}`, parcelles: [`35238000AB${String(i + 1).padStart(4, '0')}`],
   date_mutation: `${2021 + i % 6}-03-15`, nature_mutation: 'Vente',
@@ -8,7 +14,7 @@ const mutations = Array.from({ length: 12 }, (_, i) => ({ mutation: {
   code_commune: '35238', longitude: -1.6778 + (i % 4 - 1.5) * .001,
   latitude: 48.1173 + (Math.floor(i / 4) - 1) * .001, is_outlier: i === 1,
 }, enrichment: null }));
-createServer((req, res) => {
+export const createFixtureServer = () => createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'content-type');
   res.setHeader('Content-Type', 'application/json');
@@ -32,4 +38,12 @@ createServer((req, res) => {
     data = { id_parcelle: '35238000AB0001', ces_actuel: null, ces_potentiel: null };
   } else { res.statusCode = 503; data = { error: 'data_unavailable', dataset: 'demo' }; }
   res.end(JSON.stringify(data));
-}).listen(8010, '127.0.0.1', () => console.log('FICTITIOUS UI fixtures: http://127.0.0.1:8010'));
+});
+
+export const FIXTURE_PORT = 8010;
+
+// Lancement direct uniquement : importe, ce module n'ouvre aucun port.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  createFixtureServer().listen(FIXTURE_PORT, '127.0.0.1', () =>
+    console.log(`FICTITIOUS UI fixtures: http://127.0.0.1:${FIXTURE_PORT}`));
+}

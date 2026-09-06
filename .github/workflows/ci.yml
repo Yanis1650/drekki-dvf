@@ -59,6 +59,14 @@ jobs:
         run: npm run check:charte
       - name: Build
         run: npm run build
+      # La suite unitaire ne monte ni MapLibre ni ApexCharts : un build vert ne
+      # dit rien de ce que voit l'utilisateur. Ce controle charge la build de
+      # production dans Chromium et mesure les pixels reellement peints.
+      # Voir docs/adr/0006-verifier-le-rendu-pas-seulement-le-build.md
+      - name: Install Chromium for the rendering test
+        run: npx playwright install --with-deps chromium
+      - name: Rendering test
+        run: npm run test:rendu
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Store frontend build
