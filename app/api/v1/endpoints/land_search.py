@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import DvfAnalyzerDep, EnrichmentDep, RepositoryDep
 from app.infrastructure.unavailable import ResourceUnavailableError
@@ -18,10 +19,44 @@ from app.schemas import (
     PriceStatsResponse,
     SearchResultResponse,
 )
+from app.services.enrichment import EnrichmentService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["land", "search"])
+
+
+def _score_positions(
+    enrichment_service: "EnrichmentService", positions: list[tuple[Decimal, Decimal]]
+) -> dict[tuple[Decimal, Decimal], EnrichmentScoreResponse]:
+    """Score une position distincte a la fois, hors de la boucle d'evenements.
+
+    Deux couts se cumulaient ici. L'enrichissement etait calcule par mutation —
+    jusqu'a mille par requete, chacune declenchant six requetes spatiales — et
+    il s'executait sur la boucle d'evenements, donc une seule recherche
+    enrichie gelait toute l'API.
+
+    La memoisation porte sur les coordonnees exactes : DVF pose souvent
+    plusieurs mutations au meme point (un immeuble, plusieurs lots). Arrondir a
+    une grille reduirait davantage le nombre d'appels, mais rendrait le score
+    d'un point voisin — une valeur que la source n'a jamais produite. Le vrai
+    remede au N+1 restant est une jointure spatiale unique cote DuckDB, qui
+    demande un contrat de repository que le pipeline POI ne fournit pas encore.
+    """
+    scores: dict[tuple[Decimal, Decimal], EnrichmentScoreResponse] = {}
+    for latitude, longitude in positions:
+        computed = enrichment_service.calculate_enrichment_blocking(
+            latitude=latitude, longitude=longitude
+        )
+        scores[(latitude, longitude)] = EnrichmentScoreResponse(
+            education_score=computed.schools_score,
+            transport_score=computed.transport_score,
+            transit_score=computed.transit_score,
+            nuisances_score=computed.nuisances_score,
+            green_spaces_score=computed.green_spaces_score,
+            global_score=computed.global_score,
+        )
+    return scores
 
 
 @router.get("/search", response_model=SearchResultResponse)
@@ -110,6 +145,24 @@ async def search_transactions_enriched(
             if enrichment_available
             else None
         )
+
+        # Un score par position distincte, calcule dans un thread. Le score ne
+        # depend que des coordonnees : `EnrichmentScoreResponse` ne porte pas
+        # d'identifiant de parcelle, la mutualisation ne change donc rien au
+        # contrat rendu.
+        positions = sorted(
+            {
+                (m.latitude, m.longitude)
+                for m in mutations
+                if m.latitude is not None and m.longitude is not None
+            }
+        )
+        scores_by_position: dict[tuple[Decimal, Decimal], EnrichmentScoreResponse] = {}
+        if enrichment_available and positions:
+            scores_by_position = await run_in_threadpool(
+                _score_positions, enrichment_service, positions
+            )
+
         enriched_mutations = []
         total_price = Decimal("0")
         price_count = 0
@@ -129,23 +182,9 @@ async def search_transactions_enriched(
                 latitude=m.latitude,
                 is_outlier=m.is_outlier,
             )
-            enrichment = None
-            if enrichment_available and m.latitude and m.longitude:
-                ed = await enrichment_service.calculate_enrichment(
-                    latitude=m.latitude, longitude=m.longitude,
-                    parcelle_id=m.parcelles[0] if m.parcelles else None,
-                )
-                enrichment = EnrichmentScoreResponse(
-                    education_score=ed.schools_score,
-                    transport_score=ed.transport_score,
-                    transit_score=ed.transit_score,
-                    nuisances_score=ed.nuisances_score,
-                    green_spaces_score=ed.green_spaces_score,
-                    global_score=ed.global_score,
-                )
             enriched_mutations.append(EnrichedMutationResponse(
                 mutation=mutation_response,
-                enrichment=enrichment,
+                enrichment=scores_by_position.get((m.latitude, m.longitude)),
             ))
             if m.prix_m2 and not m.is_outlier:
                 total_price += m.prix_m2

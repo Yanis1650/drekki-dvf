@@ -44,13 +44,19 @@ class EnrichmentService:
         """
         return self._proximity_scorer.data_available
 
-    async def calculate_enrichment(
+    def calculate_enrichment_blocking(
         self,
         latitude: float,
         longitude: float,
         parcelle_id: str | None = None,
     ) -> EnrichmentScore:
-        """Calculate full enrichment score for a location.
+        """Corps synchrone du calcul d'enrichissement.
+
+        `calculate_enrichment` n'attend rien : tout le travail est une suite de
+        requetes DuckDB bloquantes. Presente sous une signature `async`, elle
+        s'executait donc sur la boucle d'evenements et la gelait — une seule
+        recherche enrichie suspendait toute l'API. Le corps est expose ici pour
+        que les appelants puissent le deporter dans un thread.
 
         Args:
             latitude: WGS84 latitude
@@ -77,6 +83,18 @@ class EnrichmentService:
             green_spaces_score=scores.get("environnement", self._default_score()).score,
             commerce_score=scores.get("commerce", self._default_score()).score,
         )
+
+    async def calculate_enrichment(
+        self,
+        latitude: float,
+        longitude: float,
+        parcelle_id: str | None = None,
+    ) -> EnrichmentScore:
+        """Enveloppe asynchrone de `calculate_enrichment_blocking`.
+
+        Conservee pour les appelants qui n'ont qu'un point a scorer.
+        """
+        return self.calculate_enrichment_blocking(latitude, longitude, parcelle_id)
 
     async def calculate_enrichment_detailed(
         self,
