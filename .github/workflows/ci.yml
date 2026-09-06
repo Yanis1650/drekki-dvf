@@ -29,6 +29,12 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install ".[dev]"
       - name: Lint
         run: ruff check app data-pipeline tests
+      # Perimetre volontairement etroit : domaine, infrastructure et schemas
+      # passent le mode strict. Le reste du paquet ne le passe pas encore, et
+      # une configuration stricte qu'on n'execute pas est un faux signal.
+      # Voir la section [tool.mypy] de pyproject.toml.
+      - name: Types (mypy, perimetre strict)
+        run: mypy app/domain app/infrastructure app/schemas
       - name: Test
         run: pytest -q
 

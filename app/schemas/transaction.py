@@ -5,6 +5,7 @@ Separates API contracts from domain models (SOLID - Interface Segregation).
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -38,8 +39,8 @@ class EnrichmentDetailResponse(BaseModel):
     """Detailed enrichment with breakdowns."""
 
     global_score: Decimal
-    education: dict = {}
-    transport: dict = {}
+    education: dict[str, Any] = {}
+    transport: dict[str, Any] = {}
 
 
 class MutationResponse(BaseModel):
