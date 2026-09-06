@@ -1,7 +1,9 @@
 import { ref } from 'vue';
 import { DECISIONS, OBJECTIVES } from '../domain/dossier.js';
+import { cleanCriteria } from '../domain/multicriteria.js';
 
-export const DOSSIERS_KEY = Symbol('dossiers');
+// Stable across Vite module replacement: providers and consumers keep one key.
+export const DOSSIERS_KEY = Symbol.for('foncier-express:dossiers');
 export const STORAGE_KEY = 'foncier-express:dossiers:v1';
 const checkIds = ['regles', 'acces', 'ventes', 'terrain'];
 const text = v => typeof v === 'string' ? v : '';
@@ -13,7 +15,7 @@ export function cleanDossier(value) {
   }));
   return { parcelId: value.parcelId, title: text(value.title), objective: Object.hasOwn(OBJECTIVES, value.objective) ? value.objective : 'potentiel',
     decision: Object.hasOwn(DECISIONS, value.decision) ? value.decision : 'qualifier', notes: text(value.notes), checks,
-    updatedAt: text(value.updatedAt) };
+    criteria: cleanCriteria(value.criteria, value.objective), updatedAt: text(value.updatedAt) };
 }
 export function createDossierStore(storage) {
   const dossiers = ref([]), error = ref('');

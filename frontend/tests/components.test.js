@@ -7,15 +7,19 @@ import { renderToString } from '@vue/server-renderer';
 import { summarize } from '../src/domain/market.js';
 
 // Compile real Vue templates, then assert their accessible/user-visible output.
-async function render(path, props) {
-  const url = new URL(path, import.meta.url);
+async function componentUrl(url) {
   const { descriptor } = parse(await readFile(url, 'utf8'));
   const result = compileScript(descriptor, { id: 'test-component', inlineTemplate: true });
-  const code = result.content.replace(/from (["'])([^"']+)\1/g, (_, quote, name) => {
-    const resolved = name.startsWith('.') ? new URL(name, url).href : import.meta.resolve(name);
-    return `from ${JSON.stringify(resolved)}`;
-  });
-  const { default: component } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+  let code = result.content;
+  for (const match of [...code.matchAll(/from (["'])([^"']+)\1/g)]) {
+    const name = match[2];
+    const resolved = name.endsWith('.vue') ? await componentUrl(new URL(name, url)) : name.startsWith('.') ? new URL(name, url).href : import.meta.resolve(name);
+    code = code.replace(match[0], `from ${JSON.stringify(resolved)}`);
+  }
+  return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+}
+async function render(path, props) {
+  const { default: component } = await import(await componentUrl(new URL(path, import.meta.url)));
   return renderToString(createSSRApp(component, props));
 }
 test('status renders retry and accessible error, not success metadata', async () => {
@@ -23,6 +27,15 @@ test('status renders retry and accessible error, not success metadata', async ()
   assert.match(html, /role="alert"/);
   assert.match(html, /Réessayer/);
   assert.doesNotMatch(html, /Source : DVF/);
+});
+
+test('multicriteria starts without a fabricated score or risk finding', async () => {
+  const { cleanCriteria } = await import('../src/domain/multicriteria.js');
+  const html = await render('../src/components/parcel/MulticriteriaAnalysis.vue', { modelValue: cleanCriteria(), objective: 'potentiel', facts: [] });
+  assert.match(html, /Analyse à compléter/);
+  assert.match(html, /Données NON RELEVÉES/);
+  assert.match(html, /Les critères non évalués élargissent la fourchette/);
+  assert.doesNotMatch(html, /Très favorable/);
 });
 test('quality disclosure warns about cap, sample and unavailable provenance', async () => {
   const html = await render('../src/components/StudyStatus.vue', { status: 'ready', capped: true, stats: summarize({ features: [] }), enrichmentAvailable: false });

@@ -40,7 +40,7 @@ const TABS = [
 const activeTab = ref('resume');
 
 // ─── Panel resize ────────────────────────────────────────────────────────────
-const panelWidth  = ref(500);
+const panelWidth  = ref(460);
 const MIN_WIDTH   = 360;
 const MAX_WIDTH   = 720;
 let rStartX = 0;
@@ -190,14 +190,14 @@ watch(
 
 <template>
   <div
-    class="fixed top-0 right-0 bottom-0 z-50 flex border-l border-rule"
-    :style="{ width: panelWidth + 'px', maxWidth: '100vw' }"
+    class="parcel-inspector fixed top-0 right-0 bottom-0 lg:relative lg:inset-auto z-50 lg:z-30 flex shrink-0 border-l border-rule bg-surface"
+    :style="{ '--panel-width': panelWidth + 'px' }"
     @keydown.esc="$emit('close')"
     ref="panelRoot" tabindex="-1" role="complementary" aria-label="Fiche parcelle"
   >
     <!-- Resize handle (left edge) -->
     <div
-      class="hidden md:flex w-3 flex-shrink-0 items-center justify-center cursor-col-resize
+      class="hidden lg:flex w-1 flex-shrink-0 items-center justify-center cursor-col-resize
        hover:bg-accent-soft transition-colors group"
       @mousedown="startResize"
     >
@@ -262,7 +262,7 @@ watch(
         </div>
 
         <!-- ── Résumé ── -->
-        <div v-if="!loading && activeTab === 'resume'" class="p-5 space-y-4 animate-fade-in">
+        <div v-if="!loading" v-show="activeTab === 'resume'" class="p-5 space-y-4">
 
           <DecisionDossier :key="parcelId" :parcel-id="parcelId" :fiche="fiche" :densification="densification" :transactions="transactions" :history-available="!error" />
           <details><summary class="text-accent text-body cursor-pointer">Voir les indicateurs techniques de la parcelle</summary>
@@ -304,7 +304,7 @@ watch(
         </div>
 
         <!-- ── Marché ── -->
-        <div v-else-if="!loading && activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
+        <div v-if="!loading && activeTab === 'marche'" class="p-5 space-y-5 animate-fade-in">
           <ParcelPriceChart
             v-if="sortedTx.length > 0"
             :transactions="sortedTx"
@@ -376,7 +376,7 @@ watch(
 
       <!-- ── Footer: Report button ── -->
       <div
-        v-if="parcelId"
+        v-if="parcelId && activeTab !== 'resume'"
         class="flex-shrink-0 px-5 py-4 bg-surface border-t border-rule"
       >
         <button
@@ -413,6 +413,8 @@ watch(
 </template>
 
 <style scoped>
+.parcel-inspector { width: min(var(--panel-width), 100vw); }
+@media (min-width: 1024px) { .parcel-inspector { width: min(var(--panel-width), calc(100vw - 540px)); } }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>

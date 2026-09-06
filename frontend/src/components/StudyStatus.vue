@@ -3,13 +3,13 @@ defineProps({ status: String, error: String, capped: Boolean, stats: Object, enr
 defineEmits(['retry']);
 </script>
 <template>
-  <section class="bg-surface border-b border-rule px-4 py-2 text-meta" aria-label="Disponibilité et qualité DVF" aria-live="polite">
+  <section class="bg-ground px-5 pb-2 text-meta" aria-label="Disponibilité et qualité DVF" aria-live="polite">
     <p v-if="status === 'loading'" role="status">Chargement des mutations DVF du périmètre…</p>
     <p v-else-if="status === 'error'" role="alert" class="fe-absent">
       {{ error }} <button class="text-accent underline ml-2" @click="$emit('retry')">Réessayer</button>
     </p>
     <template v-else-if="status === 'ready' || status === 'empty'">
-      <p><strong>{{ stats.count }} mutations</strong> · Source : DVF via l’API Foncier Express ·
+      <p class="text-ink-2"><strong>{{ stats.count }} mutations</strong> · Source : DVF ·
         {{ stats.firstDate || 'Aucune vente trouvée' }}<template v-if="stats.lastDate"> → {{ stats.lastDate }}</template>
       </p>
       <p v-if="capped" class="text-warn">Limite de 1 000 résultats atteinte : échantillon potentiellement incomplet. Réduisez le rayon ou la période.</p>

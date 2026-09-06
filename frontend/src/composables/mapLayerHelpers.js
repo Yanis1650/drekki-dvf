@@ -52,14 +52,14 @@ export function addTransactionLayers(map, transactions, mode) {
     clusterRadius: 50,
   });
 
-  // Les agrégats ne portent pas de valeur : ils sont de l'interface, donc froids.
+  // Le cercle et son nombre représentent un volume de mutations : rampe chaude.
   map.addLayer({
     id: 'clusters',
     type: 'circle',
     source: 'transactions',
     filter: ['has', 'point_count'],
     paint: {
-      'circle-color': token('--fe-accent'),
+      'circle-color': token('--fe-ramp-4'),
       'circle-radius': ['step', ['get', 'point_count'], 16, 50, 21, 150, 27],
       'circle-stroke-width': 1,
       'circle-stroke-color': token('--fe-surface'),
@@ -76,7 +76,7 @@ export function addTransactionLayers(map, transactions, mode) {
       'text-font': FONT,
       'text-size': 12,
     },
-    paint: { 'text-color': token('--fe-accent-ink') },
+    paint: { 'text-color': token('--fe-ramp-4-ink') },
   });
 
   // En dessous du seuil d'écriture, la mutation reste une pastille de la rampe.

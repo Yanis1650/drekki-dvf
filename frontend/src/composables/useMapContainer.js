@@ -53,6 +53,7 @@ export function useMapContainer(props, emit) {
   const mapContainer = ref(null);
   const isLoading = ref(true);
   let map = null;
+  let resizeObserver;
   let parcelRequest = 0;
   let parcelController;
 
@@ -164,17 +165,19 @@ export function useMapContainer(props, emit) {
       container: mapContainer.value,
       style: createMapStyle(),
       center: props.center,
-      zoom: 13,
+      zoom: 14,
       pitch: 0,
       bearing: 0,
       antialias: true
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    resizeObserver = new ResizeObserver(() => map?.resize());
+    resizeObserver.observe(mapContainer.value);
     map.on('load', () => {
       isLoading.value = false;
       registerHatchImages(map);
-      addTransactionLayers(map, props.transactions, props.mode);
       addParcelleLayers(map, props.mode);
+      addTransactionLayers(map, props.transactions, props.mode);
       map.addSource('study-area', { type: 'geojson', data: studyBoundary(props.center, props.radius) });
       map.addLayer({ id: 'study-boundary', type: 'line', source: 'study-area', paint: { 'line-color': token('--fe-accent'), 'line-width': 2, 'line-dasharray': [3, 2] } });
       setupMapEvents(map, emit, () => {}, fetchParcelles);
@@ -200,6 +203,7 @@ export function useMapContainer(props, emit) {
   });
 
   onUnmounted(() => {
+    resizeObserver?.disconnect();
     parcelRequest++;
     parcelController?.abort();
     if (map) map.remove();
