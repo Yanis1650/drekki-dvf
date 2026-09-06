@@ -11,7 +11,6 @@
     "data-pipeline/etl_join_test_dept.py": 206,
     "data-pipeline/etl_osm_enrichment.py": 273,
     "data-pipeline/etl_poi.py": 250,
-    "data-pipeline/run_pipeline.py": 399,
     "frontend/src/components/parcel/ConfidenceBadge.vue": 463,
     "frontend/src/components/parcel/DensificationGauge.vue": 390,
     "frontend/src/components/parcel/FiliationTimeline.vue": 408,
