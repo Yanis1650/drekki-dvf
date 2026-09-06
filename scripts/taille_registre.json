@@ -8,7 +8,6 @@
     "app/repositories/duckdb_geojson.py": 207,
     "app/repositories/filiation_repository.py": 367,
     "app/repositories/poi_repository.py": 231,
-    "app/services/enrichment/quality_scorer.py": 370,
     "app/services/parcel_report_service.py": 283,
     "app/services/report_generator.py": 325,
     "data-pipeline/dvf_quality.py": 289,
