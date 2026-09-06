@@ -8,6 +8,9 @@ from pyproj import Transformer
 
 from app.infrastructure.duckdb_spatial import require_spatial
 
+# Utilise plus bas, et importe depuis ce module par tests/test_duckdb_geojson.py.
+from app.repositories.geojson_geometry import _transform_geom_to_wgs84
+
 logger = logging.getLogger(__name__)
 
 
@@ -188,20 +191,3 @@ def build_parcelles_geojson(
         props = f'"id_parcelle": "{parcel_id}", "transaction_count": {tx_count}'
         features.append(f'{{"type": "Feature", "properties": {{{props}}}, "geometry": {json.dumps(geom_wgs84)}}}')
     return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'
-
-
-def _transform_geom_to_wgs84(geom: dict, transformer: Transformer) -> dict:
-    """Transform Lambert-93 geometry to WGS84."""
-    if geom["type"] == "Polygon":
-        transformed = [
-            [list(transformer.transform(x, y)) for x, y in ring]
-            for ring in geom["coordinates"]
-        ]
-        return {"type": "Polygon", "coordinates": transformed}
-    if geom["type"] == "MultiPolygon":
-        transformed = [
-            [[list(transformer.transform(x, y)) for x, y in ring] for ring in poly]
-            for poly in geom["coordinates"]
-        ]
-        return {"type": "MultiPolygon", "coordinates": transformed}
-    return geom
