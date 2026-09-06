@@ -57,8 +57,8 @@ les professionnels du secteur.
 | **ETL** | Polars | Nettoyage et agrégation des données DVF |
 | **Frontend** | Vue.js 3 (Composition API) | Interface cartographique |
 | **Cartographie** | MapLibre GL JS | Rendu WebGL des parcelles et transactions |
-| **Styles** | Tailwind CSS | Design glassmorphism |
-| **PDF** | Jinja2 + Matplotlib + ReportLab | Génération de rapports HTML → PDF |
+| **Styles** | Tailwind CSS | Charte stricte, vérifiée en CI (`npm run check:charte`) |
+| **PDF** | Jinja2 + Playwright (Chromium headless) | Génération de rapports HTML → PDF |
 
 ### Architecture backend (Clean Architecture)
 

@@ -15,7 +15,7 @@ au-dessus d'un unique fichier DuckDB. Il n'y a pas de base transactionnelle.
 | ETL | Polars | Nettoyage et agrégation des données DVF |
 | Frontend | Vue.js 3 (Composition API) | Interface cartographique |
 | Cartographie | MapLibre GL JS | Rendu WebGL des parcelles et transactions |
-| UI | Tailwind CSS | Design glassmorphism |
+| UI | Tailwind CSS | Charte stricte, vérifiée en CI — voir [CHARTE_GRAPHIQUE.md](CHARTE_GRAPHIQUE.md) |
 | PDF | Jinja2 + Playwright | Génération de rapports HTML → PDF |
 
 ## Architecture backend
@@ -51,11 +51,20 @@ HTTP Response ← Endpoint ← Service ← Pydantic Schema ←─┘
 
 ### DuckDB (OLAP) — Moteur d'analyse
 
-Base embarquée optimisée pour les requêtes analytiques sur 9.7M+ mutations DVF :
+Base embarquée optimisée pour les requêtes analytiques. Une base par
+département — voir [ADR-0001](adr/0001-duckdb-lecture-seule.md) et
+[ADR-0003](adr/0003-une-base-par-departement.md).
 
-- Extension `spatial` pour les requêtes géospatiales
-- Tables : `dvf_enriched`, `parcelles_enriched`, `filiation`, `densification`
-- Pool de connexions avec thread safety
+- Extension `spatial` pour les requêtes géospatiales, chargée au plus une fois
+  par connexion et jamais bloquante (`app/infrastructure/duckdb_spatial.py`)
+- Tables principales : `mutations_aggregated` (mutations DVF agrégées),
+  `france_foncier_test` (jointure mutations × parcelles × BDNB), `parcelles`,
+  `densification_scores`, `confidence_scores`, `dfi_filiations`, `bdnb_stats`,
+  `plu_zones`. Les volumes réels de la base servie sont dans
+  [PIPELINE.md](PIPELINE.md).
+- Connexions partagées pour tout le processus : `DuckDBPool` par département en
+  mode multi-départements, registre par fichier en mode base unique. Les
+  repositories sont construits à chaque requête, pas les connexions.
 
 ### Disponibilité des données
 
