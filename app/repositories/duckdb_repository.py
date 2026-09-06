@@ -10,6 +10,7 @@ from app.repositories.duckdb import (
     DuckDBFicheMixin,
     DuckDBParcellesMixin,
     DuckDBTransactionsMixin,
+    DuckDBTransactionsParcelMixin,
     DuckDBTransactionsRadiusMixin,
 )
 from app.repositories.duckdb_base import DuckDBConnectionBase
@@ -24,6 +25,7 @@ class DuckDBLandRepository(
     DuckDBConnectionBase,
     DuckDBParcellesMixin,
     DuckDBTransactionsMixin,
+    DuckDBTransactionsParcelMixin,
     DuckDBTransactionsRadiusMixin,
     DuckDBEnrichmentMixin,
     DuckDBFicheMixin,
