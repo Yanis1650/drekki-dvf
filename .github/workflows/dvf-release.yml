@@ -27,7 +27,7 @@ jobs:
     environment: dvf-production
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # Le runner DVF conserve ses releases et candidats hors Git.
           # Le nettoyage par défaut de checkout supprimerait aussi ces gros artefacts.
