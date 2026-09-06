@@ -13,11 +13,13 @@ const props = defineProps({
   relatedParcels: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['map-loaded', 'transaction-click', 'parcel-click']);
+const emit = defineEmits(['map-loaded', 'transaction-click', 'parcel-click', 'context-error']);
 const contextError = ref('');
 const { mapContainer, isLoading } = useMapContainer(props, (event, value) => {
+  // La disponibilité du fond parcellaire est un constat, pas une supposition :
+  // elle remonte à l'application, qui la rend dans le rail des sources.
   if (event === 'context-error') contextError.value = value;
-  else emit(event, value);
+  emit(event, value);
 });
 </script>
 

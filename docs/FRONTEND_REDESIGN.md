@@ -54,4 +54,20 @@ Les résultats sont un échantillon plafonné, pas une statistique exhaustive du
 
 Les tests navigateur utilisent un serveur de fixtures isolé ; ils ne valident ni les données de production ni la disponibilité du VPS. Aucun déploiement ni modification du VPS.
 
-La proposition visuelle `design/frontend-concept.png` est une maquette conceptuelle avec données fictives. Elle guide l’organisation et la palette ; elle n’est pas une capture du frontend livré et ses libellés ou chiffres ne constituent pas un contrat de données.
+La proposition visuelle `design/frontend-concept.png` est une maquette conceptuelle avec données fictives. Ses chiffres et ses libellés ne constituent pas un contrat de données : seule sa mise en page a été reprise (voir ci-dessous).
+
+## Mise en page de la maquette — appliquée
+
+La maquette `design/frontend-concept.png` guidait l’organisation sans avoir été mise en œuvre. Elle l’est désormais, dans ses deux écrans.
+
+- **Barre supérieure.** La marque occupe la colonne de la navigation, filet compris. À sa droite, les paramètres de l’étude — adresse, rayon, période, lecture de la carte — partagent un même cartouche (`ControlField`) : icône, étiquette, valeur, chevron, avec un `select` natif transparent qui reste la commande réelle. Le bandeau intermédiaire qui portait le rayon et la case « deux dernières années » disparaît. À droite : relancer la recherche, exporter, et un menu de réglages qui porte le choix de thème déjà prévu par `tokens.css`.
+- **Navigation.** Carte, Marché, Dossiers ; l’élément actif est plein à l’accent. « Aide » ouvre en bas la clé de lecture des couleurs et des hachures.
+- **Pied de carte.** Trois cellules séparées par un filet : mutations trouvées, prix médian au m² avec son effectif et ses quartiles, valeurs écartées du calcul.
+- **Rail de droite.** Il remplace le volet de légende flottant et l’encart d’accueil : périmètre et période réellement observée, état constaté de chaque source, puis la légende de la carte — cinq classes de prix avec leurs bornes, ou les catégories du mode actif. Il cède la place à la fiche parcelle dès qu’une parcelle est sélectionnée.
+- **Marché.** En-tête avec le périmètre et sa provenance, trois cartouches de chiffres (médiane, moyenne, valeurs écartées), les deux graphiques annuels dont chaque point porte sa valeur écrite, puis le classement communal en tableau avec une action « Inspecter » par ligne.
+
+Deux écarts assumés par rapport à l’image. Le rail de droite montre l’étude, non une parcelle : la maquette y place une fiche de densification, mais afficher un cartouche de parcelle sans parcelle sélectionnée serait un habillage vide — la fiche complète s’ouvre à la sélection. Et les colonnes du tableau d’opportunités sont celles que l’API rend réellement (surface de parcelle, emprises modélisées, surface constructible restante) : celles de la maquette étaient fictives.
+
+Deux fonctions accompagnent les boutons que la maquette dessinait. « Exporter » sérialise l’échantillon chargé en CSV — mêmes mutations, mêmes exclusions signalées, absences vides et jamais nulles (`src/domain/exportCsv.js`, couvert par `tests/export.test.js`). Le menu de réglages porte le thème clair, sombre ou système.
+
+Enfin, la courbe de Marché trace la médiane et non plus la moyenne, et le dit. Sur des effectifs annuels de quelques dizaines de ventes, une mutation atypique déplace la moyenne plus que la forme du marché ; la moyenne reste exposée dans son propre cartouche.

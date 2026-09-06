@@ -46,9 +46,15 @@ export function annualTrends(collection) {
     if (!groups.has(year)) groups.set(year, []);
     groups.get(year).push(f);
   }
-  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([year, features]) => ({
-    year, avg_price_m2: summarize({ features }).avgPrice, priced_count: summarize({ features }).priced, transaction_volume: features.length,
-  }));
+  // La courbe trace la médiane : sur des effectifs annuels de quelques dizaines
+  // de ventes, une seule mutation atypique déplace la moyenne bien plus que la
+  // forme du marché. La moyenne reste exposée, mais elle n'est pas ce que l'on
+  // dessine.
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([year, features]) => {
+    const s = summarize({ features });
+    return { year, avg_price_m2: s.avgPrice, median_price_m2: s.median,
+      priced_count: s.priced, transaction_volume: features.length };
+  });
 }
 export function describeError(error) {
   const code = error?.response?.data?.error;
