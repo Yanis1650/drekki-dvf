@@ -16,3 +16,4 @@ remplace et on marque l'ancien comme remplacé.
 | [0004](0004-releases-dvf-immuables.md) | Une release DVF est immuable et franchit une porte qualité | Acceptée |
 | [0005](0005-charte-verifiee-par-script.md) | La charte graphique est vérifiée par un script, pas par revue | Acceptée |
 | [0006](0006-verifier-le-rendu-pas-seulement-le-build.md) | Le rendu est vérifié dans un navigateur, pas seulement le build | Acceptée |
+| [0007](0007-limite-de-taille-des-fichiers.md) | La limite de 200 lignes est outillée, avec un cliquet | Acceptée |

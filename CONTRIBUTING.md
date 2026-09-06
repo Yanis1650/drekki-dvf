@@ -65,7 +65,10 @@ docs(readme): ajouter section pipeline ETL
 - **Typage** : MyPy en mode strict, sur le périmètre vérifié en CI
   (`mypy app/domain app/infrastructure app/schemas`). Le reste du paquet ne le
   passe pas encore ; élargir le périmètre fichier par fichier est bienvenu.
-- **Limite** : 200 lignes max par fichier (refactoriser si dépassement)
+- **Limite** : 200 lignes par fichier, vérifiée en CI (`python scripts/check_taille.py`).
+  Un fichier neuf ne peut pas naître au-dessus. Un fichier déjà en dette porte un
+  plafond nominatif qui ne peut que descendre — après refonte,
+  `python scripts/check_taille.py --maj` l'abaisse.
 - **Architecture** : Clean Architecture — flux `Endpoints → Services → Repositories`
 - **Tests** : TDD recommandé, couverture obligatoire pour services et repositories
 

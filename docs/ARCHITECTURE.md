@@ -42,7 +42,7 @@ HTTP Response ← Endpoint ← Service ← Pydantic Schema ←─┘
 
 ### Principes SOLID appliqués
 
-- **Single Responsibility** : chaque fichier a une seule responsabilité, max 200 lignes
+- **Single Responsibility** : chaque fichier a une seule responsabilité, 200 lignes maximum — vérifié par `python scripts/check_taille.py` en CI
 - **Dependency Inversion** : les services dépendent d'interfaces abstraites (ABC), pas d'implémentations
 - **Interface Segregation** : les repositories sont découpés en mixins (parcelles, transactions, enrichissement)
 - **No Circular Dependencies** : flux unidirectionnel strict `endpoints → services → repositories`
@@ -164,7 +164,11 @@ Niveaux : **Elevée** (>=70), **Moyenne** (40-69), **Faible** (<40)
 
 ## Conventions
 
-- **Fichiers** : max 200 lignes, refactoring obligatoire au-delà
+- **Fichiers** : 200 lignes maximum, vérifié en CI par `scripts/check_taille.py`.
+  Les fichiers déjà au-dessus quand la règle a été outillée portent un plafond
+  nominatif inscrit dans `scripts/taille_registre.json`. Ce plafond ne peut que
+  descendre : le registre est une dette, pas une dispense, et n'a de sens que
+  s'il se vide. Voir [ADR-0007](adr/0007-limite-de-taille-des-fichiers.md).
 - **Tests** : TDD (Red → Green → Refactor), couverture obligatoire sur services/repositories
 - **Linting** : `ruff check .` (Python), `npm run build` (Frontend)
 - **Typage** : Pydantic strict côté API, props typées côté Vue

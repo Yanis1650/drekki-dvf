@@ -29,6 +29,11 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install ".[dev]"
       - name: Lint
         run: ruff check app data-pipeline tests
+      # La limite de 200 lignes etait annoncee trois fois dans la
+      # documentation et verifiee nulle part. Voir
+      # docs/adr/0007-limite-de-taille-des-fichiers.md
+      - name: Taille des fichiers
+        run: python scripts/check_taille.py
       # Perimetre volontairement etroit : domaine, infrastructure et schemas
       # passent le mode strict. Le reste du paquet ne le passe pas encore, et
       # une configuration stricte qu'on n'execute pas est un faux signal.

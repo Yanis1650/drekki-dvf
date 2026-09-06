@@ -1,38 +1,14 @@
-"""Repository interfaces (ABCs).
+"""Acces aux mutations DVF.
 
-Defines contracts for data access, following Interface Segregation Principle.
+Contrat de depot. Aucune dependance a DuckDB : la couche metier ne connait
+que ces signatures.
 """
 
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
 
-from app.domain.models import EnrichmentScore, MutationAggregate, Parcelle, Transaction
-
-
-class ILandRepository(ABC):
-    """Interface for land/parcel data access."""
-
-    @abstractmethod
-    async def get_parcelle_by_id(self, id_parcelle: str) -> Parcelle | None:
-        """Retrieve a single parcel by its ID."""
-        ...
-
-    @abstractmethod
-    async def get_parcelles_by_commune(self, code_commune: str) -> list[Parcelle]:
-        """Retrieve all parcels in a commune."""
-        ...
-
-    @abstractmethod
-    async def get_parcelles_in_bbox(
-        self,
-        min_x: float,
-        min_y: float,
-        max_x: float,
-        max_y: float,
-    ) -> list[Parcelle]:
-        """Retrieve parcels within a bounding box (Lambert-93)."""
-        ...
+from app.domain.models import MutationAggregate, Transaction
 
 
 class ITransactionRepository(ABC):
@@ -106,18 +82,4 @@ class ITransactionRepository(ABC):
         Returns:
             List of mutations within the radius, ordered by distance
         """
-        ...
-
-
-class IEnrichmentRepository(ABC):
-    """Interface for qualitative enrichment data access."""
-
-    @abstractmethod
-    async def get_enrichment_by_parcelle(self, id_parcelle: str) -> EnrichmentScore | None:
-        """Retrieve enrichment score for a parcel."""
-        ...
-
-    @abstractmethod
-    async def get_enrichments_by_commune(self, code_commune: str) -> list[EnrichmentScore]:
-        """Retrieve all enrichment scores for a commune."""
         ...
