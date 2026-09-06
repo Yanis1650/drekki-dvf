@@ -30,6 +30,9 @@ stub_missing_modules(
 )
 
 import download_plu_wfs as dl  # noqa: E402
+from plu_wfs import build as plu_build  # noqa: E402
+from plu_wfs import client as plu_client  # noqa: E402
+from plu_wfs import fetch as plu_fetch  # noqa: E402
 
 
 def _feature(gid: str, partition: str) -> dict:
@@ -40,18 +43,18 @@ class TestWfsResultTruncation:
     """`numberReturned` < `numberMatched` est le seul signal fiable."""
 
     def test_reponse_complete_non_tronquee(self):
-        res = dl.WfsResult(features=[], matched=4069, returned=4069)
+        res = plu_client.WfsResult(features=[], matched=4069, returned=4069)
         assert res.truncated is False
 
     def test_reponse_plafonnee_detectee(self):
         # Cas réel : lot de 20 partitions, serveur plafonné à 5000.
-        res = dl.WfsResult(features=[], matched=9627, returned=5000)
+        res = plu_client.WfsResult(features=[], matched=9627, returned=5000)
         assert res.truncated is True
 
     def test_troncature_invisible_pour_l_ancienne_heuristique(self):
         """L'ancien test `len(feats) >= MAX_COUNT` laissait passer ce cas."""
-        res = dl.WfsResult(features=[], matched=9627, returned=5000)
-        assert res.returned < dl.MAX_COUNT, "l'ancienne heuristique ne voyait rien"
+        res = plu_client.WfsResult(features=[], matched=9627, returned=5000)
+        assert res.returned < plu_client.MAX_COUNT, "l'ancienne heuristique ne voyait rien"
         assert res.truncated is True, "la nouvelle detection doit voir la troncature"
 
 
@@ -63,11 +66,11 @@ class TestFetchZoneUrba:
 
         def fake(typename, cql, count=None):
             calls.append(cql)
-            return dl.WfsResult([_feature("1", "DU_35001")], matched=1, returned=1)
+            return plu_client.WfsResult([_feature("1", "DU_35001")], matched=1, returned=1)
 
-        with patch.object(dl, "_wfs_get", side_effect=fake), \
-             patch.object(dl, "_to_gdf", side_effect=lambda f: f), \
-             patch.object(dl.time, "sleep"):
+        with patch.object(plu_fetch, "_wfs_get", side_effect=fake), \
+             patch.object(plu_fetch, "_to_gdf", side_effect=lambda f: f), \
+             patch.object(plu_fetch.time, "sleep"):
             dl.fetch_zone_urba(["DU_35001"], batch_size=20)
 
         assert len(calls) == 1, "un lot complet ne doit pas etre redecoupe"
@@ -81,13 +84,13 @@ class TestFetchZoneUrba:
             calls.append(cql)
             if "IN (" in cql:
                 # Le serveur tronque le lot.
-                return dl.WfsResult([_feature("x", "DU_A")], matched=9627, returned=5000)
+                return plu_client.WfsResult([_feature("x", "DU_A")], matched=9627, returned=5000)
             part = cql.split("'")[1]
-            return dl.WfsResult([_feature(f"g-{part}", part)], matched=1, returned=1)
+            return plu_client.WfsResult([_feature(f"g-{part}", part)], matched=1, returned=1)
 
-        with patch.object(dl, "_wfs_get", side_effect=fake), \
-             patch.object(dl, "_to_gdf", side_effect=lambda f: f), \
-             patch.object(dl.time, "sleep"):
+        with patch.object(plu_fetch, "_wfs_get", side_effect=fake), \
+             patch.object(plu_fetch, "_to_gdf", side_effect=lambda f: f), \
+             patch.object(plu_fetch.time, "sleep"):
             feats = dl.fetch_zone_urba(parts, batch_size=20)
 
         assert len(calls) == 1 + len(parts), "chaque partition doit etre reprise seule"
@@ -100,11 +103,11 @@ class TestFetchZoneUrba:
 
         def fake(typename, cql, count=None):
             calls.append(cql)
-            return dl.WfsResult([], matched=0, returned=0)
+            return plu_client.WfsResult([], matched=0, returned=0)
 
-        with patch.object(dl, "_wfs_get", side_effect=fake), \
-             patch.object(dl, "_to_gdf", side_effect=lambda f: f), \
-             patch.object(dl.time, "sleep"):
+        with patch.object(plu_fetch, "_wfs_get", side_effect=fake), \
+             patch.object(plu_fetch, "_to_gdf", side_effect=lambda f: f), \
+             patch.object(plu_fetch.time, "sleep"):
             dl.fetch_zone_urba(["DU_35001", "DU_243500139"], batch_size=20)
 
         assert calls, "une requete doit partir"
@@ -129,14 +132,14 @@ class TestBuildDocUrba:
         ])
         empty = pd.DataFrame()
 
-        with patch.object(dl.gpd, "GeoDataFrame", side_effect=lambda d, **k: d):
+        with patch.object(plu_build.gpd, "GeoDataFrame", side_effect=lambda d, **k: d):
             out = dl.build_doc_urba(df_cp, empty)
 
         assert len(out) == 4
         assert (out["partition"] == "DU_243500139").sum() == 3
 
     def test_mapping_vide_renvoie_vide(self):
-        with patch.object(dl.gpd, "GeoDataFrame", return_value=pd.DataFrame()):
+        with patch.object(plu_build.gpd, "GeoDataFrame", return_value=pd.DataFrame()):
             out = dl.build_doc_urba(pd.DataFrame(), pd.DataFrame())
         assert len(out) == 0
 
@@ -150,12 +153,12 @@ class TestFetchCommunePartition:
         def fake(typename, cql, count=None):
             seen["typename"] = typename
             seen["cql"] = cql
-            return dl.WfsResult(
+            return plu_client.WfsResult(
                 [{"properties": {"insee": "35238", "partition": "DU_243500139"}}],
                 matched=1, returned=1,
             )
 
-        with patch.object(dl, "_wfs_get", side_effect=fake):
+        with patch.object(plu_fetch, "_wfs_get", side_effect=fake):
             df = dl.fetch_commune_partition("35")
 
         assert seen["typename"] == "wfs_du:doc_urba_com"
@@ -164,9 +167,9 @@ class TestFetchCommunePartition:
 
     def test_troncature_signalee(self, caplog):
         def fake(typename, cql, count=None):
-            return dl.WfsResult([], matched=500, returned=200)
+            return plu_client.WfsResult([], matched=500, returned=200)
 
-        with patch.object(dl, "_wfs_get", side_effect=fake):
+        with patch.object(plu_fetch, "_wfs_get", side_effect=fake):
             with caplog.at_level("WARNING"):
                 dl.fetch_commune_partition("35")
 
@@ -180,4 +183,4 @@ class TestFetchCommunePartition:
     (22235, 5000, True),
 ])
 def test_truncated_table(matched, returned, expected):
-    assert dl.WfsResult([], matched, returned).truncated is expected
+    assert plu_client.WfsResult([], matched, returned).truncated is expected
