@@ -3,7 +3,6 @@
   "limite": 200,
   "plafonds": {
     "data-pipeline/etl_densification.py": 272,
-    "data-pipeline/etl_join_test_dept.py": 206,
     "data-pipeline/etl_osm_enrichment.py": 273,
     "data-pipeline/etl_poi.py": 250,
     "frontend/src/components/parcel/ConfidenceBadge.vue": 463,

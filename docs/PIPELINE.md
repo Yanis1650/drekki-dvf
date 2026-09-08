@@ -150,7 +150,6 @@ soit exécuté, soit importé.
 |---|---|
 | `etl_dvf.py` | **Adaptateur historique**, conservé pour les imports existants. Ne pas l'utiliser pour une nouvelle base — `run_etl.py` est la référence. |
 | `etl_densification.py` | Variante autonome de `etl_build_steps/densification.py`. Encore appelée par `run_etl_densification.ps1`. |
-| `etl_join_test_dept.py` | Jointure « golden » restreinte au département 35, datant de la mise au point. |
 | `etl_enrichment.py` | `EnrichmentEtlPipeline`, exporté par `data-pipeline/__init__.py`. |
 
 ### Scripts supprimés
@@ -169,6 +168,10 @@ workflow ni document du dépôt n'appelait plus. Leur remplaçant dans
 | `optimize_analytics.py` | l'étape `optimize` (`etl_build_steps/optimize.py`) |
 | `enrich_dvf_parcelles.py` | le golden join |
 | `create_parcelles_enriched.py` | méthodologie antérieure, sans successeur |
+
+À ces huit s'ajoute `etl_join_test_dept.py` — 206 lignes, jointure « golden »
+restreinte au département 35 et datant de la mise au point — retiré pour la même
+raison : aucun script, test ni workflow ne l'appelait.
 
 La reprise manuelle d'une étape isolée passe désormais par le module
 correspondant de `etl_build_steps/`. `git log -- data-pipeline/<nom>` restitue
