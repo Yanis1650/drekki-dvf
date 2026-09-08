@@ -29,4 +29,5 @@ PY
 
 apply_migration "$SCRIPT_DIR/add_plu_datappro.sql"
 apply_migration "$SCRIPT_DIR/add_outlier_flag.sql"
+apply_migration "$SCRIPT_DIR/fix_ces_potentiel_accents.sql"
 echo "All migrations applied successfully."
