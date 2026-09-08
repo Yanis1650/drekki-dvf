@@ -23,7 +23,6 @@ from pipeline_steps.console import _run
 from pipeline_steps.paths import DATA_DIR, MIGRATIONS_DIR, ROOT
 from pipeline_steps.plui import identite_plui
 
-
 # --- ROOT ------------------------------------------------------------------
 
 

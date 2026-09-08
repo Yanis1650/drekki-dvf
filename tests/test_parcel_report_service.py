@@ -15,7 +15,6 @@ au mauvais endroit, sans erreur lisible.
 """
 
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 

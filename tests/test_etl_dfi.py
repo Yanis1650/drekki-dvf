@@ -14,7 +14,6 @@ from datetime import date
 
 import duckdb
 import pytest
-
 from etl_dfi import DFIEtlPipeline
 
 # dept;commune;prefixe;id_dfi;nature;date;geometre;placeholder;lot;type;parcelles...
