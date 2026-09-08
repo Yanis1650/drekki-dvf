@@ -100,6 +100,7 @@ python data-pipeline/etl_build_dept.py 35
 | `run_pipeline.py` | **Point d'entrée départemental.** Téléchargement PLU, puis `etl_build_dept`, migrations SQL, `preflight_check`, `validate_plu`, pytest. |
 | `etl_build_dept.py` | Les 8 étapes de construction de la base. Appelé par le précédent, lançable seul. |
 | `etl_build_steps/` | Les 8 étapes, une par module : `golden_join`, `densification`, `gpu`, `bdtopo`, `rnu`, `confidence`, `dfi`, `optimize`. |
+| `etl_build_steps/densification_cli.py` | Rejoue la seule densification sur une base construite : `cd data-pipeline && python -m etl_build_steps.densification_cli 35`. `run_etl_densification.ps1` l'appelle. |
 | `preflight_check.py` | Vérifications post-migration avant déploiement. |
 | `validate_plu.py` | Contrôle du mapping PLUi sur une commune réelle. |
 
@@ -167,7 +168,6 @@ soit exécuté, soit importé.
 | Script | Statut |
 |---|---|
 | `etl_dvf.py` | **Adaptateur historique**, conservé pour les imports existants. Ne pas l'utiliser pour une nouvelle base — `run_etl.py` est la référence. |
-| `etl_densification.py` | Variante autonome de `etl_build_steps/densification.py`. Encore appelée par `run_etl_densification.ps1`. |
 | `etl_enrichment.py` | `EnrichmentEtlPipeline`, exporté par `data-pipeline/__init__.py`. |
 
 ### Scripts supprimés
@@ -187,7 +187,7 @@ workflow ni document du dépôt n'appelait plus. Leur remplaçant dans
 | `enrich_dvf_parcelles.py` | le golden join |
 | `create_parcelles_enriched.py` | méthodologie antérieure, sans successeur |
 
-À ces huit s'ajoutent deux retraits ultérieurs. `etl_join_test_dept.py` —
+À ces huit s'ajoutent trois retraits ultérieurs. `etl_join_test_dept.py` —
 206 lignes, jointure « golden » restreinte au département 35 et datant de la
 mise au point — que rien n'appelait. Et `etl_poi.py` — 250 lignes — dont les
 deux chargeurs lisaient le CSV fourni puis le jetaient pour rendre 0 : sans CSV,
@@ -196,8 +196,18 @@ mutations. Cette documentation le présentait comme le chargeur des points
 d'intérêt OpenStreetMap ; ce rôle revient à `etl_osm_enrichment.py`, le seul à
 charger de vraies données.
 
+Enfin `etl_densification.py` — 272 lignes — variante autonome de l'étape
+`etl_build_steps/densification.py`, dont la formule avait divergé : elle
+comparait `type_usage` à « Résidentiel collectif » et « Dépendance » avec leurs
+accents, l'étape du pipeline sans. C'est l'étape qui avait tort, et elle a été
+corrigée avant le retrait. `run_etl_densification.ps1` appelle désormais
+`etl_build_steps/densification_cli.py`, qui charge au besoin la BDNB depuis son
+Parquet — ce que faisait la variante — puis exécute l'étape.
+
 La reprise manuelle d'une étape isolée passe désormais par le module
-correspondant de `etl_build_steps/`. `git log -- data-pipeline/<nom>` restitue
+correspondant de `etl_build_steps/` — la densification est la seule à avoir sa
+propre entrée en ligne de commande, les autres se rejouent par
+`etl_build_dept.py`. `git log -- data-pipeline/<nom>` restitue
 les scripts retirés si le besoin s'en faisait sentir.
 
 ---

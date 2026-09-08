@@ -1,13 +1,19 @@
 # Script PowerShell pour exécuter l'ETL Densification
 # Utilise l'environnement virtuel Python du projet
 
+param(
+    [string]$Dept = "35",
+    [string]$Db = ""
+)
+
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "ETL Densification - Execution avec environnement virtuel" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Vérifier que l'environnement virtuel existe (.venv = environnement unique du projet)
-$pythonExe = ".\.venv\Scripts\python.exe"
+$racine = $PSScriptRoot
+$pythonExe = Join-Path $racine ".venv\Scripts\python.exe"
 if (-Not (Test-Path $pythonExe)) {
     Write-Host "ERREUR: Environnement Python introuvable!" -ForegroundColor Red
     Write-Host "Chemin attendu: .venv\Scripts\python.exe" -ForegroundColor Yellow
@@ -22,21 +28,35 @@ if (-Not (Test-Path $pythonExe)) {
 Write-Host "OK Environnement .venv trouve" -ForegroundColor Green
 Write-Host ""
 
-# Vérifier que le fichier ETL existe
-if (-Not (Test-Path "data-pipeline\etl_densification.py")) {
-    Write-Host "ERREUR: Script ETL introuvable!" -ForegroundColor Red
-    Write-Host "Chemin attendu: data-pipeline\etl_densification.py" -ForegroundColor Yellow
+# L'etape vit dans le paquet etl_build_steps, celui que le pipeline execute et
+# que tests/test_densification_step.py couvre. Elle s'appelle en module, depuis
+# data-pipeline : le paquet doit etre sur le chemin d'import.
+$pipeline = Join-Path $racine "data-pipeline"
+$etape = Join-Path $pipeline "etl_build_steps\densification_cli.py"
+if (-Not (Test-Path $etape)) {
+    Write-Host "ERREUR: Etape ETL introuvable!" -ForegroundColor Red
+    Write-Host "Chemin attendu: data-pipeline\etl_build_steps\densification_cli.py" -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "✓ Script ETL trouvé" -ForegroundColor Green
+Write-Host "✓ Etape ETL trouvée" -ForegroundColor Green
 Write-Host ""
 
 # Exécuter l'ETL avec l'environnement virtuel
-Write-Host "Lancement de l'ETL..." -ForegroundColor Cyan
+Write-Host "Lancement de l'ETL sur le departement $Dept..." -ForegroundColor Cyan
 Write-Host ""
 
-& .\.venv\Scripts\python.exe data-pipeline\etl_densification.py
+$arguments = @("-m", "etl_build_steps.densification_cli", $Dept)
+if ($Db -ne "") {
+    $arguments += @("--db", $Db)
+}
+
+Push-Location $pipeline
+try {
+    & $pythonExe $arguments
+} finally {
+    Pop-Location
+}
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

@@ -1,4 +1,8 @@
-"""Step 2: Densification (CES actuel + potentiel)."""
+"""Step 2: Densification (CES actuel + potentiel).
+
+Pour la rejouer seule sur une base deja construite, voir
+`etl_build_steps/densification_cli.py`.
+"""
 
 from .utils import print_distribution, step_banner
 

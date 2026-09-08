@@ -2,7 +2,6 @@
   "_commentaire": "Dette de taille, pas dispense. Chaque entree est le plafond acquis d'un fichier deja au-dessus de 200 lignes quand la regle a ete outillee. Ces plafonds ne peuvent que descendre : `python scripts/check_taille.py --maj`. Une entree disparait quand le fichier repasse sous 200 lignes.",
   "limite": 200,
   "plafonds": {
-    "data-pipeline/etl_densification.py": 272,
     "data-pipeline/etl_osm_enrichment.py": 273,
     "frontend/src/components/parcel/ConfidenceBadge.vue": 463,
     "frontend/src/components/parcel/DensificationGauge.vue": 390,

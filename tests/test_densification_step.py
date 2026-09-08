@@ -23,6 +23,7 @@ import duckdb
 import pytest
 from conftest import requires_spatial
 from etl_build_steps.densification import step_densification
+from etl_build_steps.densification_cli import charger_bdnb, main
 
 DEPT = "35"
 
@@ -314,3 +315,157 @@ def test_autre_departement_ecarte(base):
     step_densification(conn, DEPT)
 
     assert [ligne[0] for ligne in scores(conn)] == ["35238000AB0001"]
+
+
+# --- L'entree en ligne de commande ------------------------------------------
+#
+# Elle remplace `data-pipeline/etl_densification.py`, qui chargeait la BDNB
+# lui-meme avant de calculer. `step_densification` exige la table `bdnb_stats`,
+# que le pipeline complet cree a l'etape golden join : rejouer la seule
+# densification sur une base qui ne l'a pas rendrait des INCONNU. D'ou
+# `charger_bdnb`.
+
+
+def ecrire_parquet_bdnb(chemin, lignes):
+    """Ecrit un Parquet a la forme de `data/bdnb_stats.parquet`."""
+    conn = duckdb.connect(":memory:")
+    conn.execute("""
+        CREATE TABLE tmp (
+            parcelle_id VARCHAR, emprise_sol_m2 DOUBLE,
+            hauteur_moyenne DOUBLE, nb_niveau INTEGER, type_usage VARCHAR
+        )
+    """)
+    for ligne in lignes:
+        conn.execute("INSERT INTO tmp VALUES (?, ?, ?, ?, ?)", list(ligne))
+    conn.execute(f"COPY tmp TO '{chemin.as_posix()}' (FORMAT PARQUET)")
+    conn.close()
+
+
+@requires_spatial
+def test_charger_bdnb_cree_la_table_depuis_le_parquet(tmp_path, base):
+    """Le filtre est le prefixe de departement, comme a l'etape golden join."""
+    parquet = tmp_path / "bdnb_stats.parquet"
+    ecrire_parquet_bdnb(parquet, [
+        ("35238000AB0001", 1000.0, None, None, "Secondaire"),
+        ("44109000AB0001", 1000.0, None, None, "Secondaire"),
+    ])
+    conn = base(parcelles=[("35238000AB0001", 100)], bdnb=None)
+
+    assert charger_bdnb(conn, DEPT, parquet) is True
+    assert [i for (i,) in conn.execute(
+        "SELECT parcelle_id FROM bdnb_stats"
+    ).fetchall()] == ["35238000AB0001"]
+
+
+@requires_spatial
+def test_charger_bdnb_respecte_une_table_deja_presente(tmp_path, base):
+    """Le pipeline complet l'a deja creee : ne pas la refaire."""
+    parquet = tmp_path / "bdnb_stats.parquet"
+    ecrire_parquet_bdnb(parquet, [("35238000AB0999", 1.0, None, None, "Secondaire")])
+    conn = base(
+        parcelles=[("35238000AB0001", 100)],
+        bdnb=[("35238000AB0001", 1000.0, None, None, "Secondaire")],
+    )
+
+    assert charger_bdnb(conn, DEPT, parquet) is True
+    assert [i for (i,) in conn.execute(
+        "SELECT parcelle_id FROM bdnb_stats"
+    ).fetchall()] == ["35238000AB0001"]
+
+
+@requires_spatial
+def test_charger_bdnb_sans_parquet_le_dit_et_continue(tmp_path, base):
+    """Sans Parquet, l'etape doit tourner quand meme — en INCONNU."""
+    conn = base(parcelles=[("35238000AB0001", 100)], bdnb=None)
+
+    assert charger_bdnb(conn, DEPT, tmp_path / "absent.parquet") is False
+
+    step_densification(conn, DEPT)
+    assert scores(conn)[0][3] == "INCONNU"
+
+
+@requires_spatial
+def test_main_rejoue_l_etape_sur_une_base_existante(tmp_path):
+    """Le cas nominal : une base construite, la densification refaite."""
+    chemin = tmp_path / "dept35.duckdb"
+    conn = duckdb.connect(str(chemin))
+    conn.execute("INSTALL spatial; LOAD spatial;")
+    conn.execute("""
+        CREATE TABLE parcelles (
+            id_parcelle VARCHAR, code_commune VARCHAR,
+            section VARCHAR, numero VARCHAR, geometry GEOMETRY
+        )
+    """)
+    conn.execute(
+        "INSERT INTO parcelles VALUES (?, ?, 'AB', '0001', ST_GeomFromText(?))",
+        ["35238000AB0001", "35238", carre(100)],
+    )
+    conn.execute("""
+        CREATE TABLE bdnb_stats (
+            parcelle_id VARCHAR, emprise_sol_m2 DOUBLE,
+            hauteur_moyenne DOUBLE, nb_niveau INTEGER, type_usage VARCHAR
+        )
+    """)
+    conn.execute(
+        "INSERT INTO bdnb_stats VALUES (?, ?, ?, ?, ?)",
+        ["35238000AB0001", 1000.0, None, None, "Résidentiel collectif"],
+    )
+    conn.close()
+
+    assert main([DEPT, "--db", str(chemin)]) == 0
+
+    relu = duckdb.connect(str(chemin), read_only=True)
+    ces_potentiel, categorie = relu.execute(
+        "SELECT ces_potentiel, categorie FROM densification_scores"
+    ).fetchone()
+    relu.close()
+    assert float(ces_potentiel) == 0.60
+    assert categorie == "FORT"
+
+
+def test_main_sur_une_base_absente_echoue_proprement(tmp_path, capsys):
+    """Pas de trace d'exception : un message et un code de retour."""
+    code = main([DEPT, "--db", str(tmp_path / "nulle-part.duckdb")])
+
+    assert code == 1
+    assert "introuvable" in capsys.readouterr().out
+
+
+@requires_spatial
+def test_main_charge_la_bdnb_quand_la_base_ne_l_a_pas(tmp_path):
+    """C'est ce que faisait la variante autonome : lire le Parquet elle-meme.
+
+    Sans ce chargement, rejouer la densification seule sur une base construite
+    sans golden join rendrait des categories INCONNU en silence.
+    """
+    # Parcelle volontairement absente de la vraie BDNB du depot : si le CLI
+    # ignorait `--bdnb` pour retomber sur son chemin par defaut, le Parquet
+    # reel ne la porterait pas et la categorie sortirait INCONNU.
+    parcelle = "35999000ZZ9999"
+
+    chemin = tmp_path / "dept35.duckdb"
+    conn = duckdb.connect(str(chemin))
+    conn.execute("INSTALL spatial; LOAD spatial;")
+    conn.execute("""
+        CREATE TABLE parcelles (
+            id_parcelle VARCHAR, code_commune VARCHAR,
+            section VARCHAR, numero VARCHAR, geometry GEOMETRY
+        )
+    """)
+    conn.execute(
+        "INSERT INTO parcelles VALUES (?, ?, 'ZZ', '9999', ST_GeomFromText(?))",
+        [parcelle, "35999", carre(100)],
+    )
+    conn.close()
+
+    parquet = tmp_path / "bdnb_stats.parquet"
+    ecrire_parquet_bdnb(parquet, [
+        (parcelle, 1000.0, None, None, "Résidentiel collectif"),
+    ])
+
+    assert main([DEPT, "--db", str(chemin), "--bdnb", str(parquet)]) == 0
+
+    relu = duckdb.connect(str(chemin), read_only=True)
+    categorie = relu.execute("SELECT categorie FROM densification_scores").fetchone()[0]
+    relu.close()
+    assert categorie == "FORT"
