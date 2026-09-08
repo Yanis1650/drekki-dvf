@@ -220,7 +220,7 @@ précisément quelles tables cœur manquent.
 **Une section reste vide (filiation, environnement) :** c'est voulu. Le jeu de
 données correspondant n'a pas été construit, et l'API répond `503
 data_unavailable` plutôt que d'inventer une valeur. Lancer l'étape ETL manquante
-(`etl_dfi.py` pour la filiation, `etl_poi.py` pour l'environnement).
+(`etl_dfi.py` pour la filiation, `etl_osm_enrichment.py` pour l'environnement).
 
 **Extension spatiale indisponible :** l'API répond `503 spatial_unavailable` sur
 les routes géographiques et reste opérationnelle sur le reste. DuckDB télécharge

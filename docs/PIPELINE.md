@@ -114,7 +114,7 @@ signalera par un `503 data_unavailable` plutôt que d'inventer une valeur.
 | `etl_france_bdnb.py` | BDNB (CSTB) — emprise et attributs bâtis | Pas d'emprise au sol, donc pas de CES |
 | `download_plu_wfs.py` puis `import_plu.py` | Zonage PLU/PLUi (WFS GPU) | Zones `INCONNU`, pas de lecture urbanisme |
 | `etl_dfi.py` | Documents de Filiation Informatisés (DGFiP) | Filiation cadastrale indisponible |
-| `etl_poi.py` / `etl_osm_enrichment.py` | Points d'intérêt OpenStreetMap | `enrichment_available: false` — scores omis, jamais remplacés par 5/10 |
+| `etl_osm_enrichment.py` | Points d'intérêt OpenStreetMap | `enrichment_available: false` — scores omis, jamais remplacés par 5/10 |
 
 ### Contenu réel de la base de démonstration
 
@@ -169,9 +169,14 @@ workflow ni document du dépôt n'appelait plus. Leur remplaçant dans
 | `enrich_dvf_parcelles.py` | le golden join |
 | `create_parcelles_enriched.py` | méthodologie antérieure, sans successeur |
 
-À ces huit s'ajoute `etl_join_test_dept.py` — 206 lignes, jointure « golden »
-restreinte au département 35 et datant de la mise au point — retiré pour la même
-raison : aucun script, test ni workflow ne l'appelait.
+À ces huit s'ajoutent deux retraits ultérieurs. `etl_join_test_dept.py` —
+206 lignes, jointure « golden » restreinte au département 35 et datant de la
+mise au point — que rien n'appelait. Et `etl_poi.py` — 250 lignes — dont les
+deux chargeurs lisaient le CSV fourni puis le jetaient pour rendre 0 : sans CSV,
+ils fabriquaient écoles et gares par `random.uniform` autour des coordonnées de
+mutations. Cette documentation le présentait comme le chargeur des points
+d'intérêt OpenStreetMap ; ce rôle revient à `etl_osm_enrichment.py`, le seul à
+charger de vraies données.
 
 La reprise manuelle d'une étape isolée passe désormais par le module
 correspondant de `etl_build_steps/`. `git log -- data-pipeline/<nom>` restitue
