@@ -116,6 +116,24 @@ signalera par un `503 data_unavailable` plutôt que d'inventer une valeur.
 | `etl_dfi.py` | Documents de Filiation Informatisés (DGFiP) | Filiation cadastrale indisponible |
 | `etl_osm_enrichment.py` | Points d'intérêt OpenStreetMap | `enrichment_available: false` — scores omis, jamais remplacés par 5/10 |
 
+### Vocabulaire de `points_interet.type_poi`
+
+`etl_osm_enrichment.py` est seul à écrire cette table. Les valeurs qu'il pose
+viennent du catalogue OSM (`app/infrastructure/osm/tags.py`), qui sépare
+délibérément le ferroviaire du bus — leurs décroissances de score diffèrent.
+
+| `type_poi` | Contenu | Lu par |
+|---|---|---|
+| `transit` | gares, métro, tram | `transport_scorer.py`, `proximity_scorer.py` |
+| `transport` | arrêts de bus, gares routières, stations vélo | les mêmes |
+| `ecole` | établissements scolaires | `education_scorer.py`, `proximity_scorer.py` |
+| `commerce`, `environnement`, `nuisance` | commerces, espaces verts, nuisances | `proximity_scorer.py` |
+
+Un désaccord entre ce que l'ETL écrit et ce qu'un scoreur interroge ne lève
+aucune erreur : le score sort à zéro, comme s'il n'y avait rien à proximité.
+`transport_scorer.py` interrogeait ainsi `'gare'`, valeur que seul l'ancien
+`etl_poi.py` écrivait. Toute valeur ajoutée d'un côté est à porter de l'autre.
+
 ### Contenu réel de la base de démonstration
 
 Base `data/dept35.duckdb` servie en production (Ille-et-Vilaine) :
