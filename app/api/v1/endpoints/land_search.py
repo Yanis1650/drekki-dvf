@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["land", "search"])
 
+# Plafond du nombre de mutations rendues en une reponse. L'ancien, 1 000,
+# mordait des l'ouverture de l'application : au rayon par defaut de 500 m
+# autour de Rennes, la base departementale porte 2 201 mutations, dont 55 %
+# etaient donc tues. A 349 octets par mutation, ce plafond borne une reponse
+# a environ 17 Mo ; le rayon, plafonne a 50 km, reste la vraie commande.
+LIMITE_MAX = 50_000
+
 from app.api.v1.endpoints.land_search_scoring import _score_positions  # noqa: E402
 
 __all__ = ["_score_positions", "router"]
@@ -36,7 +43,7 @@ async def search_transactions(
     radius: Annotated[int, Query(ge=100, le=50000)] = 1000,
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    limit: Annotated[int, Query(ge=1, le=LIMITE_MAX)] = 100,
 ) -> SearchResultResponse:
     """Search transactions within a radius (WGS84)."""
     try:
@@ -91,7 +98,7 @@ async def search_transactions_enriched(
     radius: Annotated[int, Query(ge=100, le=50000)] = 1000,
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    limit: Annotated[int, Query(ge=1, le=LIMITE_MAX)] = 100,
 ) -> EnrichedSearchResultResponse:
     """Search transactions with enrichment scores."""
     try:

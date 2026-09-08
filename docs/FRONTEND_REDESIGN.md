@@ -13,7 +13,7 @@
 
 Les chemins suivants sont relatifs à `/api/v1`.
 
-- `GET /land/search/enriched` : `lat`, `lon`, `radius` (100–50 000 m), dates facultatives et `limit` (maximum 1 000). Réponse : `mutations[]` avec `mutation` et `enrichment` nullable, `enrichment_available`. Montants sérialisés en décimaux, `parcelles[]`, `is_outlier`. Aucun total non plafonné, curseur de pagination, millésime de publication ou rapport qualité d’ingestion.
+- `GET /land/search/enriched` : `lat`, `lon`, `radius` (100–50 000 m), dates facultatives et `limit` (maximum 50 000). Réponse : `mutations[]` avec `mutation` et `enrichment` nullable, `enrichment_available`. Montants sérialisés en décimaux, `parcelles[]`, `is_outlier`. Aucun total non plafonné, curseur de pagination, millésime de publication ou rapport qualité d’ingestion.
 - `GET /land/geojson` : mutations selon une emprise rectangulaire. Plus utilisé par le frontend pour éviter une seconde source de vérité DVF.
 - `GET /land/parcelles` : fond de contexte cadastral et enrichissements selon l’emprise visible. Ce fond historique reste indépendant du filtre temporel des mutations ; sa portée est nommée dans l’interface et la légende.
 - `GET /analytics/trends` : agrégat géographique indépendant. Remplacé dans Marché par une agrégation du jeu chargé ; l’écran ne prétend plus montrer dix années complètes.

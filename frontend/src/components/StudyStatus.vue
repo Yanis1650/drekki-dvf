@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue';
+
 /**
  * Bandeau de disponibilité et de qualité.
  *
@@ -7,13 +9,19 @@
  * l'étude charge, l'étude a échoué, l'échantillon est plafonné, et les réserves
  * qui accompagnent les agrégats.
  */
-defineProps({
+const props = defineProps({
   status: String,
   error: String,
   capped: Boolean,
+  // La limite demandée à l'API. Le message l'affiche plutôt que de la répéter
+  // en dur : les deux avaient divergé, l'un annonçant 1 000 quand l'autre en
+  // demandait autant sans que rien ne les lie.
+  limit: { type: Number, default: 0 },
   stats: Object,
   enrichmentAvailable: { default: null },
 });
+
+const limiteLisible = computed(() => props.limit.toLocaleString('fr-FR'));
 defineEmits(['retry']);
 </script>
 
@@ -36,8 +44,8 @@ defineEmits(['retry']);
 
     <template v-else-if="status === 'ready' || status === 'empty'">
       <p v-if="capped" class="text-warn">
-        Limite de 1 000 résultats atteinte : échantillon potentiellement incomplet. Réduisez le
-        rayon ou la période.
+        Limite de {{ limiteLisible }} résultats atteinte : échantillon potentiellement
+        incomplet. Réduisez le rayon ou la période.
       </p>
       <p v-if="stats.priced < 5" class="text-warn">
         Échantillon de prix faible (moins de 5 mutations).
