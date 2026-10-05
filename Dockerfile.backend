@@ -18,14 +18,26 @@ COPY pyproject.toml README.md ./
 COPY app/ ./app/
 COPY data-pipeline/ ./data-pipeline/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
+# Navigateurs Playwright hors de /root : le service ne tourne pas en root et
+# doit pouvoir lancer Chromium. Variable lue a l'installation et a l'execution.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
+# Install Python dependencies. setuptools a jour : pip-audit signalait la
+# version livree par l'image de base (PYSEC-2026-3447).
+RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir . && \
     playwright install-deps && \
     playwright install chromium
 
-# Create data directory
-RUN mkdir -p /app/data
+# Utilisateur sans privileges. Chromium tourne en --no-sandbox (necessaire en
+# conteneur) et rend du HTML : en root, une faille du navigateur donnait root
+# dans le conteneur. La base est montee en lecture seule, lisible par tous ;
+# DuckDB et les PDF n'ecrivent que dans /tmp. Une migration de la base passe
+# donc par un conteneur jetable lance avec `--user "$(id -u)"`.
+RUN mkdir -p /app/data && \
+    useradd --system --uid 10001 --create-home --home-dir /home/foncier \
+        --shell /usr/sbin/nologin foncier
+USER foncier
 
 # Expose port
 EXPOSE 8000

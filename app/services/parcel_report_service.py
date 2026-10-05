@@ -30,6 +30,13 @@ _playwright = None
 # `tests/test_parcel_report_service.py` la verrouille.
 RACINE_DEPOT = Path(__file__).resolve().parents[2]
 
+# Rendus PDF simultanes par worker. Chacun lance un Python et un Chromium
+# (~170 Mo mesures) ; sans borne, le pool d'executeurs en autorisait 10 par
+# worker, soit ~3,4 Go de plus pour 20 demandes : le conteneur (4 Go) aurait
+# ete tue. Au-dela de 2, les demandes attendent leur tour dans la boucle.
+PDF_SIMULTANES = 2
+_creneaux_pdf = asyncio.Semaphore(PDF_SIMULTANES)
+
 
 class ParcelReportService(ReportFormattingMixin, ReportAggregateMixin):
     """Service for generating PDF reports for cadastral parcels.
@@ -94,11 +101,12 @@ class ParcelReportService(ReportFormattingMixin, ReportAggregateMixin):
     async def _render_html_to_pdf(self, html_content: str) -> bytes:
         """Render HTML to PDF (process séparé pour compatibilité Windows)."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            self._render_html_to_pdf_sync,
-            html_content,
-        )
+        async with _creneaux_pdf:
+            return await loop.run_in_executor(
+                None,
+                self._render_html_to_pdf_sync,
+                html_content,
+            )
 
     async def generate_parcel_pdf(self, parcel_id: str) -> bytes:
         """Generate a professional PDF report for a parcel.

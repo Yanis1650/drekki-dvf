@@ -132,3 +132,41 @@ def test_le_module_sait_retrouver_la_racine_du_depot():
 
     assert (RACINE_DEPOT / "pyproject.toml").is_file()
     assert (RACINE_DEPOT / "app" / "scripts" / "html_to_pdf.py").is_file()
+
+
+# --- rendus PDF simultanes -------------------------------------------------
+
+
+async def test_les_rendus_pdf_simultanes_sont_bornes(service, monkeypatch):
+    """Au plus PDF_SIMULTANES Chromium a la fois par worker, les autres attendent.
+
+    Sans borne, 20 demandes simultanees lancaient 20 Chromium et faisaient
+    sortir le conteneur de ses 4 Go.
+    """
+    import asyncio
+    import threading
+    import time
+
+    from app.services import parcel_report_service as module
+
+    # Semaphore neuf : celui du module se lie a la premiere boucle qui attend.
+    monkeypatch.setattr(module, "_creneaux_pdf", asyncio.Semaphore(module.PDF_SIMULTANES))
+    verrou = threading.Lock()
+    en_cours, maximum = 0, 0
+
+    def rendu_factice(html):
+        nonlocal en_cours, maximum
+        with verrou:
+            en_cours += 1
+            maximum = max(maximum, en_cours)
+        time.sleep(0.05)
+        with verrou:
+            en_cours -= 1
+        return b"%PDF"
+
+    monkeypatch.setattr(service, "_render_html_to_pdf_sync", rendu_factice)
+
+    resultats = await asyncio.gather(*(service._render_html_to_pdf("<p></p>") for _ in range(6)))
+
+    assert resultats == [b"%PDF"] * 6
+    assert maximum == module.PDF_SIMULTANES
