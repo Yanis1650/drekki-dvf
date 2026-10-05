@@ -45,8 +45,9 @@ class ReportService:
 
     async def get_mutation_by_id(self, id_mutation: str) -> MutationAggregate | None:
         """Find a mutation by its ID."""
-        import duckdb
-        conn = duckdb.connect(str(self._duckdb_path), read_only=True)
+        from app.infrastructure.duckdb_settings import connect_read_only
+
+        conn = connect_read_only(self._duckdb_path)
 
         result = conn.execute("""
             SELECT id_mutation, date_mutation, nature_mutation, valeur_fonciere,

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import duckdb
 
+from app.infrastructure.duckdb_settings import connect_read_only
 from app.services.enrichment.base_scorer import IScorer
 
 # Les deux valeurs de `type_poi` que `data-pipeline/etl_osm_enrichment.py`
@@ -56,7 +57,7 @@ class TransportScorer(IScorer):
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Get read-only DuckDB connection."""
-        return duckdb.connect(str(self._duckdb_path), read_only=True)
+        return connect_read_only(self._duckdb_path)
 
     async def calculate_score(
         self,

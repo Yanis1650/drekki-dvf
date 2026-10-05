@@ -15,6 +15,7 @@ from pathlib import Path
 
 import duckdb
 
+from app.infrastructure.duckdb_settings import connect_read_only
 from app.infrastructure.duckdb_spatial import ensure_spatial
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class DuckDBPool:
                     logger.warning("Failed to close evicted DuckDB connection for %s: %s", evict_key, e)
 
             path = self._resolve_path(dept)
-            conn = duckdb.connect(str(path), read_only=True)
+            conn = connect_read_only(path)
             ensure_spatial(conn)
             self._connections[dept] = conn
             return conn
@@ -139,7 +140,7 @@ def get_shared_connection(db_path: Path | str) -> duckdb.DuckDBPyConnection:
     with _shared_lock:
         conn = _shared_connections.get(key)
         if conn is None:
-            conn = duckdb.connect(key, read_only=True)
+            conn = connect_read_only(key)
             # Tentee une fois pour la connexion, jamais levee : les requetes
             # purement tabulaires restent servies si l'extension manque.
             ensure_spatial(conn)

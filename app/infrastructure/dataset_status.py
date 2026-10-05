@@ -5,6 +5,8 @@ from pathlib import Path
 
 import duckdb
 
+from app.infrastructure.duckdb_settings import connect_read_only
+
 CORE_APPLICATION_TABLES = (
     "mutations_aggregated",
     "france_foncier_test",
@@ -34,7 +36,7 @@ def inspect_dataset(database_path: Path) -> DatasetStatus:
         return DatasetStatus(False, [], "database file is missing")
 
     try:
-        conn = duckdb.connect(str(path), read_only=True)
+        conn = connect_read_only(path)
         try:
             tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
         finally:
