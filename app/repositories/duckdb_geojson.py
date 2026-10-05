@@ -7,6 +7,7 @@ from typing import Any
 from pyproj import Transformer
 
 from app.infrastructure.duckdb_spatial import require_spatial
+from app.repositories.geojson_attributes import parcel_attributes
 
 # Utilise plus bas, et importe depuis ce module par tests/test_duckdb_geojson.py.
 from app.repositories.geojson_geometry import _transform_geom_to_wgs84
@@ -145,7 +146,10 @@ def build_parcelles_geojson(
     count_query = f"""
         WITH tx_points AS (
             SELECT id_mutation,
-                   ST_Transform(ST_Point(longitude, latitude), 'EPSG:4326', 'EPSG:2154') as geom_l93
+                   -- always_xy : sinon DuckDB lit EPSG:4326 en (lat, lon) et aucune
+                   -- vente ne tombe dans une parcelle (transaction_count toujours 0).
+                   ST_Transform(ST_Point(longitude, latitude), 'EPSG:4326', 'EPSG:2154',
+                                always_xy := true) as geom_l93
             FROM france_foncier_test
             WHERE longitude BETWEEN ? AND ? AND latitude BETWEEN ? AND ?
               AND longitude IS NOT NULL AND latitude IS NOT NULL
@@ -177,17 +181,18 @@ def build_parcelles_geojson(
         logger.warning("SQL spatial join failed: %s", e)
         tx_counts = {}
 
+    geometries: dict[str, str] = {}
+    for r in parcelles_results:
+        if r[0] not in geometries and r[2]:
+            geometries[r[0]] = r[2]
+    attributes = parcel_attributes(conn, list(geometries))
+
     transformer_out = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
     features = []
-    seen = set()
-    for r in parcelles_results:
-        parcel_id, geom_json_l93 = r[0], r[2]
-        if parcel_id in seen or not geom_json_l93:
-            continue
-        seen.add(parcel_id)
-        geom_l93 = json.loads(geom_json_l93)
-        geom_wgs84 = _transform_geom_to_wgs84(geom_l93, transformer_out)
-        tx_count = tx_counts.get(parcel_id, 0)
-        props = f'"id_parcelle": "{parcel_id}", "transaction_count": {tx_count}'
-        features.append(f'{{"type": "Feature", "properties": {{{props}}}, "geometry": {json.dumps(geom_wgs84)}}}')
+    for parcel_id, geom_json_l93 in geometries.items():
+        geom_wgs84 = _transform_geom_to_wgs84(json.loads(geom_json_l93), transformer_out)
+        props = {"id_parcelle": parcel_id, "transaction_count": tx_counts.get(parcel_id, 0),
+                 **attributes.get(parcel_id, {})}
+        features.append(f'{{"type": "Feature", "properties": {json.dumps(props)}, '
+                        f'"geometry": {json.dumps(geom_wgs84)}}}')
     return '{"type": "FeatureCollection", "features": [' + ",".join(features) + ']}'

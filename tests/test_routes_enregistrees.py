@@ -16,7 +16,11 @@ from app.main import app
 
 
 def _routes() -> list[str]:
-    return [getattr(r, "path", "") for r in app.routes]
+    # Chemins de l'OpenAPI, dans l'ordre de declaration. `app.routes` ne
+    # convient plus : depuis FastAPI 0.141, un routeur inclus y reste un seul
+    # objet `_IncludedRouter`, sans les chemins qu'il porte, et ce test
+    # echouait alors que les routes repondaient.
+    return list(app.openapi()["paths"])
 
 
 @pytest.mark.parametrize(
