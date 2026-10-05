@@ -195,6 +195,28 @@ describe('navigation et graphiques', () => {
   });
 });
 
+describe('onglet', () => {
+  it('dessine le favicon declare', async () => {
+    // Un SVG mal forme n'emet aucune erreur de console : le navigateur montre
+    // l'icone par defaut, et c'est tout. Le favicon de la marque n'a ainsi
+    // jamais ete visible — un `--` dans son commentaire, que XML interdit.
+    // `decode()` rejette une image que le navigateur ne sait pas dessiner.
+    const verdict = await page.evaluate(async () => {
+      const href = document.querySelector('link[rel="icon"]')?.href;
+      if (!href) return 'aucun <link rel="icon">';
+      const img = new Image();
+      img.src = href;
+      try {
+        await img.decode();
+        return 'ok';
+      } catch (e) {
+        return `${href} non dessine : ${e.message}`;
+      }
+    });
+    assert.equal(verdict, 'ok');
+  });
+});
+
 describe('console', () => {
   it('ne laisse passer aucune erreur', () => {
     assert.deepEqual([...new Set(page.erreurs)], []);
