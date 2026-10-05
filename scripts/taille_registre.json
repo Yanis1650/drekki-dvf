@@ -4,7 +4,7 @@
   "plafonds": {
     "data-pipeline/etl_osm_enrichment.py": 273,
     "frontend/src/components/parcel/ConfidenceBadge.vue": 463,
-    "frontend/src/components/parcel/DensificationGauge.vue": 390,
+    "frontend/src/components/parcel/DensificationGauge.vue": 378,
     "frontend/src/components/parcel/FiliationTimeline.vue": 408,
     "frontend/src/components/parcel/ParcelPanelTabbed.vue": 420,
     "frontend/src/components/parcel/TransactionHistory.vue": 233,

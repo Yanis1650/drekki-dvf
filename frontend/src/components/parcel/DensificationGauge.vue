@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { describeArc, polarToCartesian } from '../../domain/gaugeGeometry.js';
 
 const props = defineProps({
   cesActuel: {
@@ -51,23 +52,6 @@ const remainingPercent = computed(() => Math.max(0, potentielPercent.value));
 const arcEndAngle = computed(() => Math.min(props.cesActuel * 180, 180));
 const pluAngle    = computed(() => Math.min(props.cesPlu    * 180, 180));
 
-// Convert angle to arc path
-const describeArc = (startAngle, endAngle) => {
-  const cx = 100, cy = 100, r = 70;
-  const start = polarToCartesian(cx, cy, r, endAngle);
-  const end = polarToCartesian(cx, cy, r, startAngle);
-  const largeArc = endAngle - startAngle > 90 ? 1 : 0;
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
-};
-
-const polarToCartesian = (cx, cy, r, angle) => {
-  const rad = (angle - 180) * Math.PI / 180;
-  return {
-    x: cx + r * Math.cos(rad),
-    y: cy + r * Math.sin(rad)
-  };
-};
-
 const currentArc    = computed(() => describeArc(0, arcEndAngle.value));
 const backgroundArc = computed(() => describeArc(0, 180));
 
@@ -88,6 +72,10 @@ const isOverCapacity = computed(() => props.cesActuel > props.cesPlu && props.ce
 const CATEGORIE_PALIER = { FORT: 5, MOYEN: 4, FAIBLE: 3, SATURE: 2 };
 
 const categoriePalier = computed(() => CATEGORIE_PALIER[props.categorie] || null);
+
+// Libelles de la legende de la carte : le code brut s'affichait « SATURE ».
+const CATEGORIE_LIBELLE = { FORT: 'Fort', MOYEN: 'Moyen', FAIBLE: 'Faible', SATURE: 'Saturé' };
+const categorieLibelle = computed(() => CATEGORIE_LIBELLE[props.categorie] || props.categorie);
 
 const gaugeColor = computed(() =>
   categoriePalier.value ? `var(--fe-ramp-${categoriePalier.value})` : 'var(--fe-rule-strong)');
@@ -173,7 +161,7 @@ const categoryConfig = computed(() => ({
         color: categoryConfig.ink
       }"
     >
-      <span class="badge-text">{{ categorie }}<template v-if="isOverCapacity"> · droits acquis</template></span>
+      <span class="badge-text">{{ categorieLibelle }}<template v-if="isOverCapacity"> · droits acquis</template></span>
     </div>
     
     <!-- Source ZAN tag -->
