@@ -104,3 +104,7 @@ packages = ["app", "data-pipeline"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Les tests importent le depot, pas la copie que `pip install .` pose dans
+# site-packages (CI) : sans cela, RACINE_DEPOT y pointait et le verrou de
+# test_parcel_report_service echouait, alors que l'image tourne depuis /app.
+pythonpath = ["."]
