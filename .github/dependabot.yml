@@ -47,16 +47,6 @@ updates:
         update-types:
           - "version-update:semver-major"
 
-      # MapLibre 6 casse le rendu des couches en silence. Corriger l'import
-      # suffit a faire passer le build — la v6 a retire son export par defaut —
-      # mais la carte se charge alors vide : ni semis de mutations, ni cercle
-      # de perimetre, sans une seule erreur de console. Mesure sur la build de
-      # production : 1,75 % de pixels de donnee en v5, 0,04 % en v6. Ni le
-      # build, ni les tests, ni le verificateur de charte ne l'attrapent.
-      - dependency-name: "maplibre-gl"
-        update-types:
-          - "version-update:semver-major"
-
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

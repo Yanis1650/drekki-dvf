@@ -14,9 +14,7 @@
  * Référence : docs/CHARTE_GRAPHIQUE.md
  */
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-// MapLibre 6 a retire son export par defaut : seuls les exports nommes
-// subsistent. On n'importe donc que les deux symboles reellement utilises.
-import { Map as MaplibreMap, NavigationControl } from 'maplibre-gl';
+import { MaplibreMap, NavigationControl } from './maplibre.js';
 import { studyBoundary } from '../domain/studyGeometry.js';
 import client from '../api/client';
 import { token } from '../styles/tokens';
