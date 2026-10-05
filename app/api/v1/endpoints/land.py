@@ -1,11 +1,12 @@
 """Land and transaction endpoints.
 
-Aggregates search, report, GeoJSON, parcelles and departments routers.
+Aggregates search, commune, report, GeoJSON, parcelles and departments routers.
 """
 
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    land_commune,
     land_departements,
     land_geojson,
     land_parcelles,
@@ -15,6 +16,7 @@ from app.api.v1.endpoints import (
 
 router = APIRouter(prefix="/land", tags=["land", "transactions"])
 router.include_router(land_search.router)
+router.include_router(land_commune.router)
 router.include_router(land_report.router)
 router.include_router(land_geojson.router)
 router.include_router(land_parcelles.router)

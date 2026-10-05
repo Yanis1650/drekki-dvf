@@ -364,7 +364,7 @@ const categoryConfig = computed(() => ({
 }
 
 .surface-card {
-  background: white;
+  background: var(--fe-surface);
   border-radius: var(--fe-radius);
   padding: 16px;
   margin-top: 16px;

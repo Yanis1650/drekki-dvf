@@ -28,7 +28,7 @@ const { selectedParcelId, selectParcel, clearSelection, hasSelection } = useParc
 const study = useStudyArea(client);
 const {
   center: mapCenter, transactions, radius, recent, label, commune,
-  status, error, capped, stats, enrichmentAvailable, refresh,
+  status, error, capped, limit, stats, enrichmentAvailable, refresh,
 } = study;
 const loading = computed(() => status.value === 'loading');
 const mapMode = ref('prix');
@@ -93,6 +93,7 @@ onMounted(refresh);
           :status="status"
           :error="error"
           :capped="capped"
+          :limit="limit"
           :stats="stats"
           :enrichment-available="enrichmentAvailable"
           @retry="refresh"

@@ -197,7 +197,7 @@ const subScores = computed(() => [
 
 <style scoped>
 .confidence-card {
-  background: white;
+  background: var(--fe-surface);
   border: 1.5px solid var(--fe-rule);
   border-radius: var(--fe-radius);
   overflow: hidden;
@@ -269,7 +269,7 @@ const subScores = computed(() => [
 }
 .lexique-trigger:hover {
   color: var(--fe-accent);
-  background: rgba(82, 127, 140, 0.1);
+  background: var(--fe-accent-soft);
 }
 .lexique-trigger svg {
   width: 14px;
@@ -279,8 +279,8 @@ const subScores = computed(() => [
 .lexique-note {
   padding: 12px 16px;
   margin: 0 16px 12px;
-  background: linear-gradient(135deg, rgba(82, 127, 140, 0.06), rgba(99, 102, 241, 0.04));
-  border: 1px solid rgba(82, 127, 140, 0.15);
+  background: var(--fe-accent-soft);
+  border: 1px solid var(--fe-rule);
   border-radius: var(--fe-radius);
   font-size: 12px;
   line-height: 1.5;
@@ -289,7 +289,7 @@ const subScores = computed(() => [
 .lexique-benefit {
   margin: 0 0 10px 0;
   padding: 8px 10px;
-  background: rgba(16, 185, 129, 0.08);
+  background: var(--fe-ramp-1);
   border-radius: var(--fe-radius);
   border-left: 3px solid var(--fe-ramp-5);
   font-size: 12px;

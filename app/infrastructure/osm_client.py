@@ -1,14 +1,18 @@
 """OSM Client for POI extraction.
 
 Uses Overpass API via OSMnx to fetch Points of Interest.
+
+Le catalogue de tags vit dans `osm/tags.py`, la normalisation des resultats
+dans `osm/processing.py`. Ce module ne porte plus que les trois appels reseau.
 """
 
 import logging
-from dataclasses import dataclass
 
 import geopandas as gpd
 import osmnx as ox
 import pandas as pd
+
+from app.infrastructure.osm import OsmPoiConfig, OsmProcessingMixin, OsmTag
 
 logger = logging.getLogger(__name__)
 
@@ -17,106 +21,10 @@ ox.settings.use_cache = True
 ox.settings.log_console = False
 ox.settings.timeout = 180
 
-
-@dataclass
-class OsmTag:
-    """OSM tag definition for POI extraction."""
-    key: str
-    value: str
-    category: str  # ecole, transport, commerce, environnement
-    weight: float = 1.0  # Importance weight for scoring
+__all__ = ["OsmClient", "OsmPoiConfig", "OsmTag"]
 
 
-class OsmPoiConfig:
-    """Configuration for POI extraction tags."""
-
-    # Education POI
-    EDUCATION_TAGS = [
-        OsmTag("amenity", "school", "education", weight=1.0),
-        OsmTag("amenity", "kindergarten", "education", weight=0.8),
-        OsmTag("amenity", "university", "education", weight=1.2),
-        OsmTag("amenity", "college", "education", weight=1.0),
-        OsmTag("amenity", "library", "education", weight=0.5),
-    ]
-
-    # Transport POI — bus, vélo, mobilités douces (décroissance exponentielle)
-    TRANSPORT_TAGS = [
-        OsmTag("highway", "bus_stop", "transport", weight=0.5),
-        OsmTag("amenity", "bus_station", "transport", weight=1.0),
-        OsmTag("amenity", "bicycle_rental", "transport", weight=0.4),
-        OsmTag("amenity", "bicycle_parking", "transport", weight=0.3),
-    ]
-
-    # Transit POI — gares ferroviaires / métro / tram (décroissance en cloche TOD)
-    # Effet non-monotone : zone optimale 400-800m, pénalisé si trop proche (bruit).
-    TRANSIT_TAGS = [
-        OsmTag("railway", "station", "transit", weight=1.5),
-        OsmTag("railway", "halt", "transit", weight=1.0),
-        OsmTag("railway", "tram_stop", "transit", weight=0.8),
-        OsmTag("public_transport", "stop_position", "transit", weight=1.0),
-    ]
-
-    # Nuisances POI — facteurs négatifs de valeur (bruit, pollution, industrie)
-    NUISANCES_TAGS = [
-        OsmTag("railway", "rail", "nuisances", weight=1.2),
-        OsmTag("railway", "yard", "nuisances", weight=1.0),
-        OsmTag("aeroway", "aerodrome", "nuisances", weight=1.5),
-        OsmTag("landuse", "industrial", "nuisances", weight=1.0),
-    ]
-
-    # Commerce POI
-    COMMERCE_TAGS = [
-        OsmTag("shop", "supermarket", "commerce", weight=1.0),
-        OsmTag("shop", "bakery", "commerce", weight=0.5),
-        OsmTag("amenity", "marketplace", "commerce", weight=0.8),
-        OsmTag("shop", "convenience", "commerce", weight=0.3),
-    ]
-
-    # Environment POI
-    ENVIRONMENT_TAGS = [
-        OsmTag("leisure", "park", "environnement", weight=1.0),
-        OsmTag("landuse", "forest", "environnement", weight=0.8),
-        OsmTag("natural", "water", "environnement", weight=0.5),
-        OsmTag("leisure", "garden", "environnement", weight=0.7),
-    ]
-
-    @classmethod
-    def get_all_tags(cls) -> list[OsmTag]:
-        """Get all configured tags."""
-        return (
-            cls.EDUCATION_TAGS +
-            cls.TRANSPORT_TAGS +
-            cls.TRANSIT_TAGS +
-            cls.NUISANCES_TAGS +
-            cls.COMMERCE_TAGS +
-            cls.ENVIRONMENT_TAGS
-        )
-
-    @classmethod
-    def get_tags_by_category(cls, category: str) -> list[OsmTag]:
-        """Get tags for a specific category."""
-        mapping = {
-            "education": cls.EDUCATION_TAGS,
-            "transport": cls.TRANSPORT_TAGS,
-            "transit": cls.TRANSIT_TAGS,
-            "nuisances": cls.NUISANCES_TAGS,
-            "commerce": cls.COMMERCE_TAGS,
-            "environnement": cls.ENVIRONMENT_TAGS,
-        }
-        return mapping.get(category, [])
-
-    @classmethod
-    def to_osm_tags_dict(cls, tags: list[OsmTag]) -> dict[str, list[str]]:
-        """Convert to OSMnx tags dict format."""
-        result: dict[str, list[str]] = {}
-        for tag in tags:
-            if tag.key not in result:
-                result[tag.key] = []
-            result[tag.key].append(tag.value)
-        return result
-
-
-class OsmClient:
+class OsmClient(OsmProcessingMixin):
     """Client for fetching OSM POI data."""
 
     def __init__(self) -> None:
@@ -266,40 +174,3 @@ class OsmClient:
 
         import pandas as pd
         return gpd.GeoDataFrame(pd.concat(all_gdf, ignore_index=True))
-
-    def _process_gdf(
-        self,
-        gdf: gpd.GeoDataFrame,
-        category: str,
-        tags: list[OsmTag],
-    ) -> gpd.GeoDataFrame:
-        """Process and standardize GeoDataFrame columns."""
-        import pandas as pd
-
-        # Get centroid for polygons
-        gdf = gdf.copy()
-        gdf["geometry"] = gdf["geometry"].centroid
-
-        # Extract coordinates
-        gdf["longitude"] = gdf["geometry"].x
-        gdf["latitude"] = gdf["geometry"].y
-
-        # Determine sub-type from tags
-        def get_subtype(row: pd.Series) -> str:
-            for tag in tags:
-                if tag.key in row.index and row[tag.key] == tag.value:
-                    return tag.value
-            return "unknown"
-
-        gdf["category"] = category
-        gdf["sous_type"] = gdf.apply(get_subtype, axis=1)
-
-        # Get name if available
-        if "name" not in gdf.columns:
-            gdf["name"] = None
-
-        # Select relevant columns
-        cols = ["name", "category", "sous_type", "longitude", "latitude", "geometry"]
-        existing_cols = [c for c in cols if c in gdf.columns]
-
-        return gdf[existing_cols].copy()

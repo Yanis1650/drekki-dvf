@@ -68,15 +68,31 @@ test('failed new search clears old data and retry recovers', async () => {
   fail = false; await study.refresh();
   assert.equal(study.status.value, 'ready');
 });
+// Le compte vient de `study.limit`, jamais d'un nombre ecrit ici : le message
+// du bandeau annoncait 1 000 alors que la limite en valait une autre, faute
+// d'un lien entre les deux.
 test('radius and recent period sent to shared endpoint; cap is explicit', async () => {
   let request;
-  const study = useStudyArea({ get: async (url, options) => { request = { url, ...options }; return { data: response(...Array.from({ length: 1000 }, (_, i) => mutation(String(i)))) }; } });
+  const study = useStudyArea({ get: async (url, options) => { request = { url, ...options }; return { data: response(...Array.from({ length: study.limit }, (_, i) => mutation(String(i)))) }; } });
   study.radius.value = 5000; study.recent.value = true;
   await study.refresh();
   assert.equal(request.url, '/land/search/enriched');
   assert.equal(request.params.radius, 5000);
+  assert.equal(request.params.limit, study.limit);
   assert.match(request.params.date_from, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(study.capped.value, true);
+});
+// Ancre volontaire : cette valeur doit rester egale a LIMITE_MAX dans
+// app/api/v1/endpoints/land_search.py, ou toute requete partirait en 422.
+// tests/test_api_endpoints.py fige la meme borne cote serveur.
+test('requested limit matches the API ceiling', () => {
+  const study = useStudyArea({ get: async () => ({ data: response() }) });
+  assert.equal(study.limit, 50000);
+});
+test('one result short of the limit is not reported as capped', async () => {
+  const study = useStudyArea({ get: async () => ({ data: response(...Array.from({ length: study.limit - 1 }, (_, i) => mutation(String(i)))) }) });
+  await study.refresh();
+  assert.equal(study.capped.value, false);
 });
 test('dispose prevents late state updates', async () => {
   let resolve;

@@ -250,17 +250,23 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour les détails techniques c
 ## Tests
 
 ```bash
-pytest                                              # 194 tests backend
+pytest                                              # 195 tests backend
 mypy app/domain app/infrastructure app/schemas      # périmètre strict
 ruff check app data-pipeline tests
+python scripts/check_taille.py                      # limite de 200 lignes
 
 cd frontend
-npm test                                            # 36 tests
+npm test                                            # 36 tests unitaires
 npm run check:charte                                # conformité à la charte
+npm run test:rendu                                  # rendu réel dans Chromium
 ```
 
-La CI exécute ces cinq contrôles, puis construit le frontend et les deux images
-Docker de production. Le périmètre de `mypy` est volontairement étroit : le
+La CI exécute ces sept contrôles, puis construit le frontend et les deux images
+Docker de production. `test:rendu` charge la build de production dans Chromium
+et mesure les pixels réellement peints : les tests unitaires ne montent ni
+MapLibre ni ApexCharts, et une montée de dépendance a déjà vidé la carte sans
+qu'aucun autre contrôle ne le voie — voir
+[ADR-0006](docs/adr/0006-verifier-le-rendu-pas-seulement-le-build.md). Le périmètre de `mypy` est volontairement étroit : le
 reste du paquet ne passe pas encore le mode strict, et une configuration
 stricte qu'on n'exécute pas est un faux signal — voir la section `[tool.mypy]`
 de `pyproject.toml`.

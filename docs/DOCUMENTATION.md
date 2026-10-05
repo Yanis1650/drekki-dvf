@@ -122,7 +122,7 @@ ETL réellement exécutées pour un département :
 | Table | Étape ETL | Sans elle |
 |-------|-----------|-----------|
 | `dfi_filiations` | `etl_dfi.py` | `/filiation` répond `503 data_unavailable` |
-| `points_interet` | `etl_poi.py` | scores d'environnement omis (`enrichment_available: false`) |
+| `points_interet` | `etl_osm_enrichment.py` | scores d'environnement omis (`enrichment_available: false`) |
 
 L'API ne substitue jamais de valeur par défaut à une donnée absente : voir
 `app/infrastructure/data_availability.py`.

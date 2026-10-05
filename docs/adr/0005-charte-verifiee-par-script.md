@@ -20,10 +20,17 @@ Une revue humaine attrape la première occurrence, rarement la trentième.
 
 Remplacer la palette Tailwind par défaut dans `tailwind.config.js` — écrire
 `text-slate-500` ne produit plus rien du tout — et ajouter un vérificateur,
-`npm run check:charte`, qui **échoue** sur neuf familles d'écarts : palettes hors
-charte, blanc et noir en dur, hexadécimaux, tailles de texte hors échelle,
+`npm run check:charte`, qui **échoue** sur onze familles d'écarts : palettes hors
+charte, blanc et noir en dur — en classe Tailwind comme en déclaration CSS —,
+fonctions `rgb()`/`hsl()`, hexadécimaux, tailles de texte hors échelle,
 rayons hors charte, ombres décoratives, dégradés, verre dépoli, animations
 décoratives.
+
+Les deux règles portant sur le CSS brut ont été ajoutées après coup : les
+premières ne visaient que la syntaxe des classes Tailwind, si bien qu'un
+`background: white` dans un bloc `<style scoped>` passait sans bruit. Vingt
+écarts dormaient ainsi dans quatre composants, dont deux couleurs de palettes
+bannies déguisées en `rgba()`.
 
 Le script tourne dans la CI, au même rang que les tests. Une ligne peut se
 soustraire à une règle en la nommant : le commentaire `charte-ignore` rend

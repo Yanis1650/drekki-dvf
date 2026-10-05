@@ -13,7 +13,8 @@ export function useStudyArea(client) {
   const error = ref('');
   const capped = ref(false);
   const enrichmentAvailable = ref(null);
-  const limit = 1000;
+  // Doit rester sous le plafond de l'API (LIMITE_MAX dans land_search.py).
+  const limit = 50000;
   let version = 0, controller;
   async function refresh() {
     const current = ++version;
@@ -45,6 +46,6 @@ export function useStudyArea(client) {
     }
   }
   function dispose() { version++; controller?.abort(); }
-  return { center, label, commune, radius, recent, transactions, status, error, capped,
+  return { center, label, commune, radius, recent, transactions, status, error, capped, limit,
     enrichmentAvailable, refresh, dispose, stats: computed(() => summarize(transactions.value)) };
 }

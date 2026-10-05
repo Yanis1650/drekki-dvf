@@ -238,6 +238,36 @@ class TestRechercheEnrichie:
         assert body["enrichment_available"] is False
         assert body["location_enrichment"] is None
 
+    def test_le_plafond_de_limit_est_celui_annonce(self, client):
+        """50 000 passe, 50 001 est refuse.
+
+        Le plafond precedent, 1 000, mordait des l'ouverture : au rayon par
+        defaut de 500 m, la base departementale porte 2 201 mutations. Ce test
+        fige la borne pour qu'elle ne redescende pas en silence, et pour que le
+        message du bandeau — qui affiche la limite demandee — reste vrai.
+        """
+        params = {"lat": 48.1173, "lon": -1.6778, "radius": 2000}
+
+        assert client.get(
+            "/api/v1/land/search/enriched", params={**params, "limit": 50000}
+        ).status_code == 200
+        assert client.get(
+            "/api/v1/land/search/enriched", params={**params, "limit": 50001}
+        ).status_code == 422
+        assert client.get(
+            "/api/v1/land/search", params={**params, "limit": 50000}
+        ).status_code == 200
+        assert client.get(
+            "/api/v1/land/search", params={**params, "limit": 50001}
+        ).status_code == 422
+
+    @pytest.mark.parametrize("route", ["/api/v1/land/search", "/api/v1/land/search/enriched"])
+    def test_limit_zero_reste_refuse(self, client, route):
+        """La borne basse ne bouge pas : `ge=1`, sur les deux routes."""
+        assert client.get(
+            route, params={"lat": 48.1173, "lon": -1.6778, "radius": 2000, "limit": 0},
+        ).status_code == 422
+
     def test_aucun_score_neutre_invente(self, client):
         body = client.get(
             "/api/v1/land/search/enriched",

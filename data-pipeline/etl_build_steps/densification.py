@@ -1,4 +1,8 @@
-"""Step 2: Densification (CES actuel + potentiel)."""
+"""Step 2: Densification (CES actuel + potentiel).
+
+Pour la rejouer seule sur une base deja construite, voir
+`etl_build_steps/densification_cli.py`.
+"""
 
 from .utils import print_distribution, step_banner
 
@@ -46,11 +50,15 @@ def step_densification(conn, dept):
                         THEN {'b.emprise_sol_m2' if has_bdnb else '0'}
                     ELSE NULL
                 END AS surface_plancher_m2,
+                -- Les libelles sont ceux de `usage_niveau_1_txt` dans la BDNB,
+                -- accents compris : `bdnb_stats` est un `SELECT *` du Parquet,
+                -- rien ne les normalise en chemin. Une comparaison sans accent
+                -- ne leve aucune erreur, elle tombe dans le defaut 0,40.
                 CASE
-                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Residentiel collectif'  THEN 0.60
-                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Residentiel individuel' THEN 0.40
+                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Résidentiel collectif'  THEN 0.60
+                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Résidentiel individuel' THEN 0.40
                     WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Tertiaire & Autres'     THEN 0.60
-                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Dependance'             THEN 0.25
+                    WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Dépendance'             THEN 0.25
                     WHEN {'b.type_usage' if has_bdnb else 'NULL'} = 'Secondaire'             THEN 0.35
                     ELSE 0.40
                 END AS ces_potentiel,

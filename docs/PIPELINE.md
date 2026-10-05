@@ -100,6 +100,7 @@ python data-pipeline/etl_build_dept.py 35
 | `run_pipeline.py` | **Point d'entrée départemental.** Téléchargement PLU, puis `etl_build_dept`, migrations SQL, `preflight_check`, `validate_plu`, pytest. |
 | `etl_build_dept.py` | Les 8 étapes de construction de la base. Appelé par le précédent, lançable seul. |
 | `etl_build_steps/` | Les 8 étapes, une par module : `golden_join`, `densification`, `gpu`, `bdtopo`, `rnu`, `confidence`, `dfi`, `optimize`. |
+| `etl_build_steps/densification_cli.py` | Rejoue la seule densification sur une base construite : `cd data-pipeline && python -m etl_build_steps.densification_cli 35`. `run_etl_densification.ps1` l'appelle. |
 | `preflight_check.py` | Vérifications post-migration avant déploiement. |
 | `validate_plu.py` | Contrôle du mapping PLUi sur une commune réelle. |
 
@@ -114,7 +115,25 @@ signalera par un `503 data_unavailable` plutôt que d'inventer une valeur.
 | `etl_france_bdnb.py` | BDNB (CSTB) — emprise et attributs bâtis | Pas d'emprise au sol, donc pas de CES |
 | `download_plu_wfs.py` puis `import_plu.py` | Zonage PLU/PLUi (WFS GPU) | Zones `INCONNU`, pas de lecture urbanisme |
 | `etl_dfi.py` | Documents de Filiation Informatisés (DGFiP) | Filiation cadastrale indisponible |
-| `etl_poi.py` / `etl_osm_enrichment.py` | Points d'intérêt OpenStreetMap | `enrichment_available: false` — scores omis, jamais remplacés par 5/10 |
+| `etl_osm_enrichment.py` | Points d'intérêt OpenStreetMap | `enrichment_available: false` — scores omis, jamais remplacés par 5/10 |
+
+### Vocabulaire de `points_interet.type_poi`
+
+`etl_osm_enrichment.py` est seul à écrire cette table. Les valeurs qu'il pose
+viennent du catalogue OSM (`app/infrastructure/osm/tags.py`), qui sépare
+délibérément le ferroviaire du bus — leurs décroissances de score diffèrent.
+
+| `type_poi` | Contenu | Lu par |
+|---|---|---|
+| `transit` | gares, métro, tram | `transport_scorer.py`, `proximity_scorer.py` |
+| `transport` | arrêts de bus, gares routières, stations vélo | les mêmes |
+| `ecole` | établissements scolaires | `education_scorer.py`, `proximity_scorer.py` |
+| `commerce`, `environnement`, `nuisance` | commerces, espaces verts, nuisances | `proximity_scorer.py` |
+
+Un désaccord entre ce que l'ETL écrit et ce qu'un scoreur interroge ne lève
+aucune erreur : le score sort à zéro, comme s'il n'y avait rien à proximité.
+`transport_scorer.py` interrogeait ainsi `'gare'`, valeur que seul l'ancien
+`etl_poi.py` écrivait. Toute valeur ajoutée d'un côté est à porter de l'autre.
 
 ### Contenu réel de la base de démonstration
 
@@ -139,33 +158,57 @@ l'API et omis par l'interface, conformément à la règle du projet.
 
 ## Statut des autres scripts
 
-Le répertoire porte son historique. Deux implémentations des mêmes étapes y
-cohabitent : les modules de `etl_build_steps/` (ceux réellement exécutés, et
+Le répertoire portait son historique : deux implémentations des mêmes étapes y
+cohabitaient — les modules de `etl_build_steps/` (ceux réellement exécutés, et
 couverts par `tests/test_etl_build_steps.py`) et des scripts autonomes plus
-anciens qui font le même travail. **Les modules d'étape ne les importent pas :
-ce sont des réimplémentations, pas des enveloppes.**
+anciens qui refaisaient le même travail sans que rien ne les importe. Ces huit
+scripts ont été supprimés. Ce qui reste à la racine de `data-pipeline/` est
+soit exécuté, soit importé.
 
 | Script | Statut |
 |---|---|
 | `etl_dvf.py` | **Adaptateur historique**, conservé pour les imports existants. Ne pas l'utiliser pour une nouvelle base — `run_etl.py` est la référence. |
-| `etl_densification.py` | Variante autonome de `etl_build_steps/densification.py`. Encore appelée par `run_etl_densification.ps1`. |
-| `etl_confidence_score.py` | Variante autonome de `etl_build_steps/confidence.py`. Plus référencée nulle part. |
-| `etl_gpu_integration.py` | Variante autonome de `etl_build_steps/gpu.py`. Plus référencée nulle part. |
-| `etl_rnu_classification.py` | Variante autonome de `etl_build_steps/rnu.py`. Plus référencée nulle part. |
-| `etl_bdtopo_bati.py` | Variante autonome de `etl_build_steps/bdtopo.py`. Plus référencée nulle part. |
-| `etl_join_golden.py` | Variante autonome de `etl_build_steps/golden_join.py`. Plus référencée nulle part. |
-| `etl_join_test_dept.py` | Jointure « golden » restreinte au département 35, datant de la mise au point. |
-| `create_parcelles_enriched.py` | Table `parcelles_enriched` d'une méthodologie antérieure. Plus aucune référence. |
-| `enrich_dvf_parcelles.py` | Liaison DVF vers parcelles antérieure au golden join. Plus aucune référence. |
-| `optimize_analytics.py` | Index sur `date_mutation`, absorbé par l'étape `optimize`. Plus aucune référence. |
 | `etl_enrichment.py` | `EnrichmentEtlPipeline`, exporté par `data-pipeline/__init__.py`. |
 
-Les sept lignes marquées « plus référencée nulle part » sont des candidates à la
-suppression : aucun script, test, workflow ou document du dépôt ne les appelle.
-Elles sont conservées tant qu'une reprise manuelle d'une étape isolée reste
-possible sur le serveur. Le jour où `etl_build_steps/` est jugé stable, les
-supprimer retire la moitié du répertoire et lève l'ambiguïté sur ce qu'il faut
-lancer.
+### Scripts supprimés
+
+Huit réimplémentations autonomes — 1 685 lignes — qu'aucun script, test,
+workflow ni document du dépôt n'appelait plus. Leur remplaçant dans
+`etl_build_steps/` est couvert par `tests/test_etl_build_steps.py`.
+
+| Script retiré | Remplacé par |
+|---|---|
+| `etl_confidence_score.py` | `etl_build_steps/confidence.py` |
+| `etl_gpu_integration.py` | `etl_build_steps/gpu.py` |
+| `etl_rnu_classification.py` | `etl_build_steps/rnu.py` |
+| `etl_bdtopo_bati.py` | `etl_build_steps/bdtopo.py` |
+| `etl_join_golden.py` | `etl_build_steps/golden_join.py` |
+| `optimize_analytics.py` | l'étape `optimize` (`etl_build_steps/optimize.py`) |
+| `enrich_dvf_parcelles.py` | le golden join |
+| `create_parcelles_enriched.py` | méthodologie antérieure, sans successeur |
+
+À ces huit s'ajoutent trois retraits ultérieurs. `etl_join_test_dept.py` —
+206 lignes, jointure « golden » restreinte au département 35 et datant de la
+mise au point — que rien n'appelait. Et `etl_poi.py` — 250 lignes — dont les
+deux chargeurs lisaient le CSV fourni puis le jetaient pour rendre 0 : sans CSV,
+ils fabriquaient écoles et gares par `random.uniform` autour des coordonnées de
+mutations. Cette documentation le présentait comme le chargeur des points
+d'intérêt OpenStreetMap ; ce rôle revient à `etl_osm_enrichment.py`, le seul à
+charger de vraies données.
+
+Enfin `etl_densification.py` — 272 lignes — variante autonome de l'étape
+`etl_build_steps/densification.py`, dont la formule avait divergé : elle
+comparait `type_usage` à « Résidentiel collectif » et « Dépendance » avec leurs
+accents, l'étape du pipeline sans. C'est l'étape qui avait tort, et elle a été
+corrigée avant le retrait. `run_etl_densification.ps1` appelle désormais
+`etl_build_steps/densification_cli.py`, qui charge au besoin la BDNB depuis son
+Parquet — ce que faisait la variante — puis exécute l'étape.
+
+La reprise manuelle d'une étape isolée passe désormais par le module
+correspondant de `etl_build_steps/` — la densification est la seule à avoir sa
+propre entrée en ligne de commande, les autres se rejouent par
+`etl_build_dept.py`. `git log -- data-pipeline/<nom>` restitue
+les scripts retirés si le besoin s'en faisait sentir.
 
 ---
 

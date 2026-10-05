@@ -11,6 +11,18 @@ import duckdb
 
 from app.services.enrichment.base_scorer import IScorer
 
+# Les deux valeurs de `type_poi` que `data-pipeline/etl_osm_enrichment.py`
+# ecrit pour les transports : `transit` porte le ferroviaire, le metro et le
+# tram, `transport` les arrets de bus, gares routieres et stations velo. Le
+# catalogue OSM (`app/infrastructure/osm/tags.py`) les distingue deliberement,
+# leurs decroissances n'etant pas les memes ; ce scoreur, lui, mesure l'acces
+# aux transports en general et prend les deux.
+#
+# La valeur `'gare'` qu'interrogeait cette requete ne venait que de
+# `etl_poi.py`, un generateur de POI aleatoires retire du depot : aucun
+# chargeur ne l'ecrit plus.
+TYPES_TRANSPORT = ("transit", "transport")
+
 
 class TransportScorer(IScorer):
     """Scorer for transport accessibility.
@@ -18,7 +30,7 @@ class TransportScorer(IScorer):
     Score calculation:
     - Distance to nearest station (primary factor)
     - Count of stations within 1km (secondary factor)
-    - Bonus for transport type diversity (gare, metro, bus, tram)
+    - Bonus for transport type diversity (rail, metro, tram, bus)
 
     Score scale:
     - 0: No station within 2km
@@ -35,7 +47,12 @@ class TransportScorer(IScorer):
 
     @property
     def poi_type(self) -> str:
-        return "gare"
+        """Type principal.
+
+        `IScorer` n'en admet qu'un ; la requete en interroge deux, voir
+        `TYPES_TRANSPORT`.
+        """
+        return "transit"
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Get read-only DuckDB connection."""
@@ -80,7 +97,7 @@ class TransportScorer(IScorer):
                             ))
                         ) AS distance_meters
                     FROM points_interet
-                    WHERE type_poi = 'gare'
+                    WHERE type_poi IN (?, ?)
                       AND longitude BETWEEN ? AND ?
                       AND latitude BETWEEN ? AND ?
                 )
@@ -92,6 +109,7 @@ class TransportScorer(IScorer):
                 LIMIT 10
             """, [
                 latitude, longitude, latitude,
+                *TYPES_TRANSPORT,
                 longitude - lon_delta, longitude + lon_delta,
                 latitude - lat_delta, latitude + lat_delta,
             ]).fetchall()
